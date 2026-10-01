@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: storeos-api, labels: { app: storeos-api } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: storeos-api } }
+  template:
+    metadata: { labels: { app: storeos-api } }
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/your-org/storeos-api:latest
+          ports: [{ containerPort: 3001 }]
+          envFrom: [{ secretRef: { name: storeos-secrets } }]
+          resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: '1', memory: 1Gi } }
+          readinessProbe: { httpGet: { path: /api/v1/health, port: 3001 }, initialDelaySeconds: 10 }
+          livenessProbe: { httpGet: { path: /api/v1/health, port: 3001 }, initialDelaySeconds: 30 }
