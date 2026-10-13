@@ -1,9 +1,5 @@
 # Render Blueprint - STOREOS production baseline
 # https://render.com/docs/blueprint-spec
-previews:
-  generation: manual
-  expireAfterDays: 7
-
 services:
   - type: web
     name: storeos-api
