@@ -6,7 +6,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @storeos/api prisma:generate && pnpm --filter @storeos/api exec prisma migrate deploy && pnpm --filter @storeos/api build
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @storeos/api prisma:generate && pnpm --filter @storeos/api exec prisma migrate deploy && pnpm --filter @storeos/api build
     startCommand: pnpm --filter @storeos/api start
     healthCheckPath: /api/v1/health
     autoDeployTrigger: commit
@@ -43,7 +43,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @storeos/web build
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @storeos/web build
     startCommand: pnpm --filter @storeos/web start
     healthCheckPath: /
     autoDeployTrigger: commit
