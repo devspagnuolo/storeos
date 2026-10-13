@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import type { NextFunction, Request, Response } from 'express';
-import { json, urlencoded } from 'express';
+import { json, text, urlencoded } from 'express';
 import { AppConfig } from './config/app-config';
 
 /** Configuração compartilhada entre main.ts e os testes de integração. */
@@ -35,6 +35,7 @@ export function setupApp(app: INestApplication, config: AppConfig): void {
     }),
   );
   app.use(urlencoded({ extended: false, limit: '256kb' }));
+  app.use(text({ type: 'text/csv', limit: '5mb' }));
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader('Cache-Control', 'no-store');
     next();

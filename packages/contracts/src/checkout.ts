@@ -24,8 +24,12 @@ export const checkoutSchema = z.object({
     installments: z.number().int().min(1).max(12).default(1),
     /** Token gerado pelo SDK do provedor no navegador; nunca dados brutos de cartão. */
     cardToken: z.string().min(8).optional(),
+    /** Bandeira/ID do meio de pagamento retornado pelo SDK (ex.: visa, master). */
+    cardPaymentMethodId: z.string().max(40).optional(),
     cardHolderName: z.string().max(120).optional(),
   }),
+  useCashbackCents: z.number().int().min(0).default(0),
+  referralCode: z.string().max(20).optional(),
   acceptedTerms: z.literal(true, { errorMap: () => ({ message: 'É necessário aceitar os termos' }) }),
   acceptsMarketing: z.boolean().default(false),
   notes: z.string().max(500).optional(),

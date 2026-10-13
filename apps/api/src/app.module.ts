@@ -4,7 +4,16 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppConfig, AppConfigModule } from './config/app-config';
 import { HealthController } from './modules/health/health.controller';
+import { CartModule } from './modules/cart/cart.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
 import { IdentityModule } from './modules/identity/identity.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { LoyaltyModule } from './modules/loyalty/loyalty.module';
+import { MarketingModule } from './modules/marketing/marketing.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { ShippingModule } from './modules/shipping/shipping.module';
 import { AuditModule } from './shared/infrastructure/audit/audit.module';
 import { CacheModule } from './shared/infrastructure/cache/cache.module';
 import { CryptoModule } from './shared/infrastructure/crypto/crypto.module';
@@ -35,6 +44,15 @@ import { StoreResolverMiddleware } from './shared/presentation/middleware/store-
     OutboxModule,
     HttpModule,
     IdentityModule,
+    InventoryModule,
+    CatalogModule,
+    MarketingModule,
+    ShippingModule,
+    CartModule,
+    OrdersModule,
+    LoyaltyModule,
+    PaymentsModule,
+    CheckoutModule,
   ],
   controllers: [HealthController],
   providers: [

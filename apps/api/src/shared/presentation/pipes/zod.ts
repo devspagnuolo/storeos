@@ -1,7 +1,6 @@
 import { Body, PipeTransform, Query } from '@nestjs/common';
 import { ApiBody, ApiQuery } from '@nestjs/swagger';
-import type { ZodTypeAny } from 'zod';
-import { ZodError } from 'zod';
+import { ZodError, type ZodTypeAny } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { ValidationError } from '../../domain/errors';
 
@@ -21,11 +20,19 @@ export class ZodValidationPipe implements PipeTransform {
   }
 }
 
-type JsonSchema = Record<string, unknown> & { properties?: Record<string, unknown>; required?: string[] };
+interface JsonSchema {
+  properties?: Record<string, unknown>;
+  required?: string[];
+  [key: string]: unknown;
+}
 
 function toJsonSchema(schema: ZodTypeAny): JsonSchema {
-  const json = zodToJsonSchema(schema, { target: 'openApi3', $refStrategy: 'none' }) as JsonSchema;
-  delete (json as Record<string, unknown>)['$schema'];
+  // O cast via unknown evita a instanciação profunda de tipos do zod-to-json-schema.
+  const json = (zodToJsonSchema as unknown as (s: unknown, o: unknown) => JsonSchema)(schema, {
+    target: 'openApi3',
+    $refStrategy: 'none',
+  });
+  delete json['$schema'];
   return json;
 }
 
@@ -35,7 +42,7 @@ export function ZodBody(schema: ZodTypeAny): ParameterDecorator {
     Body(new ZodValidationPipe(schema))(target, propertyKey, parameterIndex);
     if (propertyKey === undefined) return;
     const descriptor = Object.getOwnPropertyDescriptor(target, propertyKey);
-    if (descriptor) ApiBody({ schema: toJsonSchema(schema) })(target, propertyKey, descriptor);
+    if (descriptor) ApiBody({ schema: toJsonSchema(schema) as never })(target, propertyKey, descriptor);
   };
 }
 

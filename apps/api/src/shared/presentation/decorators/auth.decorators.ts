@@ -20,6 +20,11 @@ export const CurrentAuth = createParamDecorator((_: unknown, ctx: ExecutionConte
   return req.auth;
 });
 
+/** Autenticação opcional (rotas @Public que personalizam a resposta quando há token). */
+export const CurrentAuthOptional = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthContext | undefined => {
+  return ctx.switchToHttp().getRequest<AppRequest>().auth;
+});
+
 /** storeId do token do staff/cliente autenticado. */
 export const AuthStoreId = createParamDecorator((_: unknown, ctx: ExecutionContext): string => {
   const req = ctx.switchToHttp().getRequest<AppRequest>();
