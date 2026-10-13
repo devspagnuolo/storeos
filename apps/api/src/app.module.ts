@@ -1,19 +1,50 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { AuthModule } from './modules/auth/auth.module';
-import { CatalogModule } from './modules/catalog/catalog.module';
-import { OrdersModule } from './modules/orders/orders.module';
-import { HealthController } from './modules/health.controller';
-import { PrismaModule } from './shared/infrastructure/prisma.module';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AppConfig, AppConfigModule } from './config/app-config';
+import { HealthController } from './modules/health/health.controller';
+import { IdentityModule } from './modules/identity/identity.module';
+import { AuditModule } from './shared/infrastructure/audit/audit.module';
+import { CacheModule } from './shared/infrastructure/cache/cache.module';
+import { CryptoModule } from './shared/infrastructure/crypto/crypto.module';
+import { HttpModule } from './shared/infrastructure/http/http.module';
+import { OutboxModule } from './shared/infrastructure/outbox/outbox.module';
+import { PrismaModule } from './shared/infrastructure/prisma/prisma.module';
+import { AllExceptionsFilter } from './shared/presentation/filters/all-exceptions.filter';
+import { AuthGuard } from './shared/presentation/guards/auth.guard';
+import { RequestContextMiddleware } from './shared/presentation/middleware/request-context.middleware';
+import { StoreResolverMiddleware } from './shared/presentation/middleware/store-resolver.middleware';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    AppConfigModule,
+    JwtModule.registerAsync({
+      global: true,
+      inject: [AppConfig],
+      useFactory: (config: AppConfig) => ({ secret: config.env.JWT_ACCESS_SECRET, verifyOptions: { algorithms: ['HS256'] } }),
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [AppConfig],
+      useFactory: (config: AppConfig) => [{ name: 'default', ttl: 60_000, limit: config.env.THROTTLE_LIMIT }],
+    }),
     PrismaModule,
-    AuthModule,
-    CatalogModule,
-    OrdersModule,
+    CryptoModule,
+    CacheModule,
+    AuditModule,
+    OutboxModule,
+    HttpModule,
+    IdentityModule,
   ],
   controllers: [HealthController],
+  providers: [
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AuthGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware, StoreResolverMiddleware).forRoutes('*');
+  }
+}

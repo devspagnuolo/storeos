@@ -1,17 +1,16 @@
-import { ValidationPipe } from '@nestjs/common';
+import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { AppConfig } from './config/app-config';
+import { setupApp } from './setup-app';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix('api/v1');
-  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-  app.enableCors({ origin: process.env.WEB_ORIGIN?.split(',') ?? ['http://localhost:3000'], credentials: true });
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-  const config = new DocumentBuilder().setTitle('STOREOS API').setDescription('Enterprise commerce API').setVersion('1.0').addBearerAuth().build();
-  SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, config));
-  await app.listen(process.env.PORT ?? 3001);
+async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const config = app.get(AppConfig);
+  setupApp(app, config);
+  await app.listen(config.env.PORT, '0.0.0.0');
+  new Logger('Bootstrap').log(`API em http://localhost:${config.env.PORT}/api/v1 — docs em /api/docs`);
 }
-bootstrap();
+
+void bootstrap();
