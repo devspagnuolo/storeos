@@ -10,6 +10,7 @@ import { CheckoutModule } from './modules/checkout/checkout.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -51,6 +52,7 @@ import { StoreResolverMiddleware } from './shared/presentation/middleware/store-
     CartModule,
     OrdersModule,
     LoyaltyModule,
+    IntegrationsModule,
     PaymentsModule,
     CheckoutModule,
   ],
