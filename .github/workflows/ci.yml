@@ -61,13 +61,19 @@ jobs:
         working-directory: apps/api
         run: |
           set -euo pipefail
-          psql "postgresql://postgres:postgres@localhost:5432/postgres" -c 'CREATE DATABASE shadow_diff;' || true
-          ../../scripts/ci-step.sh "prisma migrate diff" pnpm exec prisma migrate diff \
-            --from-migrations prisma/migrations \
-            --to-schema-datamodel prisma/schema.prisma \
-            --shadow-database-url "$SHADOW_DATABASE_URL" \
-            --script > /tmp/pending.sql
-          if grep -q "empty migration" /tmp/pending.sql || [ ! -s /tmp/pending.sql ]; then
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c 'CREATE DATABASE shadow_diff;' || true
+          if ! pnpm exec prisma migrate diff \
+              --from-migrations prisma/migrations \
+              --to-schema-datamodel prisma/schema.prisma \
+              --shadow-database-url "$SHADOW_DATABASE_URL" \
+              --script > /tmp/pending.raw 2> /tmp/pending.err; then
+            cat /tmp/pending.err
+            echo "::error title=prisma migrate diff::$(tr '\n' ' ' < /tmp/pending.err | head -c 3000)"
+            exit 1
+          fi
+          # Keep only SQL (drop CLI warnings); every Prisma diff line group starts with "-- ".
+          sed -n '/^-- /,$p' /tmp/pending.raw > /tmp/pending.sql || true
+          if [ ! -s /tmp/pending.sql ] || grep -q "empty migration" /tmp/pending.sql; then
             echo "Schema and migrations are in sync."
           else
             name="schema_update"
