@@ -2,7 +2,7 @@
 # https://render.com/docs/blueprint-spec
 services:
   - type: web
-    name: storeos-api
+    name: storeos-nexo-api
     runtime: node
     plan: free
     region: oregon
@@ -39,7 +39,7 @@ services:
         generateValue: true
 
   - type: web
-    name: storeos-web
+    name: storeos-nexo-web
     runtime: node
     plan: free
     region: oregon
