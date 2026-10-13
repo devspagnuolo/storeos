@@ -4,7 +4,16 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { HealthController } from './modules/health.controller';
-import { PrismaService } from './shared/infrastructure/prisma.service';
+import { PrismaModule } from './shared/infrastructure/prisma.module';
 
-@Module({ imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, CatalogModule, OrdersModule], controllers: [HealthController], providers: [PrismaService] })
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    AuthModule,
+    CatalogModule,
+    OrdersModule,
+  ],
+  controllers: [HealthController],
+})
 export class AppModule {}
