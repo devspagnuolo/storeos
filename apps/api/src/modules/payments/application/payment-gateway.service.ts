@@ -53,7 +53,7 @@ export class PaymentGatewayService {
     if (key === 'mock' && this.config.isProduction) {
       throw new ExternalServiceError('Configure um provedor de pagamento para receber pedidos', 'PAYMENT_NOT_CONFIGURED');
     }
-    const credentials = key === 'mercadopago' && this.config.env.MERCADOPAGO_ACCESS_TOKEN ? { accessToken: this.config.env.MERCADOPAGO_ACCESS_TOKEN } : {};
+    const credentials: Record<string, string> = key === 'mercadopago' && this.config.env.MERCADOPAGO_ACCESS_TOKEN ? { accessToken: this.config.env.MERCADOPAGO_ACCESS_TOKEN } : {};
     return { provider, credentials };
   }
 }
