@@ -1,0 +1,82 @@
+# Render Blueprint - STOREOS production baseline
+# https://render.com/docs/blueprint-spec
+previews:
+  generation: manual
+  expireAfterDays: 7
+
+services:
+  - type: web
+    name: storeos-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @storeos/api prisma:generate && pnpm --filter @storeos/api build
+    preDeployCommand: pnpm --filter @storeos/api exec prisma migrate deploy
+    startCommand: pnpm --filter @storeos/api start
+    healthCheckPath: /api/v1/health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/contracts/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: NODE_ENV
+        value: production
+      - key: WEB_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: storeos-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: storeos-cache
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+  - type: web
+    name: storeos-web
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @storeos/web build
+    startCommand: pnpm --filter @storeos/web start
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - apps/web/**
+        - packages/contracts/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+
+  - type: keyvalue
+    name: storeos-cache
+    plan: free
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: storeos-postgres
+    databaseName: storeos
+    plan: free
+    region: oregon
+    postgresMajorVersion: 16
