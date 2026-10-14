@@ -13,7 +13,9 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const product = await getProduct((await params).slug);
   if (!product) return { title: 'Produto não encontrado' };
-  return { title: `${product.name}`, description: product.description ?? undefined, openGraph: { title: product.name, images: product.images?.map(i => i.url) } };
+  const title = product.seoTitle || product.name;
+  const description = product.seoDescription || product.description?.slice(0, 160) || undefined;
+  return { title, description, openGraph: { title, description, images: product.images?.map(i => i.url) } };
 }
 
 export default async function ProductPage({ params }: Props) {
@@ -21,7 +23,7 @@ export default async function ProductPage({ params }: Props) {
   if (!product) notFound();
   const image = product.images?.[0];
   // Dados estruturados para o Google exibir preço e disponibilidade no resultado de busca.
-  const jsonLd = { '@context': 'https://schema.org', '@type': 'Product', name: product.name, sku: product.sku, description: product.description, image: product.images?.map(i => i.url), offers: { '@type': 'Offer', priceCurrency: 'BRL', price: product.price, availability: `https://schema.org/${product.available > 0 ? 'InStock' : 'OutOfStock'}` } };
+  const jsonLd = { '@context': 'https://schema.org', '@type': 'Product', name: product.name, sku: product.sku, brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined, description: product.description, image: product.images?.map(i => i.url), offers: { '@type': 'Offer', priceCurrency: 'BRL', price: product.price, availability: `https://schema.org/${product.available > 0 ? 'InStock' : 'OutOfStock'}` } };
   return (
     <>
       <Header />
@@ -30,6 +32,7 @@ export default async function ProductPage({ params }: Props) {
         <div className="grid gap-10 md:grid-cols-2">
           <div className="card aspect-square overflow-hidden bg-gradient-to-br from-slate-100 to-violet-100">{image && <img src={image.url} alt={image.alt || product.name} className="h-full w-full object-cover" />}</div>
           <div>
+            {product.brand && <Link href={`/marcas/${product.brand.slug}`} className="text-sm font-semibold text-brand">{product.brand.name}</Link>}
             <h1 className="text-3xl font-bold">{product.name}</h1>
             <p className="mt-4 text-3xl font-black">{formatPrice(product.price)}</p>
             <p className="mt-1 text-sm text-slate-500">ou no PIX, com confirmação rápida</p>

@@ -68,6 +68,8 @@ model Store {
   orders        Order[]
   outboxEvents  OutboxEvent[]
   coupons       Coupon[]
+  brands        Brand[]
+  collections   Collection[]
 }
 
 model User {
@@ -152,6 +154,9 @@ model Product {
   description String?
   price       Decimal           @db.Decimal(14, 2)
   currency    String            @default("BRL")
+  brandId        String?
+  seoTitle       String?
+  seoDescription String?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   store       Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -160,9 +165,12 @@ model Product {
   inventory   Inventory[]
   orderItems  OrderItem[]
   categories  ProductCategory[]
+  brand       Brand?            @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  collections CollectionProduct[]
 
   @@unique([storeId, slug])
   @@unique([storeId, sku])
+  @@index([brandId])
   @@index([storeId, status])
   @@index([storeId, createdAt])
 }
@@ -468,4 +476,45 @@ model CouponRedemption {
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([couponId, customerId])
+}
+
+model Brand {
+  id        String    @id @default(uuid())
+  storeId   String
+  name      String
+  slug      String
+  logoUrl   String?
+  createdAt DateTime  @default(now())
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products  Product[]
+
+  @@unique([storeId, slug])
+}
+
+model Collection {
+  id          String              @id @default(uuid())
+  storeId     String
+  name        String
+  slug        String
+  description String?
+  active      Boolean             @default(true)
+  position    Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  store       Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products    CollectionProduct[]
+
+  @@unique([storeId, slug])
+  @@index([storeId, position])
+}
+
+model CollectionProduct {
+  collectionId String
+  productId    String
+  position     Int        @default(0)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, productId])
+  @@index([productId])
 }

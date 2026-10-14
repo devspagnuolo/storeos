@@ -137,6 +137,32 @@ export async function toggleCouponAction(form: FormData) {
   revalidatePath('/admin/cupons');
 }
 
+async function simplePost(path: string, method: 'POST' | 'PATCH', body: unknown, done: string): Promise<FormState> {
+  try {
+    await adminFetch(path, { method, body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/colecoes');
+  return { ok: done };
+}
+
+export async function createBrandAction(_: FormState, form: FormData): Promise<FormState> {
+  const name = String(form.get('name') ?? '').trim();
+  return simplePost('/catalog/brands', 'POST', { name, slug: slugifyServer(name) }, 'Marca criada.');
+}
+
+const skuList = (value: FormDataEntryValue | null) => String(value ?? '').split(/[\s,;]+/).map(item => item.trim()).filter(Boolean);
+const slugifyServer = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+export async function saveCollectionAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = form.get('id') ? String(form.get('id')) : undefined;
+  const name = String(form.get('name') ?? '').trim();
+  const body = { name, description: String(form.get('description') ?? '').trim() || undefined, active: form.get('active') === 'on', skus: skuList(form.get('skus')), ...(id ? {} : { slug: slugifyServer(name) }) };
+  return simplePost(id ? `/catalog/collections/${encodeURIComponent(id)}` : '/catalog/collections', id ? 'PATCH' : 'POST', body, id ? 'Coleção salva.' : 'Coleção criada.');
+}
+
 export async function saveProductAction(_: FormState, form: FormData): Promise<FormState> {
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const text = (key: string) => String(form.get(key) ?? '').trim();
@@ -150,6 +176,10 @@ export async function saveProductAction(_: FormState, form: FormData): Promise<F
     stock: Number(text('stock') || 0),
     imageUrl: id ? text('imageUrl') : text('imageUrl') || undefined,
     categoryIds: form.getAll('categoryIds').map(String),
+    // Na edição, vazio remove a marca; na criação, simplesmente não envia.
+    brandId: text('brandId') || (id ? null : undefined),
+    seoTitle: text('seoTitle') || undefined,
+    seoDescription: text('seoDescription') || undefined,
   };
   if (!Number.isFinite(body.price) || body.price < 0) return { error: 'Preço inválido.' };
   if (!Number.isInteger(body.stock) || body.stock < 0) return { error: 'Estoque deve ser um número inteiro.' };

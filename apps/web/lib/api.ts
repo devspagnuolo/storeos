@@ -4,7 +4,9 @@ export const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:30
 
 export type ProductImage = { url: string; alt: string | null };
 export type ProductSummary = { id: string; name: string; slug: string; sku: string; price: string; images?: ProductImage[] };
-export type ProductDetail = ProductSummary & { description: string | null; available: number; categories: { name: string; slug: string }[] };
+export type ProductDetail = ProductSummary & { description: string | null; available: number; categories: { name: string; slug: string }[]; brand?: { name: string; slug: string } | null; seoTitle?: string | null; seoDescription?: string | null };
+export type Brand = { id: string; name: string; slug: string; logoUrl: string | null };
+export type Collection = { id: string; name: string; slug: string; description: string | null };
 export type Category = { id: string; name: string; slug: string; description: string | null };
 export type ProductPage = { items: ProductSummary[]; total: number; page: number; pageSize: number };
 
@@ -20,13 +22,16 @@ async function get<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
-export function getProducts(query: { category?: string; q?: string; page?: number; pageSize?: number } = {}) {
+export function getProducts(query: { category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number } = {}) {
   const params = new URLSearchParams({ store: storeSlug });
   for (const [key, value] of Object.entries(query)) if (value) params.set(key, String(value));
   return get<ProductPage>(`/catalog/products?${params}`, emptyPage(query.page, query.pageSize));
 }
 
 export const getCategories = () => get<Category[]>(`/catalog/categories?store=${encodeURIComponent(storeSlug)}`, []);
+
+export const getBrands = () => get<Brand[]>(`/catalog/brands?store=${encodeURIComponent(storeSlug)}`, []);
+export const getCollections = () => get<Collection[]>(`/catalog/collections?store=${encodeURIComponent(storeSlug)}`, []);
 
 export const getProduct = (slug: string) => get<ProductDetail | null>(`/catalog/products/${encodeURIComponent(slug)}?store=${encodeURIComponent(storeSlug)}`, null);
 

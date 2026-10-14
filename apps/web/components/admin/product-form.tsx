@@ -3,9 +3,9 @@ import { useActionState, useState } from 'react';
 import { saveProductAction } from '../../app/admin/actions';
 import { productStatusLabel, slugify } from '../../lib/admin/labels';
 import type { AdminProduct } from '../../lib/admin/types';
-import type { Category } from '../../lib/api';
+import type { Brand, Category } from '../../lib/api';
 
-export function ProductForm({ product, categories, created }: { product?: AdminProduct; categories: Category[]; created?: boolean }) {
+export function ProductForm({ product, categories, brands, created }: { product?: AdminProduct; categories: Category[]; brands: Brand[]; created?: boolean }) {
   const [state, action, pending] = useActionState(saveProductAction, created ? { ok: 'Produto criado.' } : {});
   const [slug, setSlug] = useState(product?.slug ?? '');
   const [slugTouched, setSlugTouched] = useState(Boolean(product));
@@ -19,6 +19,10 @@ export function ProductForm({ product, categories, created }: { product?: AdminP
         <label className="text-sm font-medium">Preço (R$)<input name="price" required inputMode="decimal" pattern="\d+([.,]\d{1,2})?" defaultValue={product?.price} className="input" /></label>
         <label className="text-sm font-medium">Estoque físico<input name="stock" type="number" min={product?.reserved ?? 0} step={1} required defaultValue={product?.stock ?? 0} className="input" />{product && product.reserved > 0 && <span className="text-xs font-normal text-slate-500">{product.reserved} reservado(s) em pedidos pendentes</span>}</label>
         <label className="text-sm font-medium sm:col-span-2">Descrição<textarea name="description" rows={5} maxLength={5000} defaultValue={product?.description ?? ''} className="input" /></label>
+        <label className="text-sm font-medium">Marca<select name="brandId" defaultValue={product?.brandId ?? ''} className="input"><option value="">Sem marca</option>{brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+        <div className="hidden sm:block" />
+        <label className="text-sm font-medium sm:col-span-2">Título para o Google <span className="font-normal text-slate-400">(até 70 caracteres)</span><input name="seoTitle" maxLength={70} defaultValue={product?.seoTitle ?? ''} className="input" /></label>
+        <label className="text-sm font-medium sm:col-span-2">Descrição para o Google <span className="font-normal text-slate-400">(até 160)</span><textarea name="seoDescription" rows={2} maxLength={160} defaultValue={product?.seoDescription ?? ''} className="input" /></label>
         <label className="text-sm font-medium sm:col-span-2">URL da imagem principal<input name="imageUrl" type="url" defaultValue={product?.images[0]?.url ?? ''} placeholder="https://" className="input" /></label>
       </div>
       <aside className="space-y-6">
