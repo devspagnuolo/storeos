@@ -17,7 +17,7 @@ export function StoreForm({ store }: { store: { slug: string; name: string; logo
       <p className="text-sm text-slate-500">Endereço da loja (usado no login do painel): <code className="font-mono">{store.slug}</code></p>
       <div className="grid gap-2">
         <span className="text-sm font-medium">Logo e favicon</span>
-        {preview && <img src={preview} alt="Prévia da logo da loja" className="h-20 max-w-56 rounded-lg border bg-white p-2 object-contain" />}
+        {preview && <img src={preview} alt="Prévia da logo da loja" className="h-20 max-w-56 rounded-lg border bg-surface p-2 object-contain" />}
         <input
           name="logo"
           type="file"

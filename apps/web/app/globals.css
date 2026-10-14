@@ -1,3 +1,67 @@
 @tailwind base; @tailwind components; @tailwind utilities;
-@layer base { :root { color-scheme: light; } body { @apply bg-slate-50 text-slate-900 antialiased; } }
-@layer components { .shell { @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8; } .card { @apply rounded-2xl border border-slate-200 bg-white shadow-sm; } .input { @apply mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal; } .badge { @apply inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold; } .button-ghost { @apply inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 font-medium transition hover:border-brand; } .button { @apply inline-flex items-center justify-center rounded-xl bg-brand px-4 py-2.5 font-medium text-white transition hover:bg-violet-700; } }
+@layer base {
+  :root {
+  --brand: 91 61 245;
+  --brand-fg: 255 255 255;
+  --surface: 255 255 255;
+  --surface-raised: 255 255 255;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+  --violet-50: 245 243 255;
+  --violet-100: 237 233 254;
+  --violet-300: 196 181 253;
+  --emerald-50: 236 253 245;
+  --emerald-100: 209 250 229;
+  --emerald-700: 4 120 87;
+  --emerald-800: 6 95 70;
+  --red-50: 254 242 242;
+  --red-700: 185 28 28;
+  --amber-50: 255 251 235;
+  --amber-700: 180 83 9;
+  --amber-800: 146 64 14;
+  color-scheme: light;
+  }
+  .dark {
+  --brand: 139 117 255;
+  --brand-fg: 12 10 30;
+  --surface: 17 24 39;
+  --surface-raised: 24 32 50;
+  --slate-50: 11 16 32;
+  --slate-100: 22 29 47;
+  --slate-200: 38 48 68;
+  --slate-300: 55 66 87;
+  --slate-400: 124 135 155;
+  --slate-500: 152 163 184;
+  --slate-600: 180 189 205;
+  --slate-700: 203 211 223;
+  --slate-800: 226 231 238;
+  --slate-900: 241 244 248;
+  --slate-950: 248 250 252;
+  --violet-50: 33 28 74;
+  --violet-100: 45 38 99;
+  --violet-300: 124 102 240;
+  --emerald-50: 15 42 34;
+  --emerald-100: 18 55 43;
+  --emerald-700: 95 211 163;
+  --emerald-800: 134 226 189;
+  --red-50: 52 22 24;
+  --red-700: 245 138 138;
+  --amber-50: 51 38 12;
+  --amber-700: 240 176 74;
+  --amber-800: 245 195 110;
+  color-scheme: dark;
+  }
+  body { @apply bg-slate-50 text-slate-900 antialiased; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-brand; }
+  @media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+}
+@layer components { .shell { @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8; } .card { @apply rounded-2xl border border-slate-200 bg-surface shadow-sm; } .input { @apply mt-1 w-full rounded-xl border border-slate-300 bg-surface px-3 py-2 font-normal; } .badge { @apply inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold; } .button-ghost { @apply inline-flex items-center justify-center rounded-xl border border-slate-300 bg-surface px-4 py-2.5 font-medium transition hover:border-brand; } .button { @apply inline-flex items-center justify-center rounded-xl bg-brand px-4 py-2.5 font-medium text-brand-fg transition hover:opacity-90; } }

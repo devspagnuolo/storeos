@@ -18,7 +18,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <h1 className="text-3xl font-bold">Pedidos</h1>
-      <div className="mt-6 flex flex-wrap gap-2">{filters.map(f => <Link key={f} href={f ? `/admin/pedidos?status=${f}` : '/admin/pedidos'} className={`rounded-full border px-4 py-1.5 text-sm font-medium ${f === status ? 'border-brand bg-brand text-white' : 'bg-white'}`}>{f ? orderStatusLabel[f] : 'Todos'}</Link>)}</div>
+      <div className="mt-6 flex flex-wrap gap-2">{filters.map(f => <Link key={f} href={f ? `/admin/pedidos?status=${f}` : '/admin/pedidos'} className={`rounded-full border px-4 py-1.5 text-sm font-medium ${f === status ? 'border-brand bg-brand text-white' : 'bg-surface'}`}>{f ? orderStatusLabel[f] : 'Todos'}</Link>)}</div>
       <div className="card mt-6 overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-5 py-3">Pedido</th><th className="px-5 py-3">Cliente</th><th className="px-5 py-3">Pagamento</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Total</th><th className="px-5 py-3 text-right">Data</th></tr></thead>
