@@ -157,11 +157,12 @@ describe('pedidos do site no Bling', () => {
     const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
     await app.get(BlingOrdersService).processDue();
 
+    const sent = await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } });
     const event = {
       eventId: 'evt-bl-1',
       event: 'order.updated',
       companyId: 777,
-      data: { id: 9000, numero: 9100, situacao: { id: 42, valor: 1 } },
+      data: { id: Number(sent.blingOrderId), numero: sent.blingOrderNumber, situacao: { id: 42, valor: 1 } },
     };
     const body = JSON.stringify(event);
     const signature = 'sha256=' + createHmac('sha256', 'test-secret').update(body).digest('hex');
@@ -169,7 +170,7 @@ describe('pedidos do site no Bling', () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ received: true, ignored: false });
     expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({
-      blingOrderNumber: '9100',
+      blingOrderNumber: sent.blingOrderNumber,
       blingSituationId: '42',
       blingSituationName: 'Em aberto',
     });
