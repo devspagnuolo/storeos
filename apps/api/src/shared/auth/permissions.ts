@@ -10,6 +10,7 @@ export const Permissions = {
   ORDERS_READ: 'orders.read',
   ORDERS_WRITE: 'orders.write',
   SETTINGS_WRITE: 'settings.write',
+  AUDIT_READ: 'audit.read',
 } as const;
 
 @Injectable()

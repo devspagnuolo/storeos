@@ -374,3 +374,24 @@ model StorefrontPublication {
   @@unique([storeId, version])
   @@index([storeId, createdAt])
 }
+
+/// Trilha de auditoria imutável: um gatilho no banco impede UPDATE e DELETE. Sem FK, para sobreviver à remoção de loja ou usuário.
+model AuditLog {
+  id         String   @id @default(uuid())
+  storeId    String?
+  actorId    String?
+  action     String
+  entity     String?
+  entityId   String?
+  outcome    String
+  statusCode Int?
+  ip         String?
+  userAgent  String?
+  requestId  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([storeId, createdAt(sort: Desc)])
+  @@index([storeId, actorId, createdAt(sort: Desc)])
+  @@index([storeId, entity, entityId])
+}
