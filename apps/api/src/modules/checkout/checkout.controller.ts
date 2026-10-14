@@ -14,5 +14,6 @@ class CheckoutDto {
   @ValidateNested() @Type(() => AddressDto) shippingAddress!: AddressDto;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => OrderItemDto) items!: OrderItemDto[];
   @IsEnum(PaymentMethod) paymentMethod!: PaymentMethod;
+  @IsOptional() @IsString() shippingRuleId?: string;
 }
 @ApiTags('Checkout') @Controller('checkout') export class CheckoutController { constructor(private readonly checkoutService: CheckoutService) {} @Post() @Throttle({ default: { limit: 10, ttl: 60_000 } }) checkout(@Body() dto: CheckoutDto) { return this.checkoutService.checkout(dto); } }

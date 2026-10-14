@@ -69,3 +69,35 @@ export async function saveProductAction(_: FormState, form: FormData): Promise<F
   if (!id) redirect(`/admin/produtos/${saved.id}?criado=1`);
   return { ok: 'Produto salvo.' };
 }
+
+const decimal = (value: string) => Number(value.replace(',', '.'));
+
+export async function saveShippingRuleAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = form.get('id') ? String(form.get('id')) : undefined;
+  const text = (key: string) => String(form.get(key) ?? '').trim();
+  const body = {
+    name: text('name'),
+    states: form.getAll('states').map(String),
+    price: decimal(text('price')),
+    freeAbove: text('freeAbove') ? decimal(text('freeAbove')) : null,
+    minDays: Number(text('minDays')),
+    maxDays: Number(text('maxDays')),
+    position: Number(text('position') || 0),
+    active: form.get('active') === 'on',
+  };
+  if (!Number.isFinite(body.price) || body.price < 0) return { error: 'Preço inválido.' };
+  if (body.freeAbove !== null && (!Number.isFinite(body.freeAbove) || body.freeAbove < 0)) return { error: 'Valor de frete grátis inválido.' };
+  try {
+    await adminFetch(id ? `/shipping/rules/${id}` : '/shipping/rules', { method: id ? 'PATCH' : 'POST', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.status === 403 ? 'Seu usuário não tem permissão para configurar o frete. Saia e entre de novo se acabou de receber o acesso.' : error.message };
+    throw error;
+  }
+  revalidatePath('/admin/frete');
+  return { ok: id ? 'Regra salva.' : 'Regra criada.' };
+}
+
+export async function deleteShippingRuleAction(form: FormData) {
+  await adminFetch(`/shipping/rules/${String(form.get('id'))}`, { method: 'DELETE' });
+  revalidatePath('/admin/frete');
+}

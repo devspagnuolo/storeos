@@ -6,6 +6,7 @@ const DESCRIPTIONS: Record<string, string> = {
   [Permissions.CATALOG_WRITE]: 'Criar e editar produtos e categorias',
   [Permissions.ORDERS_READ]: 'Consultar pedidos',
   [Permissions.ORDERS_WRITE]: 'Criar e alterar pedidos',
+  [Permissions.SETTINGS_WRITE]: 'Configurar a loja (frete e demais ajustes)',
 };
 
 type Db = Pick<PrismaClient, 'permission' | 'role' | 'rolePermission' | 'store' | 'user' | 'userRole'>;

@@ -48,17 +48,18 @@ enum PaymentStatus {
 }
 
 model Store {
-  id           String        @id @default(uuid())
-  name         String
-  slug         String        @unique
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  users        User[]
-  products     Product[]
-  categories   Category[]
-  customers    Customer[]
-  orders       Order[]
-  outboxEvents OutboxEvent[]
+  id            String         @id @default(uuid())
+  name          String
+  slug          String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  users         User[]
+  products      Product[]
+  categories    Category[]
+  shippingRules ShippingRule[]
+  customers     Customer[]
+  orders        Order[]
+  outboxEvents  OutboxEvent[]
 }
 
 model User {
@@ -249,6 +250,7 @@ model Order {
   total           Decimal         @db.Decimal(14, 2)
   currency        String          @default("BRL")
   shippingAddress Json?
+  shippingMethod  String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -317,4 +319,23 @@ model OutboxEvent {
   store         Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([publishedAt, occurredAt])
+}
+
+/// Regra de frete por região: vale para as UFs listadas (vazio = todo o Brasil).
+model ShippingRule {
+  id        String   @id @default(uuid())
+  storeId   String
+  name      String
+  states    String[]
+  price     Decimal  @db.Decimal(14, 2)
+  freeAbove Decimal? @db.Decimal(14, 2)
+  minDays   Int
+  maxDays   Int
+  active    Boolean  @default(true)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, active, position])
 }
