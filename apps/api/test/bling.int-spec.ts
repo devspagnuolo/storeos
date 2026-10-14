@@ -4,6 +4,7 @@ import { resolveJwtSecret } from '../src/shared/auth/jwt-secret';
 import { encryptSecret } from '../src/shared/auth/totp';
 import { makeState } from '../src/modules/bling/bling-auth.service';
 import { BlingOrdersService } from '../src/modules/bling/bling-orders.service';
+import { BlingInvoicesService } from '../src/modules/bling/bling-invoices.service';
 import { BlingClient } from '../src/modules/bling/bling.client';
 import { OrderLifecycleService } from '../src/modules/orders/order-lifecycle.service';
 import { checkoutBody, cleanup, createStore, login, prisma, startApp } from './helpers';
@@ -14,6 +15,7 @@ class FakeBling {
   calls: { method: string; path: string; body?: unknown }[] = [];
   failOrders = false;
   salesOrders = new Map<string, number>();
+  invoiceCalls: { method: string; path: string; body?: unknown }[] = [];
   nextId = 9000;
   products: Record<number, unknown> = {
     1: { id: 1, nome: 'Blusa de Renda', codigo: 'BR-1', preco: 99.9, situacao: 'A', formato: 'V', descricaoComplementar: '<p>Linda blusa</p>', categoria: { id: 3 }, midia: { imagens: { externas: [{ link: 'https://cdn.test/br.jpg' }] } }, variacoes: [{ id: 11, codigo: 'BR-1-P', preco: 99.9, variacao: { nome: 'Tamanho:P' }, estoque: { saldoVirtualTotal: 4 } }, { id: 12, codigo: 'BR-1-G', preco: 109.9, variacao: { nome: 'Tamanho:G' }, estoque: { saldoVirtualTotal: 2 } }] },
@@ -39,6 +41,10 @@ class FakeBling {
       if (this.failOrders) throw new Error('Bling 400: contato inválido');
       const id = this.nextId++; this.salesOrders.set((init.body as { numeroLoja: string }).numeroLoja, id); return { data: { id, numero: id + 100 } };
     }
+    if (url.pathname === '/nfe' && method === 'GET') { this.invoiceCalls.push({ method, path }); return { data: [] }; }
+    if (url.pathname.startsWith('/pedidos/vendas/') && url.pathname.endsWith('/gerar-nfe') && method === 'POST') { this.invoiceCalls.push({ method, path }); return { data: { idNotaFiscal: 3001 } }; }
+    if (url.pathname === '/nfe/3001/enviar' && method === 'POST') { this.invoiceCalls.push({ method, path, body: init.body }); return { data: {} }; }
+    if (url.pathname === '/nfe/3001' && method === 'GET') { this.invoiceCalls.push({ method, path }); return { data: { id: 3001, numero: 501, serie: 1, chaveAcesso: 'NFE-KEY-123', situacao: 5 } }; }
     if (url.pathname === '/contatos' && method === 'GET') return { data: [] };
     if (url.pathname === '/contatos' && method === 'POST') return { data: { id: 321 } };
     throw new Error(`rota inesperada ${method} ${path}`);
@@ -219,4 +225,28 @@ describe('pedidos do site no Bling', () => {
     expect((await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).blingOrderNumber).toBe('877');
     expect(bling.calls.some(c => c.method === 'POST' && c.path === '/pedidos/vendas')).toBe(false);
   });
+  it('emite NF-e vinculada ao pedido Bling, reusa o documento e registra autorização fiscal', async () => {
+    const { store, product } = await createStore(5);
+    await connect(store.id);
+    const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }], 'PIX') });
+    const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
+    await app.get(OrderLifecycleService).markPaid({ orderId: order.id });
+    await app.get(BlingOrdersService).processDue();
+
+    const operator = await login(api, store, ['orders.read', 'orders.write']);
+    const requested = await api(`/bling/orders/${order.number}/invoice`, { method: 'POST', token: operator });
+    expect(requested.status).toBe(202);
+    expect(requested.body.status).toBe('QUEUED');
+    expect(await app.get(BlingInvoicesService).processDue()).toBe(1);
+
+    const invoice = await prisma.blingInvoice.findUniqueOrThrow({ where: { orderId: order.id } });
+    expect(invoice).toMatchObject({ status: 'AUTHORIZED', blingInvoiceId: '3001', invoiceNumber: '501', series: '1', accessKey: 'NFE-KEY-123' });
+    expect(invoice.submittedAt).toBeTruthy();
+    expect(invoice.authorizedAt).toBeTruthy();
+    expect(await prisma.fulfillment.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({ invoiceNumber: '501', invoiceKey: 'NFE-KEY-123' });
+    const sync = await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } });
+    expect(bling.invoiceCalls.some(call => call.method === 'POST' && call.path === `/pedidos/vendas/${sync.blingOrderId}/gerar-nfe`)).toBe(true);
+    expect(bling.invoiceCalls.filter(call => call.method === 'POST' && call.path === '/nfe/3001/enviar')).toHaveLength(1);
+  });
+
 });
