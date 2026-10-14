@@ -40,3 +40,9 @@ export type SalesReport = {
   cancelled: number; returned: number;
   coupons: { code: string; uses: number; discount: string }[];
 };
+
+export type LoyaltySummary = {
+  balance: number; lifetime: number; valuePerPoint: number;
+  tier: { key: string; label: string; next: { key: string; label: string; missing: number } | null };
+  entries: { id: string; type: 'EARN' | 'REVERSAL' | 'REDEEM' | 'ADJUST'; points: number; note: string | null; createdAt: string }[];
+};

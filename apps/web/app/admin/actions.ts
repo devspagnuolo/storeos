@@ -189,6 +189,23 @@ export async function anonymizeCustomerAction(_: FormState, form: FormData): Pro
   redirect('/admin/clientes');
 }
 
+export type LoyaltyState = FormState & { code?: string };
+
+export async function loyaltyAction(_: LoyaltyState, form: FormData): Promise<LoyaltyState> {
+  const id = encodeURIComponent(String(form.get('id')));
+  const kind = form.get('kind') === 'redeem' ? 'redeem' : 'adjust';
+  const points = Number(String(form.get('points') ?? '').trim());
+  if (!Number.isInteger(points) || points === 0) return { error: 'Informe uma quantidade inteira de pontos.' };
+  try {
+    const result = await adminFetch<{ code?: string; value?: string }>(`/loyalty/customers/${id}/${kind}`, { method: 'POST', body: kind === 'redeem' ? { points } : { points, note: String(form.get('note') ?? '').trim() } });
+    revalidatePath('/admin/clientes');
+    return kind === 'redeem' ? { ok: `Cupom de R$ ${result.value} gerado.`, code: result.code } : { ok: 'Pontos ajustados.' };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
 export async function saveProductAction(_: FormState, form: FormData): Promise<FormState> {
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const text = (key: string) => String(form.get(key) ?? '').trim();

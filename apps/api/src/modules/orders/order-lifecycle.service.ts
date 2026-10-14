@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { earnForOrder, reverseForOrder } from '../loyalty/ledger';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
 type Tx = Prisma.TransactionClient;
@@ -38,6 +39,7 @@ export class OrderLifecycleService {
           WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND "variantId" IS NULL`;
       }
       await tx.payment.updateMany({ where: { orderId: order.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } }, data: { status: PaymentStatus.PAID, paidAt: new Date() } });
+      await earnForOrder(tx, order);
       await tx.orderTimeline.create({ data: { orderId: order.id, status: OrderStatus.PAID, message: source.message ?? 'Pagamento confirmado', actorId: source.actorId } });
       await tx.outboxEvent.create({ data: { storeId: order.storeId, aggregateType: 'Order', aggregateId: order.id, eventName: 'orders.order-paid.v1', payload: { orderNumber: order.number, total: order.total.toString() } } });
       return true;
@@ -80,7 +82,7 @@ export class OrderLifecycleService {
    */
   private async advance(
     ref: OrderRef,
-    step: { from: OrderStatus[]; to: OrderStatus; event: string; message: string; actorId?: string; fulfillment: Omit<Prisma.FulfillmentUncheckedUpdateInput, 'orderId' | 'storeId'>; payload?: Prisma.InputJsonObject; restock?: boolean },
+    step: { from: OrderStatus[]; to: OrderStatus; event: string; message: string; actorId?: string; fulfillment: Omit<Prisma.FulfillmentUncheckedUpdateInput, 'orderId' | 'storeId'>; payload?: Prisma.InputJsonObject; restock?: boolean; reverseLoyalty?: boolean },
   ) {
     return this.prisma.$transaction(async tx => {
       const order = await this.find(tx, ref);
@@ -101,6 +103,7 @@ export class OrderLifecycleService {
             WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND "variantId" IS NULL`;
         }
       }
+      if (step.reverseLoyalty) await reverseForOrder(tx, order);
       await tx.orderTimeline.create({ data: { orderId: order.id, status: step.to, message: step.message, actorId: step.actorId } });
       await tx.outboxEvent.create({ data: { storeId: order.storeId, aggregateType: 'Order', aggregateId: order.id, eventName: step.event, payload: { orderNumber: order.number, ...step.payload } } });
       return true;
@@ -129,7 +132,7 @@ export class OrderLifecycleService {
 
   /** Entregue → devolvido; por padrão os itens voltam ao estoque. */
   markReturned(ref: OrderRef, data: { reason: string; restock?: boolean }, by: { actorId?: string } = {}) {
-    return this.advance(ref, { from: [OrderStatus.DELIVERED], to: OrderStatus.RETURNED, event: 'orders.order-returned.v1', message: `Devolução registrada: ${data.reason}`, actorId: by.actorId, fulfillment: { returnReason: data.reason, returnedAt: new Date() }, payload: { reason: data.reason }, restock: data.restock ?? true });
+    return this.advance(ref, { from: [OrderStatus.DELIVERED], to: OrderStatus.RETURNED, event: 'orders.order-returned.v1', message: `Devolução registrada: ${data.reason}`, actorId: by.actorId, fulfillment: { returnReason: data.reason, returnedAt: new Date() }, payload: { reason: data.reason }, restock: data.restock ?? true, reverseLoyalty: true });
   }
 
   /** Cancela pedidos cujo prazo de pagamento venceu, liberando o estoque reservado. */

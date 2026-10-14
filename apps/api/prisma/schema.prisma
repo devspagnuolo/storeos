@@ -250,6 +250,7 @@ model Customer {
   tags      String[]  @default([])
   marketingOptIn Boolean @default(false)
   anonymizedAt DateTime?
+  loyaltyEntries LoyaltyEntry[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -296,6 +297,7 @@ model Order {
   fulfillment     Fulfillment?
   couponCode      String?
   redemption      CouponRedemption?
+  loyaltyEntries  LoyaltyEntry[]
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -522,4 +524,29 @@ model CollectionProduct {
 
   @@id([collectionId, productId])
   @@index([productId])
+}
+
+enum LoyaltyEntryType {
+  EARN
+  REVERSAL
+  REDEEM
+  ADJUST
+}
+
+/// Livro-razão de pontos: o saldo é a soma dos lançamentos, então nunca fica fora de sincronia com o histórico.
+model LoyaltyEntry {
+  id         String           @id @default(uuid())
+  storeId    String
+  customerId String
+  orderId    String?
+  type       LoyaltyEntryType
+  points     Int
+  note       String?
+  actorId    String?
+  createdAt  DateTime         @default(now())
+  customer   Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order      Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, type])
+  @@index([storeId, customerId, createdAt])
 }
