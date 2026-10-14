@@ -13,10 +13,15 @@ export async function loginAction(_: LoginState, form: FormData): Promise<LoginS
   const response = await fetch(`${serverApiUrl}/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: form.get('email'), password: form.get('password'), storeSlug: form.get('storeSlug') }),
+    body: JSON.stringify({ email: form.get('email'), password: form.get('password'), storeSlug: form.get('storeSlug'), code: String(form.get('code') ?? '').trim() || undefined }),
   }).catch(() => undefined);
   if (!response) return { ...kept, error: 'A API não respondeu. Tente de novo em alguns segundos.' };
   if (response.status === 429) return { ...kept, error: 'Muitas tentativas. Aguarde um minuto.' };
+  if (response.status === 401) {
+    const body = await response.json().catch(() => undefined);
+    if (body?.code === 'MFA_REQUIRED') return { ...kept, error: 'Este usuário usa verificação em duas etapas. Digite a senha de novo e informe o código do aplicativo.' };
+    if (body?.code === 'MFA_INVALID') return { ...kept, error: 'Código de verificação inválido ou já usado. Aguarde o próximo código.' };
+  }
   if (!response.ok) return { ...kept, error: 'E-mail, senha ou loja incorretos.' };
   await saveSession((await response.json()) as Session);
   redirect('/admin');
@@ -65,6 +70,48 @@ export async function orderFulfillmentAction(_: FormState, form: FormData): Prom
   }
   revalidatePath('/admin', 'layout');
   return { ok: fulfillmentDone[step] };
+}
+
+export type MfaState = FormState & { qr?: string; secret?: string; recoveryCodes?: string[] };
+
+export async function mfaSetupAction(): Promise<MfaState> {
+  try {
+    const { secret, otpauthUrl } = await adminFetch<{ secret: string; otpauthUrl: string }>('/auth/mfa/setup', { method: 'POST', body: {} });
+    const { toDataURL } = await import('qrcode');
+    return { secret, qr: await toDataURL(otpauthUrl, { margin: 1, width: 192 }) };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function mfaEnableAction(_: MfaState, form: FormData): Promise<MfaState> {
+  try {
+    const { recoveryCodes } = await adminFetch<{ recoveryCodes: string[] }>('/auth/mfa/enable', { method: 'POST', body: { code: String(form.get('code') ?? '') } });
+    revalidatePath('/admin/seguranca');
+    return { ok: 'Verificação em duas etapas ativada.', recoveryCodes };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function mfaDisableAction(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    await adminFetch('/auth/mfa/disable', { method: 'POST', body: { password: String(form.get('password') ?? ''), code: String(form.get('code') ?? '') } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/seguranca');
+  return { ok: 'Verificação em duas etapas desativada.' };
+}
+
+export async function revokeSessionAction(form: FormData) {
+  const id = String(form.get('id') ?? '');
+  await adminFetch(id === 'all' ? '/auth/sessions' : `/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (id === 'all') redirect('/admin/login');
+  revalidatePath('/admin/seguranca');
 }
 
 export async function saveProductAction(_: FormState, form: FormData): Promise<FormState> {
