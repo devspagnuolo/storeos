@@ -3,7 +3,7 @@ import { Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
 export type ProductQuery = { category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number };
-export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; brandId?: string | null; seoTitle?: string; seoDescription?: string };
+export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null };
 export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string };
 export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
 export type CollectionInput = { name?: string; slug?: string; description?: string; active?: boolean; position?: number; skus?: string[] };

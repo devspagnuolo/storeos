@@ -246,6 +246,11 @@ export async function saveProductAction(_: FormState, form: FormData): Promise<F
     brandId: text('brandId') || (id ? null : undefined),
     seoTitle: text('seoTitle') || undefined,
     seoDescription: text('seoDescription') || undefined,
+    // Peso e medidas alimentam a cotação nas transportadoras; vazio remove na edição.
+    weightGrams: text('weightGrams') ? Number(text('weightGrams')) : id ? null : undefined,
+    widthCm: text('widthCm') ? Number(text('widthCm')) : id ? null : undefined,
+    heightCm: text('heightCm') ? Number(text('heightCm')) : id ? null : undefined,
+    lengthCm: text('lengthCm') ? Number(text('lengthCm')) : id ? null : undefined,
   };
   if (!Number.isFinite(body.price) || body.price < 0) return { error: 'Preço inválido.' };
   if (!Number.isInteger(body.stock) || body.stock < 0) return { error: 'Estoque deve ser um número inteiro.' };
@@ -271,6 +276,7 @@ export async function saveShippingRuleAction(_: FormState, form: FormData): Prom
     states: form.getAll('states').map(String),
     price: decimal(text('price')),
     freeAbove: text('freeAbove') ? decimal(text('freeAbove')) : null,
+    freeOnly: form.get('freeOnly') === 'on',
     minDays: Number(text('minDays')),
     maxDays: Number(text('maxDays')),
     position: Number(text('position') || 0),

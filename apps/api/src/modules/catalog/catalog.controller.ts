@@ -20,6 +20,10 @@ class CreateProductDto {
   @IsOptional() @IsString() brandId?: string;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(100_000) weightGrams?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(300) widthCm?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(300) heightCm?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(300) lengthCm?: number;
 }
 class UpdateProductDto {
   @IsOptional() @IsString() @Length(2, 160) name?: string;
@@ -36,6 +40,10 @@ class UpdateProductDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() brandId?: string | null;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(100_000) weightGrams?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(300) widthCm?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(300) heightCm?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(300) lengthCm?: number | null;
 }
 class CreateCategoryDto { @IsString() name!: string; @Matches(SLUG) slug!: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @IsString() parentId?: string | null; }
 class UpdateCategoryDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) slug?: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() parentId?: string | null; }

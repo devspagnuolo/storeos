@@ -160,6 +160,10 @@ model Product {
   brandId        String?
   seoTitle       String?
   seoDescription String?
+  weightGrams    Int?
+  widthCm        Int?
+  heightCm       Int?
+  lengthCm       Int?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   store       Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -387,6 +391,7 @@ model ShippingRule {
   states    String[]
   price     Decimal  @db.Decimal(14, 2)
   freeAbove Decimal? @db.Decimal(14, 2)
+  freeOnly  Boolean  @default(false)
   minDays   Int
   maxDays   Int
   active    Boolean  @default(true)
