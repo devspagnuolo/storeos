@@ -43,9 +43,9 @@ export default async function Home() {
         </section>
         <section className="border-y bg-white">
           <div className="shell grid gap-6 py-10 text-center md:grid-cols-3">
-            <div><b>Entrega acompanhada</b><p className="text-sm text-slate-500">Rastreamento em cada etapa.</p></div>
-            <div><b>Pagamento protegido</b><p className="text-sm text-slate-500">PIX, cartão e boleto seguros.</p></div>
-            <div><b>Atendimento humano</b><p className="text-sm text-slate-500">Apoio quando você precisar.</p></div>
+            <div><b>Entrega para todo o Brasil</b><p className="text-sm text-slate-500">Prazo e valor calculados pelo seu CEP.</p></div>
+            <div><b>Pagamento protegido</b><p className="text-sm text-slate-500">Pague com PIX, com confirmação rápida.</p></div>
+            <div><b>Compra sem cadastro</b><p className="text-sm text-slate-500">Finalize o pedido só com seus dados de entrega.</p></div>
           </div>
         </section>
       </main>

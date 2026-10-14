@@ -1,5 +1,6 @@
 export const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
 export const storeSlug = process.env.NEXT_PUBLIC_STORE_SLUG ?? 'demo';
+export const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 
 export type ProductImage = { url: string; alt: string | null };
 export type ProductSummary = { id: string; name: string; slug: string; sku: string; price: string; images?: ProductImage[] };

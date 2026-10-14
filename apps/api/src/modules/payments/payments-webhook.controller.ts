@@ -1,12 +1,12 @@
-import { Body, Controller, Headers, HttpCode, Logger, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, Logger, Post, Query, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { PaymentsWebhookService } from './payments-webhook.service';
 import { verifyMercadoPagoSignature } from './webhook-signature';
 
 /** Recebe notificações do Mercado Pago. O status é sempre relido na API do gateway; o corpo só informa o id. */
 @ApiExcludeController()
-@SkipThrottle()
+@Throttle({ default: { ttl: 60_000, limit: 120 } })
 @Controller('payments/webhooks')
 export class PaymentsWebhookController {
   private readonly logger = new Logger(PaymentsWebhookController.name);
@@ -19,6 +19,8 @@ export class PaymentsWebhookController {
     const type = body?.type ?? query.type ?? query.topic;
     const dataId = String(body?.data?.id ?? query['data.id'] ?? query.id ?? '');
     const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+    // Em produção, sem segredo qualquer um poderia forçar consultas ao gateway: recusa até configurar.
+    if (!secret && process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Webhook sem segredo configurado');
     if (secret && !verifyMercadoPagoSignature({ signature, requestId, dataId: query['data.id'] ?? dataId, secret })) throw new UnauthorizedException('Assinatura inválida');
     if (type !== 'payment' || !dataId) return { received: true };
     const result = await this.webhooks.syncMercadoPagoPayment(dataId);
