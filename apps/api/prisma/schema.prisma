@@ -775,6 +775,7 @@ model BlingConnection {
   connectedAt     DateTime @default(now())
   lastError       String?
   automaticInvoiceEnabled Boolean @default(false)
+  automaticInvoiceEnabledAt DateTime?
   updatedAt       DateTime @updatedAt
   store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   invoices        BlingInvoice[]
