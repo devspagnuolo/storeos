@@ -35,3 +35,4 @@ ALTER TABLE "BlingInvoice" ADD CONSTRAINT "BlingInvoice_orderId_fkey" FOREIGN KE
 ALTER TABLE "BlingInvoice" ADD CONSTRAINT "BlingInvoice_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "BlingConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "BlingInvoice" ADD COLUMN "submittedAt" TIMESTAMP(3);
+ALTER TABLE "BlingConnection" ADD COLUMN "automaticInvoiceEnabledAt" TIMESTAMP(3);
