@@ -46,3 +46,5 @@ export type LoyaltySummary = {
   tier: { key: string; label: string; next: { key: string; label: string; missing: number } | null };
   entries: { id: string; type: 'EARN' | 'REVERSAL' | 'REDEEM' | 'ADJUST'; points: number; note: string | null; createdAt: string }[];
 };
+
+export type AdminPage = { id: string; slug: string; title: string; body: string; published: boolean; showInFooter: boolean; position: number; seoDescription: string | null };

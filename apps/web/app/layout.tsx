@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { StoreNameProvider } from '../components/store-name';
 import { Footer } from '../components/footer';
-import { getCategories, getStore } from '../lib/api';
+import { getCategories, getPages, getStore } from '../lib/api';
 import './globals.css';
 
 const viviHosts = new Set(['vivimodaplussize.com.br', 'www.vivimodaplussize.com.br']);
@@ -36,6 +36,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [{ name, logoUrl }, categories] = await Promise.all([getPageBranding(), getCategories()]);
-  return <html lang="pt-BR"><body><StoreNameProvider name={name} logoUrl={logoUrl}>{children}<Footer categories={categories} /></StoreNameProvider></body></html>;
+  const [{ name, logoUrl }, categories, pages] = await Promise.all([getPageBranding(), getCategories(), getPages()]);
+  return <html lang="pt-BR"><body><StoreNameProvider name={name} logoUrl={logoUrl}>{children}<Footer categories={categories} pages={pages} /></StoreNameProvider></body></html>;
 }
