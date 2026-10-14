@@ -2,6 +2,7 @@
 import { useActionState } from 'react';
 import { saveBannerAction } from '../../app/admin/actions';
 import type { AdminBanner } from '../../lib/admin/types';
+import { ImageUploader } from './image-uploader';
 
 const local = (iso: string | null) => (iso ? new Date(iso).toISOString().slice(0, 16) : '');
 
@@ -10,8 +11,8 @@ export function BannerForm({ banner }: { banner?: AdminBanner }) {
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-2">
       {banner && <input type="hidden" name="id" value={banner.id} />}
-      <label className="text-sm font-medium sm:col-span-2">Imagem (endereço https://…)<input name="imageUrl" type="url" required defaultValue={banner?.imageUrl} className="input" placeholder="https://…/banner.jpg" /></label>
-      <label className="text-sm font-medium sm:col-span-2">Imagem para celular (opcional)<input name="mobileImageUrl" type="url" defaultValue={banner?.mobileImageUrl ?? ''} className="input" /></label>
+      <div className="sm:col-span-2"><ImageUploader name="imageUrl" kind="banner" label="Imagem do banner" initial={banner ? [banner.imageUrl] : []} /></div>
+      <div className="sm:col-span-2"><ImageUploader name="mobileImageUrl" kind="banner-mobile" label="Imagem para celular (opcional)" initial={banner?.mobileImageUrl ? [banner.mobileImageUrl] : []} /></div>
       <label className="text-sm font-medium">Título (opcional)<input name="title" maxLength={80} defaultValue={banner?.title ?? ''} className="input" /></label>
       <label className="text-sm font-medium">Subtítulo (opcional)<input name="subtitle" maxLength={160} defaultValue={banner?.subtitle ?? ''} className="input" /></label>
       <label className="text-sm font-medium">Texto do botão (opcional)<input name="ctaLabel" maxLength={30} defaultValue={banner?.ctaLabel ?? ''} className="input" placeholder="Ver coleção" /></label>

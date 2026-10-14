@@ -240,7 +240,8 @@ export async function saveProductAction(_: FormState, form: FormData): Promise<F
     description: text('description') || undefined,
     status: text('status'),
     stock: Number(text('stock') || 0),
-    imageUrl: id ? text('imageUrl') : text('imageUrl') || undefined,
+    // A galeria inteira vem na ordem mostrada; na edição, lista vazia remove as fotos.
+    imageUrls: id ? form.getAll('imageUrls').map(String) : form.getAll('imageUrls').length ? form.getAll('imageUrls').map(String) : undefined,
     categoryIds: form.getAll('categoryIds').map(String),
     // Na edição, vazio remove a marca; na criação, simplesmente não envia.
     brandId: text('brandId') || (id ? null : undefined),
@@ -415,8 +416,10 @@ export async function saveCategoryAction(_: FormState, form: FormData): Promise<
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const name = String(form.get('name') ?? '').trim();
   const parentId = String(form.get('parentId') ?? '') || null;
+  // O banner fixo da categoria: vazio remove na edição e simplesmente não é enviado na criação.
+  const banner = (key: string) => String(form.get(key) ?? '').trim() || (id ? null : undefined);
   try {
-    await adminFetch(id ? `/catalog/categories/${encodeURIComponent(id)}` : '/catalog/categories', { method: id ? 'PATCH' : 'POST', body: { name, parentId, ...(id && form.get('position') !== null ? { position: Number(form.get('position')) || 0 } : {}), ...(id ? {} : { slug: slugifyServer(name) }) } });
+    await adminFetch(id ? `/catalog/categories/${encodeURIComponent(id)}` : '/catalog/categories', { method: id ? 'PATCH' : 'POST', body: { name, parentId, ...(form.has('bannerSection') ? { bannerUrl: banner('bannerUrl'), bannerMobileUrl: banner('bannerMobileUrl') } : {}), ...(id && form.get('position') !== null ? { position: Number(form.get('position')) || 0 } : {}), ...(id ? {} : { slug: slugifyServer(name) }) } });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     throw error;
@@ -534,6 +537,7 @@ export async function saveBannerAction(_: FormState, form: FormData): Promise<Fo
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const text = (name: string) => String(form.get(name) ?? '').trim();
   const date = (name: string) => (text(name) ? new Date(text(name)).toISOString() : null);
+  if (!text('imageUrl')) return { error: 'Envie a imagem do banner.' };
   const body = {
     imageUrl: text('imageUrl'), mobileImageUrl: text('mobileImageUrl') || null, title: text('title') || null, subtitle: text('subtitle') || null,
     ctaLabel: text('ctaLabel') || null, linkUrl: text('linkUrl') || null, startsAt: date('startsAt'), endsAt: date('endsAt'),
@@ -548,6 +552,21 @@ export async function saveBannerAction(_: FormState, form: FormData): Promise<Fo
   revalidatePath('/admin/banners');
   revalidatePath('/', 'layout');
   return { ok: id ? 'Banner salvo.' : 'Banner criado.' };
+}
+
+/** Várias imagens de uma vez: cada uma vira um slide do carrossel, na ordem enviada. */
+export async function bulkBannersAction(_: FormState, form: FormData): Promise<FormState> {
+  const images = form.getAll('bulkImages').map(String).filter(Boolean);
+  if (!images.length) return { error: 'Escolha ao menos uma imagem.' };
+  try {
+    await adminFetch('/engagement/admin/banners/bulk', { method: 'POST', body: { images } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/banners');
+  revalidatePath('/', 'layout');
+  return { ok: `${images.length} banner(s) adicionados ao carrossel. Edite cada um para colocar título e link.` };
 }
 
 export async function toggleBannerAction(form: FormData) {

@@ -2,6 +2,7 @@
 import { useActionState } from 'react';
 import { saveCategoryAction } from '../../app/admin/actions';
 import type { Category } from '../../lib/api';
+import { ImageUploader } from './image-uploader';
 
 export type ParentChoice = { id: string; name: string; depth: number };
 
@@ -18,6 +19,14 @@ export function CategoryForm({ category, parents }: { category?: Category & { po
         </select>
       </label>
       {category && <label className="w-20 text-sm font-medium" title="Menor número aparece primeiro">Ordem<input name="position" type="number" min={0} max={9999} defaultValue={category.position ?? 0} className="input" /></label>}
+      <details className="w-full rounded-xl border border-slate-200 p-3" open={Boolean(category?.bannerUrl)}>
+        <summary className="cursor-pointer text-sm font-medium">Banner fixo da categoria</summary>
+        <input type="hidden" name="bannerSection" value="1" />
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <ImageUploader name="bannerUrl" kind="category-banner" label="Banner" initial={category?.bannerUrl ? [category.bannerUrl] : []} />
+          <ImageUploader name="bannerMobileUrl" kind="category-banner-mobile" label="Banner para celular (opcional)" initial={category?.bannerMobileUrl ? [category.bannerMobileUrl] : []} />
+        </div>
+      </details>
       <button className="button disabled:opacity-60" disabled={pending}>{category ? 'Salvar' : 'Adicionar'}</button>
       {state.error && <p role="alert" className="w-full text-sm text-red-700">{state.error}</p>}
       {state.ok && <p className="w-full text-sm text-emerald-700">{state.ok}</p>}

@@ -5,11 +5,23 @@ import { recordMovement } from '../inventory/stock-ledger';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
 export type ProductQuery = { category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number };
-export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null };
+export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; imageUrls?: string[]; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null };
 export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string };
 export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
 export type CollectionInput = { name?: string; slug?: string; description?: string; active?: boolean; position?: number; skus?: string[] };
-export type CreateCategoryInput = { name: string; slug: string; description?: string; position?: number; parentId?: string | null };
+/** Galeria na ordem enviada, sem repetidas; `imageUrl` sozinho continua valendo como foto principal. */
+const gallery = (imageUrl?: string, imageUrls?: string[]) => [...new Set(imageUrls?.length ? imageUrls : imageUrl ? [imageUrl] : [])];
+
+/** Banners de categoria só aceitam endereços http(s); string vazia remove a imagem. */
+function assertImageUrls(dto: { bannerUrl?: string | null; bannerMobileUrl?: string | null }) {
+  for (const key of ['bannerUrl', 'bannerMobileUrl'] as const) {
+    const value = dto[key]?.trim();
+    if (value && !/^https?:\/\/\S+$/.test(value)) throw new BadRequestException('A imagem deve ser um endereço http(s) válido');
+    if (value !== undefined) dto[key] = value || null;
+  }
+}
+
+export type CreateCategoryInput = { name: string; slug: string; description?: string; position?: number; parentId?: string | null; bannerUrl?: string | null; bannerMobileUrl?: string | null };
 export type VariantInput = { id?: string; sku: string; attributes: { name: string; value: string }[]; price?: number | null; stock: number; active?: boolean };
 export type UpdateCategoryInput = Partial<CreateCategoryInput>;
 
@@ -71,7 +83,7 @@ export class CatalogService {
   async categories(storeSlug: string) {
     const storeId = await this.storeId(storeSlug);
     if (!storeId) return [];
-    return this.prisma.category.findMany({ where: { storeId }, orderBy: [{ position: 'asc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, description: true, parentId: true, position: true } });
+    return this.prisma.category.findMany({ where: { storeId }, orderBy: [{ position: 'asc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, description: true, parentId: true, position: true, bannerUrl: true, bannerMobileUrl: true } });
   }
 
   /** Até quatro níveis (Blusas > Manga Longa > Renda > ...): cobre catálogos de moda sem virar um labirinto de menus. */
@@ -84,6 +96,7 @@ export class CatalogService {
 
   /** Se a URL já existe e a categoria tem pai, tenta de novo com o pai na frente ("alfaiataria" vira "conjuntos-alfaiataria"). */
   async createCategory(storeId: string, dto: CreateCategoryInput) {
+    assertImageUrls(dto);
     await this.assertParent(storeId, dto.parentId);
     // Sem ordem informada, a nova categoria vai para o fim do mesmo nível (a ordem de criação vira a ordem do menu).
     if (dto.position === undefined) {
@@ -106,6 +119,7 @@ export class CatalogService {
   }
 
   async updateCategory(storeId: string, id: string, dto: UpdateCategoryInput) {
+    assertImageUrls(dto);
     if (!(await this.prisma.category.findFirst({ where: { id, storeId } }))) throw new NotFoundException('Categoria não encontrada');
     if (dto.parentId !== undefined) await this.assertParent(storeId, dto.parentId, id);
     try {
@@ -198,12 +212,12 @@ export class CatalogService {
     return unique;
   }
 
-  async create(storeId: string, { categoryIds = [], stock = 0, imageUrl, status = ProductStatus.DRAFT, ...dto }: CreateProductInput) {
+  async create(storeId: string, { categoryIds = [], stock = 0, imageUrl, imageUrls, status = ProductStatus.DRAFT, ...dto }: CreateProductInput) {
     const categories = await this.assertCategories(storeId, categoryIds);
     await this.assertBrand(storeId, dto.brandId);
     try {
       return await this.prisma.$transaction(async tx => {
-        const product = await tx.product.create({ data: { ...dto, storeId, status, categories: { create: categories.map(categoryId => ({ categoryId })) }, ...(imageUrl && { images: { create: { url: imageUrl, alt: dto.name } } }) } });
+        const product = await tx.product.create({ data: { ...dto, storeId, status, categories: { create: categories.map(categoryId => ({ categoryId })) }, ...(gallery(imageUrl, imageUrls).length && { images: { create: gallery(imageUrl, imageUrls).map((url, position) => ({ url, alt: dto.name, position })) } }) } });
         await tx.inventory.create({ data: { storeId, productId: product.id, quantity: stock } });
         await recordMovement(tx, { storeId, productId: product.id, type: StockMovementType.INITIAL, delta: stock, reason: 'Cadastro do produto' });
         await tx.outboxEvent.create({ data: { storeId, aggregateType: 'Product', aggregateId: product.id, eventName: 'catalog.product-created.v1', payload: { sku: product.sku } } });
@@ -216,7 +230,7 @@ export class CatalogService {
   }
 
   /** Atualiza dados, status, categorias, imagem principal e saldo físico (o reservado não muda aqui). */
-  async update(storeId: string, id: string, { categoryIds, stock, imageUrl, ...dto }: UpdateProductInput) {
+  async update(storeId: string, id: string, { categoryIds, stock, imageUrl, imageUrls, ...dto }: UpdateProductInput) {
     const existing = await this.prisma.product.findFirst({ where: { id, storeId }, include: { inventory: true, _count: { select: { variants: true } } } });
     if (!existing) throw new NotFoundException('Produto não encontrado');
     const categories = categoryIds && await this.assertCategories(storeId, categoryIds);
@@ -237,7 +251,10 @@ export class CatalogService {
           else await tx.inventory.create({ data: { storeId, productId: id, quantity: stock } });
           await recordMovement(tx, { storeId, productId: id, type: StockMovementType.ADJUSTMENT, delta: stock - (inventory?.quantity ?? 0), reason: 'Edição do produto' });
         }
-        if (imageUrl !== undefined) {
+        if (imageUrls !== undefined) {
+          await tx.productImage.deleteMany({ where: { productId: id } });
+          await tx.productImage.createMany({ data: [...new Set(imageUrls)].map((url, position) => ({ productId: id, url, alt: product.name, position })) });
+        } else if (imageUrl !== undefined) {
           const main = await tx.productImage.findFirst({ where: { productId: id }, orderBy: { position: 'asc' } });
           if (!imageUrl) { if (main) await tx.productImage.delete({ where: { id: main.id } }); }
           else if (main) await tx.productImage.update({ where: { id: main.id }, data: { url: imageUrl } });
@@ -254,9 +271,11 @@ export class CatalogService {
     }
   }
 
-  async adminList(storeId: string, { q, status, page = 1, pageSize = 20 }: { q?: string; status?: ProductStatus; page?: number; pageSize?: number }) {
+  async adminList(storeId: string, { q, status, category, page = 1, pageSize = 20 }: { q?: string; status?: ProductStatus; category?: string; page?: number; pageSize?: number }) {
     const term = q?.trim();
-    const where: Prisma.ProductWhereInput = { storeId, ...(status && { status }), ...(term && { OR: [{ name: { contains: term, mode: 'insensitive' } }, { sku: { contains: term, mode: 'insensitive' } }] }) };
+    // Filtrar por uma categoria inclui as subcategorias dela.
+    const categoryIds = category ? await this.categoryAndDescendants(storeId, category) : undefined;
+    const where: Prisma.ProductWhereInput = { storeId, ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }), ...(status && { status }), ...(term && { OR: [{ name: { contains: term, mode: 'insensitive' } }, { sku: { contains: term, mode: 'insensitive' } }] }) };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 }, inventory: true, _count: { select: { variants: true } } }, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.product.count({ where }),

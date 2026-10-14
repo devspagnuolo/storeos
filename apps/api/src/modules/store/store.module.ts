@@ -5,5 +5,5 @@ import { StorefrontController } from './storefront.controller';
 import { StorefrontService } from './storefront.service';
 import { StoreSetupController } from './store-setup.controller';
 
-@Module({ controllers: [StoreController, StorefrontController, StoreSetupController], providers: [StoreAssetsService, StorefrontService] })
+@Module({ controllers: [StoreController, StorefrontController, StoreSetupController], providers: [StoreAssetsService, StorefrontService], exports: [StoreAssetsService] })
 export class StoreModule {}

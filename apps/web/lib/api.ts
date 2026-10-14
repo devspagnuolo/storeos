@@ -10,7 +10,7 @@ export type ProductVariant = { id: string; sku: string; price: string | null; at
 export type ProductDetail = ProductSummary & { description: string | null; available: number; variants?: ProductVariant[]; categories: { name: string; slug: string }[]; brand?: { name: string; slug: string } | null; seoTitle?: string | null; seoDescription?: string | null };
 export type Brand = { id: string; name: string; slug: string; logoUrl: string | null };
 export type Collection = { id: string; name: string; slug: string; description: string | null };
-export type Category = { id: string; name: string; slug: string; description: string | null; parentId: string | null; position?: number };
+export type Category = { id: string; name: string; slug: string; description: string | null; parentId: string | null; position?: number; bannerUrl?: string | null; bannerMobileUrl?: string | null };
 export type ProductPage = { items: ProductSummary[]; total: number; page: number; pageSize: number };
 
 const emptyPage = (page = 1, pageSize = 24): ProductPage => ({ items: [], total: 0, page, pageSize });
