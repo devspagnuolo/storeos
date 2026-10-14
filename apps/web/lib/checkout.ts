@@ -10,7 +10,7 @@ export type CheckoutForm = {
 };
 
 export type CheckoutResult = {
-  number: string; status: string; subtotal: string; discount: string; couponCode: string | null; shipping: string; shippingMethod: string | null; total: string; currency: string;
+  number: string; status: string; subtotal: string; discount: string; promotionDiscount: string; promotions: { name: string; amount: string }[]; couponCode: string | null; shipping: string; shippingMethod: string | null; total: string; currency: string;
   items: { sku: string; name: string; quantity: number; total: string }[];
   payment: { method: string; status: string; expiresAt?: string; instructions: { message: string; pixCode?: string; qrCodeBase64?: string; ticketUrl?: string } };
 };
@@ -49,4 +49,17 @@ export async function previewCoupon(code: string, items: CartItem[], shipping: n
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(response.status === 429 ? 'Muitas tentativas. Aguarde um minuto.' : (Array.isArray(body.message) ? 'Cupom inválido' : body.message) || 'Cupom inválido');
   return body;
+}
+
+export type PromotionPreview = { discount: string; applied: { id: string; name: string; amount: string }[] };
+
+/** Promoções automáticas do carrinho; o checkout recalcula as mesmas regras no servidor. */
+export async function previewPromotions(items: CartItem[]): Promise<PromotionPreview> {
+  const response = await fetch(`${apiUrl}/promotions/preview`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ storeSlug, items: items.map(i => ({ productId: i.productId, quantity: i.quantity })) }),
+  });
+  if (!response.ok) return { discount: '0.00', applied: [] };
+  return response.json();
 }

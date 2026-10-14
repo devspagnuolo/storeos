@@ -5,6 +5,7 @@ import { generateOrderNumber, mergeItems, priceOrderLines, RequestedItem } from 
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
 import { ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
 import { CouponsService } from '../promotions/coupons.service';
+import { PromotionsService } from '../promotions/promotions.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { money } from '../../shared/money/money';
 
@@ -23,7 +24,7 @@ export type CheckoutInput = {
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
 
-  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService) {}
+  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService, private readonly promotions: PromotionsService) {}
 
   async checkout(input: CheckoutInput) {
     if (input.paymentMethod === PaymentMethod.CREDIT_CARD) throw new BadRequestException('Cartão de crédito ainda não está disponível');
@@ -63,18 +64,21 @@ export class CheckoutService {
         create: { storeId: store.id, email, name: input.customer.name },
         update: { name: input.customer.name },
       });
+      // Promoções automáticas entram primeiro; o cupom incide sobre o que sobrou.
+      const promo = await this.promotions.evaluate(tx, store.id, lines);
+      const afterPromotions = subtotal.minus(promo.discount);
       let discount = money(0);
       let couponId: string | undefined;
       if (input.couponCode?.trim()) {
-        const redeemed = await this.coupons.redeem(tx, { storeId: store.id, code: input.couponCode, subtotal, shipping, customerId: customer.id });
+        const redeemed = await this.coupons.redeem(tx, { storeId: store.id, code: input.couponCode, subtotal: afterPromotions, shipping, customerId: customer.id });
         discount = redeemed.discount;
         couponId = redeemed.coupon.id;
       }
-      const total = subtotal.minus(discount).plus(shipping);
+      const total = afterPromotions.minus(discount).plus(shipping);
       const number = generateOrderNumber();
       const created = await tx.order.create({
         data: {
-          storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, shipping, total, shippingMethod, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : null,
+          storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, promotionDiscount: promo.discount, promotions: promo.applied as unknown as Prisma.InputJsonArray, shipping, total, shippingMethod, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : null,
           shippingAddress: input.shippingAddress as Prisma.InputJsonObject,
           items: { create: lines },
           timeline: { create: [{ status: OrderStatus.NEW, message: 'Pedido criado no checkout' }, { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento' }] },
@@ -106,6 +110,8 @@ export class CheckoutService {
       status: order.status,
       subtotal: order.subtotal.toFixed(2),
       discount: order.discount.toFixed(2),
+      promotionDiscount: order.promotionDiscount.toFixed(2),
+      promotions: order.promotions ?? [],
       couponCode: order.couponCode,
       shipping: order.shipping.toFixed(2),
       shippingMethod: order.shippingMethod,

@@ -72,6 +72,7 @@ model Store {
   collections   Collection[]
   pages         Page[]
   emailLogs     EmailLog[]
+  promotions    Promotion[]
 }
 
 model User {
@@ -302,6 +303,8 @@ model Order {
   timeline        OrderTimeline[]
   fulfillment     Fulfillment?
   couponCode      String?
+  promotionDiscount Decimal       @default(0) @db.Decimal(14, 2)
+  promotions      Json?
   redemption      CouponRedemption?
   loyaltyEntries  LoyaltyEntry[]
 
@@ -598,4 +601,31 @@ model EmailLog {
   store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, createdAt])
+}
+
+enum PromotionType {
+  PERCENT_OFF
+  BUY_X_PAY_Y
+  CART_PERCENT
+}
+
+/// Desconto automático (sem código): aplicado pela loja a quem cumpre a regra.
+model Promotion {
+  id          String        @id @default(uuid())
+  storeId     String
+  name        String
+  type        PromotionType
+  value       Decimal       @default(0) @db.Decimal(5, 2)
+  buyQty      Int?
+  payQty      Int?
+  minSubtotal Decimal?      @db.Decimal(14, 2)
+  skus        String[]
+  active      Boolean       @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  store       Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, active])
 }
