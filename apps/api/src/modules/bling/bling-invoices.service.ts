@@ -89,7 +89,7 @@ export class BlingInvoicesService {
 
   async processDue() {
     const due = await this.prisma.blingInvoice.findMany({
-      where: { status: { in: [BlingInvoiceStatus.QUEUED, BlingInvoiceStatus.FAILED, BlingInvoiceStatus.PROCESSING] }, attempts: { lt: 6 }, nextAttemptAt: { lte: new Date() } },
+      where: { status: { in: [BlingInvoiceStatus.QUEUED, BlingInvoiceStatus.FAILED, BlingInvoiceStatus.PROCESSING, BlingInvoiceStatus.GENERATED] }, attempts: { lt: 6 }, nextAttemptAt: { lte: new Date() } },
       orderBy: { createdAt: 'asc' }, take: 5,
     });
     for (const invoice of due) await this.process(invoice.id);
@@ -113,7 +113,7 @@ export class BlingInvoicesService {
   private async process(id: string) {
     const now = new Date();
     const claim = await this.prisma.blingInvoice.updateMany({
-      where: { id, status: { in: [BlingInvoiceStatus.QUEUED, BlingInvoiceStatus.FAILED, BlingInvoiceStatus.PROCESSING] }, attempts: { lt: 6 }, nextAttemptAt: { lte: now } },
+      where: { id, status: { in: [BlingInvoiceStatus.QUEUED, BlingInvoiceStatus.FAILED, BlingInvoiceStatus.PROCESSING, BlingInvoiceStatus.GENERATED] }, attempts: { lt: 6 }, nextAttemptAt: { lte: now } },
       data: { status: BlingInvoiceStatus.PROCESSING, nextAttemptAt: new Date(now.getTime() + 5 * 60_000) },
     });
     if (!claim.count) return;
@@ -126,9 +126,12 @@ export class BlingInvoicesService {
       const token = await this.auth.accessToken(invoice.storeId);
       const call = <T>(path: string, init?: { method?: string; body?: unknown }) => this.client.request<T>(token, path, init);
 
-      // Recuperação idempotente: um timeout após o POST não pode criar uma segunda NF-e.
-      const found = (await call<InvoiceList>('/nfe?' + new URLSearchParams({ numeroLoja: invoice.order.number, tipo: '1', limite: '10' }))).data ?? [];
-      let remote = found.find(row => row.id !== undefined);
+      // Reutiliza IDs persistidos e faz busca por numeroLoja após timeout para evitar notas duplicadas.
+      let remote: InvoiceDto | undefined = invoice.blingInvoiceId ? { id: invoice.blingInvoiceId } : undefined;
+      if (!remote) {
+        const found = (await call<InvoiceList>('/nfe?' + new URLSearchParams({ numeroLoja: invoice.order.number, tipo: '1', limite: '10' }))).data ?? [];
+        remote = found.find(row => row.id !== undefined);
+      }
       if (!remote) {
         const result = await call<{ data?: { idNotaFiscal?: number | string; id?: number | string } }>('/pedidos/vendas/' + encodeURIComponent(remoteOrderId) + '/gerar-nfe', { method: 'POST' });
         const remoteId = result.data?.idNotaFiscal ?? result.data?.id;
@@ -136,24 +139,30 @@ export class BlingInvoicesService {
         remote = { id: remoteId };
       }
       const remoteId = String(remote.id);
-      const generated = await this.prisma.blingInvoice.update({
-        where: { id }, data: { status: BlingInvoiceStatus.GENERATED, blingInvoiceId: remoteId, invoiceNumber: remote.numero == null ? null : String(remote.numero), series: remote.serie == null ? null : String(remote.serie), accessKey: remote.chaveAcesso ?? null, issuedAt: new Date(), attempts: { increment: 1 }, rejectionReason: null },
+      await this.prisma.blingInvoice.update({
+        where: { id }, data: { status: BlingInvoiceStatus.GENERATED, blingInvoiceId: remoteId, invoiceNumber: remote.numero == null ? null : String(remote.numero), series: remote.serie == null ? null : String(remote.serie), accessKey: remote.chaveAcesso ?? null, issuedAt: invoice.issuedAt ?? new Date(), rejectionReason: null },
       });
-      // Emissão e autorização na SEFAZ são etapas distintas. Esta chamada pede ao Bling o envio/autorização.
-      await call('/nfe/' + encodeURIComponent(remoteId) + '/enviar', { method: 'POST', body: { enviarEmail: false } });
+
+      // Persiste o envio antes de consultar status. Reexecuções só consultam; não reenviam NF-e à SEFAZ.
+      if (!invoice.submittedAt) {
+        await call('/nfe/' + encodeURIComponent(remoteId) + '/enviar', { method: 'POST', body: { enviarEmail: false } });
+        await this.prisma.blingInvoice.update({ where: { id }, data: { submittedAt: new Date() } });
+      }
       const detail = await call<{ data?: InvoiceDto }>('/nfe/' + encodeURIComponent(remoteId));
       const data = detail.data ?? remote;
       const situation = typeof data.situacao === 'object' ? data.situacao?.id ?? data.situacao?.valor : data.situacao;
       const authorized = String(situation) === '5' || String(situation) === '6';
+      const rejected = String(situation) === '4' || String(situation) === '9';
       await this.prisma.blingInvoice.update({
         where: { id },
         data: {
-          status: authorized ? BlingInvoiceStatus.AUTHORIZED : BlingInvoiceStatus.GENERATED,
-          invoiceNumber: data.numero == null ? generated.invoiceNumber : String(data.numero),
-          series: data.serie == null ? generated.series : String(data.serie),
-          accessKey: data.chaveAcesso ?? generated.accessKey,
-          rejectionReason: data.motivoSituacao ?? data.motivo ?? null,
+          status: authorized ? BlingInvoiceStatus.AUTHORIZED : rejected ? BlingInvoiceStatus.REJECTED : BlingInvoiceStatus.GENERATED,
+          invoiceNumber: data.numero == null ? remote.numero == null ? invoice.invoiceNumber : String(remote.numero) : String(data.numero),
+          series: data.serie == null ? remote.serie == null ? invoice.series : String(remote.serie) : String(data.serie),
+          accessKey: data.chaveAcesso ?? remote.chaveAcesso ?? invoice.accessKey,
+          rejectionReason: rejected ? data.motivoSituacao ?? data.motivo ?? 'A NF-e foi rejeitada pelo Bling/SEFAZ.' : null,
           ...(authorized && { authorizedAt: new Date() }),
+          nextAttemptAt: authorized || rejected ? new Date('9999-12-31T00:00:00.000Z') : new Date(Date.now() + 5 * 60_000),
         },
       });
     } catch (error) {
@@ -162,7 +171,7 @@ export class BlingInvoicesService {
       this.logger.warn('NF-e do pedido ' + invoice.order.number + ' não processada: ' + message);
       await this.prisma.blingInvoice.update({
         where: { id },
-        data: { status: BlingInvoiceStatus.FAILED, attempts, rejectionReason: message, nextAttemptAt: new Date(Date.now() + Math.min(2 ** attempts * 60_000, 6 * 3_600_000)) },
+        data: { status: BlingInvoiceStatus.FAILED, attempts, rejectionReason: message, nextAttemptAt: attempts >= 6 ? new Date('9999-12-31T00:00:00.000Z') : new Date(Date.now() + Math.min(2 ** attempts * 60_000, 6 * 3_600_000)) },
       });
     }
   }
