@@ -1,3 +1,5 @@
+import { buildTree, TreeNode } from './category-tree';
+
 export const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
 export const storeSlug = process.env.NEXT_PUBLIC_STORE_SLUG ?? 'demo';
 export const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
@@ -8,7 +10,7 @@ export type ProductVariant = { id: string; sku: string; price: string | null; at
 export type ProductDetail = ProductSummary & { description: string | null; available: number; variants?: ProductVariant[]; categories: { name: string; slug: string }[]; brand?: { name: string; slug: string } | null; seoTitle?: string | null; seoDescription?: string | null };
 export type Brand = { id: string; name: string; slug: string; logoUrl: string | null };
 export type Collection = { id: string; name: string; slug: string; description: string | null };
-export type Category = { id: string; name: string; slug: string; description: string | null; parentId: string | null };
+export type Category = { id: string; name: string; slug: string; description: string | null; parentId: string | null; position?: number };
 export type ProductPage = { items: ProductSummary[]; total: number; page: number; pageSize: number };
 
 const emptyPage = (page = 1, pageSize = 24): ProductPage => ({ items: [], total: 0, page, pageSize });
@@ -50,8 +52,8 @@ export const getPage = (slug: string) => get<ContentPage | null>(`/content/pages
 export type MenuLink = { label: string; href: string; children: MenuLink[] };
 export type StorefrontMenu = { configured: boolean; items: MenuLink[] };
 export const getMenu = (key: 'main' | 'footer') => get<StorefrontMenu>(`/content/menus/${key}?store=${encodeURIComponent(storeSlug)}`, { configured: false, items: [] });
-/** Menu padrão enquanto a loja não montou o próprio: categorias principais com suas subcategorias. */
+/** Menu padrão enquanto a loja não montou o próprio: a árvore de categorias (até 4 níveis) vira o menu. */
 export function defaultMenu(categories: Category[]): MenuLink[] {
-  const link = (c: Category): MenuLink => ({ label: c.name, href: `/categorias/${c.slug}`, children: categories.filter(child => child.parentId === c.id).map(link) });
-  return categories.filter(c => !c.parentId).map(link);
+  const link = (node: TreeNode<Category>): MenuLink => ({ label: node.name, href: `/categorias/${node.slug}`, children: node.children.map(link) });
+  return buildTree(categories).map(link);
 }

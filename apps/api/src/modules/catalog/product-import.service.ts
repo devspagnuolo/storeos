@@ -32,21 +32,23 @@ export class ProductImportService {
     return report;
   }
 
+  /** Cria (ou reaproveita, pelo nome dentro do mesmo pai) cada nível do caminho "Blusas > Manga Longa > Renda". */
   private async categoryIds(storeId: string, paths: string[][]) {
     const ids = new Set<string>();
-    for (const [rootName, childName] of paths) {
-      const root = await this.findOrCreateCategory(storeId, rootName, null);
-      ids.add(root);
-      if (childName) ids.add(await this.findOrCreateCategory(storeId, childName, root));
+    for (const path of paths) {
+      let parentId: string | null = null;
+      for (const name of path) {
+        parentId = await this.findOrCreateCategory(storeId, name, parentId);
+        ids.add(parentId);
+      }
     }
     return [...ids];
   }
 
   private async findOrCreateCategory(storeId: string, name: string, parentId: string | null) {
-    const slug = slugify(name) || 'categoria';
-    const found = await this.prisma.category.findFirst({ where: { storeId, slug } });
+    const found = await this.prisma.category.findFirst({ where: { storeId, parentId, name: { equals: name, mode: 'insensitive' } } });
     if (found) return found.id;
-    return (await this.catalog.createCategory(storeId, { name: name.slice(0, 80), slug, parentId })).id;
+    return (await this.catalog.createCategory(storeId, { name: name.slice(0, 80), slug: slugify(name) || 'categoria', parentId })).id;
   }
 
   private async brandId(storeId: string, name?: string) {
@@ -85,12 +87,14 @@ export class ProductImportService {
   async exportCsv(storeId: string) {
     const products = await this.prisma.product.findMany({
       where: { storeId, status: { not: ProductStatus.ARCHIVED } }, orderBy: { name: 'asc' }, take: 5000,
-      include: { categories: { include: { category: { include: { parent: true } } } }, brand: true, images: { orderBy: { position: 'asc' } }, inventory: true, variants: { orderBy: { position: 'asc' } } },
+      include: { categories: { include: { category: true } }, brand: true, images: { orderBy: { position: 'asc' } }, inventory: true, variants: { orderBy: { position: 'asc' } } },
     });
+    const all = await this.prisma.category.findMany({ where: { storeId }, select: { id: true, name: true, parentId: true } });
+    const pathOf = (id: string): string => { const c = all.find(x => x.id === id); return c ? (c.parentId ? `${pathOf(c.parentId)} > ${c.name}` : c.name) : ''; };
     const header = ['Identificador URL', 'Nome', 'Categorias', 'Nome da variação 1', 'Valor da variação 1', 'Nome da variação 2', 'Valor da variação 2', 'Nome da variação 3', 'Valor da variação 3', 'Preço', 'Peso (kg)', 'Altura (cm)', 'Largura (cm)', 'Comprimento (cm)', 'Estoque', 'SKU', 'Exibir na loja', 'Descrição', 'Marca', 'Imagens'];
     const rows: (string | number)[][] = [header];
     for (const p of products) {
-      const categories = p.categories.map(({ category: c }) => (c.parent ? `${c.parent.name} > ${c.name}` : c.name)).join(', ');
+      const categories = p.categories.map(({ category: c }) => pathOf(c.id)).join(', ');
       const base = [p.slug, p.name, categories];
       const info = [p.status === ProductStatus.ACTIVE ? 'SIM' : 'NÃO', p.description ?? '', p.brand?.name ?? '', p.images.map(i => i.url).join(' ')];
       const dims = [p.weightGrams ? p.weightGrams / 1000 : '', p.heightCm ?? '', p.widthCm ?? '', p.lengthCm ?? ''];

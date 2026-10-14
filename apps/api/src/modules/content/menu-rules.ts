@@ -9,7 +9,8 @@ export interface MenuItem { label: string; type: MenuItemType; ref?: string; chi
 export interface ResolvedMenuItem { label: string; href: string; children: ResolvedMenuItem[] }
 
 const MAX_ROOT = 30;
-const MAX_CHILDREN = 20;
+const MAX_CHILDREN = 40;
+const MAX_DEPTH = 4; // item principal + 3 níveis de subitens, como Categoria > Sub > Sub > Sub
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Links livres só podem ser caminhos da própria loja ou endereços https. */
@@ -26,7 +27,7 @@ function normalize(raw: unknown, depth: number): MenuItem {
     throw new BadRequestException(type === 'LINK' ? `O link de "${label}" deve começar com / ou https://` : `Escolha o destino de "${label}"`);
   }
   const children = Array.isArray(item.children) ? item.children : [];
-  if (children.length && depth >= 1) throw new BadRequestException('O menu aceita no máximo dois níveis (item e subitem)');
+  if (children.length && depth >= MAX_DEPTH - 1) throw new BadRequestException(`O menu aceita no máximo ${MAX_DEPTH} níveis`);
   if (children.length > MAX_CHILDREN) throw new BadRequestException(`Cada item aceita até ${MAX_CHILDREN} subitens`);
   return { label, type, ...(type !== 'ALL' && { ref }), ...(children.length && { children: children.map(child => normalize(child, depth + 1)) }) };
 }

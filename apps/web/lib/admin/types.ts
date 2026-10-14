@@ -59,7 +59,7 @@ export type StockItem = { productId: string; variantId: string | null; name: str
 
 export type MenuItemType = 'ALL' | 'CATEGORY' | 'COLLECTION' | 'BRAND' | 'PAGE' | 'LINK';
 export type AdminMenuItem = { label: string; type: MenuItemType; ref?: string; children?: AdminMenuItem[] };
-export type MenuOption = { name: string; slug: string; parentId?: string | null };
+export type MenuOption = { id?: string; name: string; slug: string; parentId?: string | null };
 export type AdminMenu = { key: 'main' | 'footer'; configured: boolean; items: AdminMenuItem[]; options: { categories: MenuOption[]; collections: MenuOption[]; brands: MenuOption[]; pages: MenuOption[] } };
 
 export type ImportReport = { dryRun: boolean; rows: number; created: number; updated: number; failed: number; errors: { line: number; message: string }[]; products: { slug: string; name: string; action: 'create' | 'update' | 'error'; variants: number }[] };

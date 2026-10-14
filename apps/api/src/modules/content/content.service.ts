@@ -83,7 +83,7 @@ export class ContentService {
     const key = this.menuKey(rawKey);
     const [menu, categories, collections, brands, pages] = await Promise.all([
       this.prisma.menu.findUnique({ where: { storeId_key: { storeId, key } } }),
-      this.prisma.category.findMany({ where: { storeId }, select: { name: true, slug: true, parentId: true }, orderBy: [{ position: 'asc' }, { name: 'asc' }] }),
+      this.prisma.category.findMany({ where: { storeId }, select: { id: true, name: true, slug: true, parentId: true }, orderBy: [{ position: 'asc' }, { name: 'asc' }] }),
       this.prisma.collection.findMany({ where: { storeId }, select: { name: true, slug: true }, orderBy: { name: 'asc' } }),
       this.prisma.brand.findMany({ where: { storeId }, select: { name: true, slug: true }, orderBy: { name: 'asc' } }),
       this.prisma.page.findMany({ where: { storeId, published: true }, select: { title: true, slug: true }, orderBy: { title: 'asc' } }),

@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ProductStatus, StockMovementType } from '@prisma/client';
+import { descendantIds, parentProblem } from './category-tree';
 import { recordMovement } from '../inventory/stock-ledger';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
@@ -29,10 +30,12 @@ export class CatalogService {
     const storeId = await this.storeId(storeSlug);
     if (!storeId) return { items: [], total: 0, page, pageSize };
     const q = query.q?.trim();
+    // Abrir uma categoria mostra também os produtos de todas as subcategorias abaixo dela.
+    const categoryIds = query.category ? await this.categoryAndDescendants(storeId, query.category) : undefined;
     const where: Prisma.ProductWhereInput = {
       storeId,
       status: ProductStatus.ACTIVE,
-      ...(query.category && { categories: { some: { category: { OR: [{ slug: query.category }, { parent: { slug: query.category } }] } } } }),
+      ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }),
       ...(query.brand && { brand: { slug: query.brand } }),
       ...(query.collection && { collections: { some: { collection: { slug: query.collection, active: true } } } }),
       ...(q && { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { sku: { equals: q, mode: 'insensitive' } }] }),
@@ -59,29 +62,46 @@ export class CatalogService {
     return { ...rest, variants: withStock, available, categories: categories.map(c => c.category) };
   }
 
+  private async categoryAndDescendants(storeId: string, slug: string) {
+    const nodes = await this.prisma.category.findMany({ where: { storeId }, select: { id: true, parentId: true, slug: true } });
+    const found = nodes.find(n => n.slug === slug);
+    return found ? descendantIds(nodes, found.id) : [];
+  }
+
   async categories(storeSlug: string) {
     const storeId = await this.storeId(storeSlug);
     if (!storeId) return [];
-    return this.prisma.category.findMany({ where: { storeId }, orderBy: [{ position: 'asc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, description: true, parentId: true } });
+    return this.prisma.category.findMany({ where: { storeId }, orderBy: [{ position: 'asc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, description: true, parentId: true, position: true } });
   }
 
-  /** Duas camadas (categoria e subcategoria) bastam para o catálogo e mantêm menus e filtros simples. */
+  /** Até quatro níveis (Blusas > Manga Longa > Renda > ...): cobre catálogos de moda sem virar um labirinto de menus. */
   private async assertParent(storeId: string, parentId: string | null | undefined, selfId?: string) {
     if (!parentId) return;
-    if (parentId === selfId) throw new BadRequestException('Uma categoria não pode ser subcategoria dela mesma');
-    const parent = await this.prisma.category.findFirst({ where: { id: parentId, storeId } });
-    if (!parent) throw new BadRequestException('Categoria pai inválida');
-    if (parent.parentId) throw new BadRequestException('Só há dois níveis: escolha uma categoria principal como pai');
-    if (selfId && (await this.prisma.category.count({ where: { storeId, parentId: selfId } })) > 0) throw new BadRequestException('Esta categoria já tem subcategorias e não pode virar subcategoria');
+    const nodes = await this.prisma.category.findMany({ where: { storeId }, select: { id: true, parentId: true } });
+    const problem = parentProblem(nodes, parentId, selfId);
+    if (problem) throw new BadRequestException(problem);
   }
 
+  /** Se a URL já existe e a categoria tem pai, tenta de novo com o pai na frente ("alfaiataria" vira "conjuntos-alfaiataria"). */
   async createCategory(storeId: string, dto: CreateCategoryInput) {
     await this.assertParent(storeId, dto.parentId);
+    // Sem ordem informada, a nova categoria vai para o fim do mesmo nível (a ordem de criação vira a ordem do menu).
+    if (dto.position === undefined) {
+      const last = await this.prisma.category.aggregate({ where: { storeId, parentId: dto.parentId ?? null }, _max: { position: true } });
+      dto = { ...dto, position: (last._max.position ?? -1) + 1 };
+    }
     try {
       return await this.prisma.category.create({ data: { ...dto, storeId } });
     } catch (error) {
-      if (isUniqueViolation(error)) throw new ConflictException('Já existe uma categoria com essa URL nesta loja');
-      throw error;
+      if (!isUniqueViolation(error)) throw error;
+      const parent = dto.parentId ? await this.prisma.category.findFirst({ where: { id: dto.parentId, storeId } }) : null;
+      if (!parent) throw new ConflictException('Já existe uma categoria com essa URL nesta loja');
+      try {
+        return await this.prisma.category.create({ data: { ...dto, slug: `${parent.slug}-${dto.slug}`.slice(0, 120), storeId } });
+      } catch (retry) {
+        if (isUniqueViolation(retry)) throw new ConflictException('Já existe uma categoria com essa URL nesta loja');
+        throw retry;
+      }
     }
   }
 
@@ -96,10 +116,14 @@ export class CatalogService {
     }
   }
 
-  /** As subcategorias sobem para o nível principal e os produtos só perdem o vínculo com esta categoria. */
+  /** As subcategorias sobem um nível (para o pai da excluída) e os produtos só perdem o vínculo com esta categoria. */
   async deleteCategory(storeId: string, id: string) {
-    const { count } = await this.prisma.category.deleteMany({ where: { id, storeId } });
-    if (!count) throw new NotFoundException('Categoria não encontrada');
+    const category = await this.prisma.category.findFirst({ where: { id, storeId } });
+    if (!category) throw new NotFoundException('Categoria não encontrada');
+    await this.prisma.$transaction([
+      this.prisma.category.updateMany({ where: { storeId, parentId: id }, data: { parentId: category.parentId } }),
+      this.prisma.category.delete({ where: { id } }),
+    ]);
   }
 
   private async assertBrand(storeId: string, brandId?: string | null) {

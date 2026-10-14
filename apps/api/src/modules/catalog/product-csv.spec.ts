@@ -23,7 +23,7 @@ describe('parseNumber e parseCategories', () => {
     expect([parseNumber('R$ 1.234,56'), parseNumber('49,90'), parseNumber('49.90'), parseNumber(''), parseNumber('abc')]).toEqual([1234.56, 49.9, 49.9, undefined, undefined]);
   });
   it('separa categorias e subcategorias', () => {
-    expect(parseCategories('Blusas > Regatas, Promoção | Outlet > A > B')).toEqual([['Blusas', 'Regatas'], ['Promoção'], ['Outlet', 'A']]);
+    expect(parseCategories('Blusas > Regatas, Promoção | Outlet > A > B > C > D')).toEqual([['Blusas', 'Regatas'], ['Promoção'], ['Outlet', 'A', 'B', 'C']]);
   });
 });
 
