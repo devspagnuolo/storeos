@@ -1,4 +1,4 @@
-import { apiUrl } from './api';
+import { apiUrl } from './config';
 
 export const onlyDigits = (value: string) => value.replace(/\D/g, '');
 

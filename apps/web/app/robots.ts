@@ -1,7 +1,8 @@
 import type { MetadataRoute } from 'next';
-import { siteUrl } from '../lib/api';
+import { resolveSiteUrl } from '../lib/store-host';
 
-export default function robots(): MetadataRoute.Robots {
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const siteUrl = await resolveSiteUrl();
   return {
     rules: { userAgent: '*', allow: '/', disallow: ['/admin', '/checkout', '/carrinho', '/conta'] },
     sitemap: `${siteUrl}/sitemap.xml`,

@@ -2,12 +2,15 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
-import { apiUrl, storeSlug, type ProductSummary } from '../lib/api';
+import { apiUrl } from '../lib/config';
+import type { ProductSummary } from '../lib/api';
+import { useStoreBrand } from './store-name';
 import { formatPrice } from '../lib/format';
 
 /** Busca com sugestões: consulta o catálogo público a cada pausa na digitação e navega pelo teclado (combobox ARIA). */
 export function SearchBox({ className = '' }: { className?: string }) {
   const router = useRouter();
+  const { slug: storeSlug } = useStoreBrand();
   const listId = useId();
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<ProductSummary[]>([]);
@@ -26,7 +29,7 @@ export function SearchBox({ className = '' }: { className?: string }) {
       } catch { /* sem sugestões: o envio do formulário continua funcionando */ }
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [query]);
+  }, [query, storeSlug]);
 
   useEffect(() => {
     const close = (event: MouseEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false); };

@@ -1,9 +1,11 @@
 import type { MetadataRoute } from 'next';
-import { getBrands, getCategories, getCollections, getPages, getProducts, siteUrl } from '../lib/api';
+import { getBrands, getCategories, getCollections, getPages, getProducts } from '../lib/api';
+import { resolveSiteUrl } from '../lib/store-host';
 
 export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const siteUrl = await resolveSiteUrl();
   const [categories, products, brands, collections, pages] = await Promise.all([getCategories(), getProducts({ pageSize: 60 }), getBrands(), getCollections(), getPages()]);
   return [
     { url: siteUrl, changeFrequency: 'daily', priority: 1 },

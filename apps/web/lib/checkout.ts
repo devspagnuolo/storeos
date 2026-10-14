@@ -1,4 +1,4 @@
-import { apiUrl, storeSlug } from './api';
+import { apiUrl } from './config';
 import { toRequestItems, type CartItem } from './cart';
 
 export type CheckoutForm = {
@@ -17,7 +17,7 @@ export type CheckoutResult = {
 };
 
 /** Envia o pedido direto do navegador para a API; o rate limit da API considera o IP de cada cliente. */
-export async function submitCheckout(form: CheckoutForm, items: CartItem[], card?: import('../components/card-payment').CardPayload): Promise<CheckoutResult> {
+export async function submitCheckout(storeSlug: string, form: CheckoutForm, items: CartItem[], card?: import('../components/card-payment').CardPayload): Promise<CheckoutResult> {
   const { name, email, paymentMethod, shippingRuleId, couponCode, cpf, ...address } = form;
   const response = await fetch(`${apiUrl}/checkout`, {
     method: 'POST',
@@ -43,7 +43,7 @@ export async function submitCheckout(form: CheckoutForm, items: CartItem[], card
 }
 
 /** Pré-visualiza o desconto; o servidor aplica a mesma regra de novo ao fechar o pedido. */
-export async function previewCoupon(code: string, items: CartItem[], shipping: number): Promise<{ code: string; discount: string }> {
+export async function previewCoupon(storeSlug: string, code: string, items: CartItem[], shipping: number): Promise<{ code: string; discount: string }> {
   const response = await fetch(`${apiUrl}/coupons/preview`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -57,7 +57,7 @@ export async function previewCoupon(code: string, items: CartItem[], shipping: n
 export type PromotionPreview = { discount: string; applied: { id: string; name: string; amount: string }[] };
 
 /** Promoções automáticas do carrinho; o checkout recalcula as mesmas regras no servidor. */
-export async function previewPromotions(items: CartItem[]): Promise<PromotionPreview> {
+export async function previewPromotions(storeSlug: string, items: CartItem[]): Promise<PromotionPreview> {
   const response = await fetch(`${apiUrl}/promotions/preview`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

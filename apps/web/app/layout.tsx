@@ -39,8 +39,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [{ name, logoUrl, whatsappNumber, whatsappMessage, themeConfig }, categories, pages, main, footer] = await Promise.all([getPageBranding(), getCategories(), getPages(), getMenu('main'), getMenu('footer')]);
+  const [{ name, logoUrl, whatsappNumber, whatsappMessage, themeConfig, slug }, categories, pages, main, footer] = await Promise.all([getPageBranding(), getCategories(), getPages(), getMenu('main'), getMenu('footer')]);
   const menus = { main: main.configured ? main.items : defaultMenu(categories), footer: footer.configured ? footer.items : null };
   const design = themeConfig?.design;
-  return <html lang="pt-BR"><body style={themeStyle(themeConfig ?? {})}><StoreNameProvider name={name} logoUrl={design?.logoUrl ?? logoUrl} menus={menus}>{children}<Footer categories={categories} pages={pages} /><WhatsAppButton number={whatsappNumber} message={whatsappMessage} /></StoreNameProvider></body></html>;
+  return <html lang="pt-BR"><body style={themeStyle(themeConfig ?? {})}><StoreNameProvider name={name} slug={slug} logoUrl={design?.logoUrl ?? logoUrl} menus={menus}>{children}<Footer categories={categories} pages={pages} /><WhatsAppButton number={whatsappNumber} message={whatsappMessage} /></StoreNameProvider></body></html>;
 }
