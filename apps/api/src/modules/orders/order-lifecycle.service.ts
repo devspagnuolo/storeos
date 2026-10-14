@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma, StockMovementType } from '@prisma/client';
 import { earnForOrder, reverseForOrder } from '../loyalty/ledger';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
+import { recordMovement } from '../inventory/stock-ledger';
 import { inventoryOf } from './order-lines';
 
 type Tx = Prisma.TransactionClient;
@@ -38,6 +39,7 @@ export class OrderLifecycleService {
         if (!item.productId) continue;
         await tx.$executeRaw`UPDATE "Inventory" SET "quantity" = "quantity" - ${item.quantity}, "reserved" = GREATEST("reserved" - ${item.quantity}, 0), "updatedAt" = NOW()
           WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND ${inventoryOf(item.variantId)}`;
+        await recordMovement(tx, { storeId: order.storeId, productId: item.productId, variantId: item.variantId, type: StockMovementType.SALE, delta: -item.quantity, orderNumber: order.number, actorId: source.actorId });
       }
       await tx.payment.updateMany({ where: { orderId: order.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } }, data: { status: PaymentStatus.PAID, paidAt: new Date() } });
       await earnForOrder(tx, order);
@@ -102,6 +104,7 @@ export class OrderLifecycleService {
           if (!item.productId) continue;
           await tx.$executeRaw`UPDATE "Inventory" SET "quantity" = "quantity" + ${item.quantity}, "updatedAt" = NOW()
             WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND ${inventoryOf(item.variantId)}`;
+          await recordMovement(tx, { storeId: order.storeId, productId: item.productId, variantId: item.variantId, type: StockMovementType.RETURN, delta: item.quantity, orderNumber: order.number, actorId: step.actorId, reason: step.message });
         }
       }
       if (step.reverseLoyalty) await reverseForOrder(tx, order);

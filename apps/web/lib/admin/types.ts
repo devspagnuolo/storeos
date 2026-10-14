@@ -52,3 +52,7 @@ export type AdminPage = { id: string; slug: string; title: string; body: string;
 export type EmailLogEntry = { id: string; template: string; toEmail: string; subject: string; status: 'SENT' | 'SIMULATED' | 'FAILED'; error: string | null; createdAt: string };
 export type EmailLogPage = { items: EmailLogEntry[]; total: number; provider: 'resend' | 'simulated' };
 export type AdminPromotion = { id: string; name: string; type: 'PERCENT_OFF' | 'BUY_X_PAY_Y' | 'CART_PERCENT'; value: string; buyQty: number | null; payQty: number | null; minSubtotal: string | null; skus: string[]; active: boolean; startsAt: string | null; endsAt: string | null };
+
+export type StockMovement = { id: string; type: 'INITIAL' | 'ADJUSTMENT' | 'SALE' | 'RETURN'; delta: number; balance: number; reason: string | null; orderNumber: string | null; productName: string | null; sku: string | null; createdAt: string };
+export type StockMovementPage = { items: StockMovement[]; total: number; page: number; pageSize: number };
+export type StockItem = { productId: string; variantId: string | null; name: string; sku: string; variation: string; status: string; price: string; quantity: number; reserved: number; available: number };
