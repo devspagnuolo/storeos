@@ -10,7 +10,7 @@ export type CheckoutForm = {
 export type CheckoutResult = {
   number: string; status: string; total: string; currency: string;
   items: { sku: string; name: string; quantity: number; total: string }[];
-  payment: { method: string; status: string; instructions: Record<string, string> };
+  payment: { method: string; status: string; expiresAt?: string; instructions: { message: string; pixCode?: string; qrCodeBase64?: string; ticketUrl?: string } };
 };
 
 /** Envia o pedido direto do navegador para a API; o rate limit da API considera o IP de cada cliente. */

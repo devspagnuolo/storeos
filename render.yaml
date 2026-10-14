@@ -37,6 +37,14 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      # PIX automático: sem MERCADOPAGO_ACCESS_TOKEN o checkout usa o fluxo manual.
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADOPAGO_WEBHOOK_SECRET
+        sync: false
+      # URL pública desta API, usada como notification_url do webhook de pagamento.
+      - key: API_PUBLIC_URL
+        sync: false
 
   - type: web
     name: storeos-nexo-web

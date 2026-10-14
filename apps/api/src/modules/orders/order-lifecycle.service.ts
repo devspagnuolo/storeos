@@ -1,0 +1,90 @@
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { PrismaService } from '../../shared/infrastructure/prisma.service';
+
+type Tx = Prisma.TransactionClient;
+export type OrderRef = { storeId: string; number: string } | { orderId: string };
+
+/**
+ * Transições de pagamento do pedido. Cada transição é condicional ao status atual,
+ * então webhooks repetidos, cliques duplos e o job de expiração não aplicam o mesmo efeito duas vezes.
+ */
+@Injectable()
+export class OrderLifecycleService {
+  private readonly logger = new Logger(OrderLifecycleService.name);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async find(tx: Tx, ref: OrderRef) {
+    const order = 'orderId' in ref
+      ? await tx.order.findUnique({ where: { id: ref.orderId }, include: { items: true } })
+      : await tx.order.findUnique({ where: { storeId_number: { storeId: ref.storeId, number: ref.number } }, include: { items: true } });
+    if (!order) throw new NotFoundException('Pedido não encontrado');
+    return order;
+  }
+
+  /** Confirma o pagamento: baixa o estoque reservado. Retorna false se o pedido já tinha saído de "aguardando pagamento". */
+  async markPaid(ref: OrderRef, source: { actorId?: string; message?: string } = {}) {
+    return this.prisma.$transaction(async tx => {
+      const order = await this.find(tx, ref);
+      const moved = await tx.order.updateMany({ where: { id: order.id, status: OrderStatus.AWAITING_PAYMENT }, data: { status: OrderStatus.PAID } });
+      if (!moved.count) {
+        if (order.status === OrderStatus.PAID) return false;
+        throw new ConflictException(`Pedido ${order.number} não está aguardando pagamento`);
+      }
+      for (const item of order.items) {
+        if (!item.productId) continue;
+        await tx.$executeRaw`UPDATE "Inventory" SET "quantity" = "quantity" - ${item.quantity}, "reserved" = GREATEST("reserved" - ${item.quantity}, 0), "updatedAt" = NOW()
+          WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND "variantId" IS NULL`;
+      }
+      await tx.payment.updateMany({ where: { orderId: order.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } }, data: { status: PaymentStatus.PAID, paidAt: new Date() } });
+      await tx.orderTimeline.create({ data: { orderId: order.id, status: OrderStatus.PAID, message: source.message ?? 'Pagamento confirmado', actorId: source.actorId } });
+      await tx.outboxEvent.create({ data: { storeId: order.storeId, aggregateType: 'Order', aggregateId: order.id, eventName: 'orders.order-paid.v1', payload: { orderNumber: order.number, total: order.total.toString() } } });
+      return true;
+    });
+  }
+
+  /** Cancela um pedido ainda não pago e devolve a reserva ao estoque disponível. */
+  async cancel(ref: OrderRef, source: { actorId?: string; message?: string; paymentStatus?: PaymentStatus } = {}) {
+    return this.prisma.$transaction(async tx => {
+      const order = await this.find(tx, ref);
+      const moved = await tx.order.updateMany({ where: { id: order.id, status: { in: [OrderStatus.NEW, OrderStatus.AWAITING_PAYMENT] } }, data: { status: OrderStatus.CANCELLED } });
+      if (!moved.count) {
+        if (order.status === OrderStatus.CANCELLED) return false;
+        throw new ConflictException(`Pedido ${order.number} não pode mais ser cancelado (status ${order.status})`);
+      }
+      // Só pedidos do checkout reservaram estoque; pedidos manuais (NEW) não têm o que devolver.
+      if (order.status === OrderStatus.AWAITING_PAYMENT) {
+        for (const item of order.items) {
+          if (!item.productId) continue;
+          await tx.$executeRaw`UPDATE "Inventory" SET "reserved" = GREATEST("reserved" - ${item.quantity}, 0), "updatedAt" = NOW()
+            WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND "variantId" IS NULL`;
+        }
+      }
+      await tx.payment.updateMany({ where: { orderId: order.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } }, data: { status: source.paymentStatus ?? PaymentStatus.CANCELLED } });
+      await tx.orderTimeline.create({ data: { orderId: order.id, status: OrderStatus.CANCELLED, message: source.message ?? 'Pedido cancelado', actorId: source.actorId } });
+      await tx.outboxEvent.create({ data: { storeId: order.storeId, aggregateType: 'Order', aggregateId: order.id, eventName: 'orders.order-cancelled.v1', payload: { orderNumber: order.number } } });
+      return true;
+    });
+  }
+
+  /** Cancela pedidos cujo prazo de pagamento venceu, liberando o estoque reservado. */
+  async expireOverdue(now = new Date(), limit = 100) {
+    const overdue = await this.prisma.order.findMany({
+      where: { status: OrderStatus.AWAITING_PAYMENT, payments: { some: { status: PaymentStatus.PENDING, expiresAt: { lt: now } } } },
+      select: { id: true, number: true },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    let expired = 0;
+    for (const order of overdue) {
+      try {
+        if (await this.cancel({ orderId: order.id }, { message: 'Prazo de pagamento expirado', paymentStatus: PaymentStatus.CANCELLED })) expired++;
+      } catch (error) {
+        // Um pedido pago entre a busca e o cancelamento não deve derrubar o lote.
+        this.logger.warn(`Não foi possível expirar ${order.number}: ${(error as Error).message}`);
+      }
+    }
+    return expired;
+  }
+}

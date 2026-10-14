@@ -18,7 +18,9 @@ O seed cria a loja `demo` com 4 categorias, 12 produtos com estoque e o usuário
 
 ## Fluxo de compra
 
-Vitrine (`/`, `/categorias`, `/categorias/[slug]`, `/busca`, `/produto/[slug]`) → carrinho persistente no navegador (`/carrinho`) → checkout guest (`/checkout`). O `POST /api/v1/checkout` valida preço e estoque no servidor, reserva o saldo de forma atômica, cria cliente, pedido e cobrança pela porta `PaymentProvider`. Hoje o adaptador é manual (PIX/boleto confirmados pela loja); gateways reais entram como novos adaptadores.
+Vitrine (`/`, `/categorias`, `/categorias/[slug]`, `/busca`, `/produto/[slug]`) → carrinho persistente no navegador (`/carrinho`) → checkout guest (`/checkout`). O `POST /api/v1/checkout` valida preço e estoque no servidor, reserva o saldo de forma atômica, cria cliente, pedido e cobrança pela porta `PaymentProvider`. Com `MERCADOPAGO_ACCESS_TOKEN` configurado, o PIX é gerado no Mercado Pago (QR code e copia e cola) e confirmado automaticamente pelo webhook `POST /api/v1/payments/webhooks/mercadopago` (assinatura validada quando `MERCADOPAGO_WEBHOOK_SECRET` existe; o status é sempre relido na API do gateway). Sem credencial, e para boleto, o fluxo é manual: a loja confirma com `POST /api/v1/orders/:number/confirm-payment` ou cancela com `POST /api/v1/orders/:number/cancel`.
+
+Confirmar o pagamento baixa o estoque; cancelar devolve a reserva. Um job a cada 5 minutos cancela pedidos cujo prazo venceu (PIX: `PIX_EXPIRATION_MINUTES`, padrão 60; boleto: 3 dias) e libera o estoque.
 
 ## Estrutura
 

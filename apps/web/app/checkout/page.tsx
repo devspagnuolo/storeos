@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { Header } from '../../components/header';
+import { PixPayment } from '../../components/pix-payment';
 import { cartSubtotalCents, useCart } from '../../lib/cart';
 import { CheckoutForm, CheckoutResult, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
@@ -49,6 +50,7 @@ export default function CheckoutPage() {
           <p className="text-sm font-semibold text-brand">PEDIDO RECEBIDO</p>
           <h1 className="mt-1 text-3xl font-bold">Obrigado! Seu pedido é o {order.number}</h1>
           <p className="mt-4 rounded-xl bg-violet-50 p-4 text-slate-700">{order.payment.instructions.message}</p>
+          {order.payment.instructions.pixCode && <PixPayment pixCode={order.payment.instructions.pixCode} qrCodeBase64={order.payment.instructions.qrCodeBase64} expiresAt={order.payment.expiresAt} />}
           <ul className="mt-6 divide-y text-sm">{order.items.map(i => <li key={i.sku} className="flex justify-between py-2"><span>{i.quantity}× {i.name}</span><span>{formatPrice(i.total)}</span></li>)}</ul>
           <div className="mt-4 flex justify-between border-t pt-4 text-lg"><span>Total</span><b>{formatPrice(order.total)}</b></div>
           <Link href="/categorias" className="button mt-8">Continuar comprando</Link>
