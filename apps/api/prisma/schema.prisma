@@ -84,6 +84,7 @@ model Store {
   emailLogs              EmailLog[]
   promotions             Promotion[]
   stockMovements         StockMovement[]
+  domains                StoreDomain[]
 }
 
 model User {
@@ -881,4 +882,30 @@ model BlingImport {
   store      Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, startedAt])
+}
+
+enum DomainStatus {
+  PENDING_DNS
+  DNS_VERIFIED
+  ACTIVE
+  ERROR
+}
+
+/// Domínio próprio da loja. ACTIVE só depois de provar posse (TXT) e de o HTTPS responder com certificado válido.
+model StoreDomain {
+  id                String       @id @default(uuid())
+  storeId           String
+  hostname          String       @unique
+  status            DomainStatus @default(PENDING_DNS)
+  verificationToken String
+  isPrimary         Boolean      @default(false)
+  dnsVerifiedAt     DateTime?
+  tlsValidUntil     DateTime?
+  lastCheckedAt     DateTime?
+  lastError         String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  store             Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
 }

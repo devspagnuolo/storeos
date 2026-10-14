@@ -3,7 +3,7 @@ import { evaluateReadiness, ReadinessFacts } from './store-readiness';
 const base: ReadinessFacts = {
   storeName: 'Vivi', hasLogo: true, whatsapp: true, activeProducts: 3, stockedProducts: 3, productsWithoutImage: 0, productsWithoutPrice: 0,
   storefrontCustomized: true, shippingRules: 1, carrierConfigured: false, paymentConfigured: true, webhookConfigured: true, callbackConfigured: true,
-  cardConfigured: false, confirmedPayments: 1, publishedPageSlugs: ['trocas-e-devolucoes', 'politica-de-privacidade'], emailConfigured: false, blingConnected: false,
+  cardConfigured: false, confirmedPayments: 1, publishedPageSlugs: ['trocas-e-devolucoes', 'politica-de-privacidade'], emailConfigured: false, blingConnected: false, activeDomains: 0,
 };
 
 describe('prontidão da loja', () => {

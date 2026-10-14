@@ -14,7 +14,7 @@ export class StoreSetupController {
   @Get()
   @ApiOperation({ summary: 'Pendências de configuração calculadas com dados da loja autenticada' })
   async get(@CurrentStore() storeId: string) {
-    const [store, products, stockedProducts, withoutImage, withoutPrice, shippingRules, confirmedPayments, pages, bling] = await Promise.all([
+    const [store, products, stockedProducts, withoutImage, withoutPrice, shippingRules, confirmedPayments, pages, bling, activeDomains] = await Promise.all([
       this.prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { name: true, logoUrl: true, themeConfig: true, storefrontPublishedAt: true, whatsappNumber: true } }),
       this.prisma.product.count({ where: { storeId, status: 'ACTIVE' } }),
       this.prisma.product.count({ where: {
@@ -27,6 +27,7 @@ export class StoreSetupController {
       this.prisma.payment.count({ where: { status: 'PAID', order: { storeId } } }),
       this.prisma.page.findMany({ where: { storeId, published: true }, select: { slug: true } }),
       this.prisma.blingConnection.count({ where: { storeId } }),
+      this.prisma.storeDomain.count({ where: { storeId, status: 'ACTIVE' } }),
     ]);
     const env = (name: string) => Boolean(process.env[name]?.trim());
     const paymentConfigured = env('MERCADOPAGO_ACCESS_TOKEN');
@@ -41,7 +42,7 @@ export class StoreSetupController {
       paymentConfigured, webhookConfigured, callbackConfigured,
       cardConfigured: (env('REDE_PV') && env('REDE_TOKEN')) || (paymentConfigured && (env('MERCADOPAGO_PUBLIC_KEY') || env('NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY'))),
       confirmedPayments, publishedPageSlugs: pages.map(page => page.slug.toLowerCase()),
-      emailConfigured: env('RESEND_API_KEY'), blingConnected: bling > 0,
+      emailConfigured: env('RESEND_API_KEY'), blingConnected: bling > 0, activeDomains,
     });
     return {
       storeName: store.name, ...readiness,

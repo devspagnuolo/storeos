@@ -3,7 +3,7 @@ export type ReadinessFacts = {
   activeProducts: number; stockedProducts: number; productsWithoutImage: number; productsWithoutPrice: number;
   storefrontCustomized: boolean; shippingRules: number; carrierConfigured: boolean;
   paymentConfigured: boolean; webhookConfigured: boolean; callbackConfigured: boolean; cardConfigured: boolean; confirmedPayments: number;
-  publishedPageSlugs: string[]; emailConfigured: boolean; blingConnected: boolean;
+  publishedPageSlugs: string[]; emailConfigured: boolean; blingConnected: boolean; activeDomains: number;
 };
 
 export type ReadinessStep = { id: string; title: string; description: string; href: string; complete: boolean; level: 'required' | 'recommended' };
@@ -23,6 +23,7 @@ export function evaluateReadiness(f: ReadinessFacts) {
     { id: 'card', level: 'recommended', title: 'Habilite cartão de crédito', description: f.cardConfigured ? 'Cartão em até 12x ativo.' : 'Configure a Rede ou a chave pública do Mercado Pago.', href: '/painel/pagamentos', complete: f.cardConfigured },
     { id: 'carrier', level: 'recommended', title: 'Frete em tempo real', description: f.carrierConfigured ? 'Cotação por transportadora ativa.' : 'Conecte o SuperFrete ou o Melhor Envio para cotar Correios no checkout.', href: '/painel/frete', complete: f.carrierConfigured },
     { id: 'erp', level: 'recommended', title: 'Conecte o Bling', description: f.blingConnected ? 'Pedidos pagos seguem para o Bling.' : 'Conecte para enviar os pedidos e importar produtos.', href: '/painel/bling', complete: f.blingConnected },
+    { id: 'domain', level: 'recommended', title: 'Domínio próprio', description: f.activeDomains > 0 ? 'Domínio ativo com HTTPS validado.' : 'Cadastre o endereço da sua marca e valide DNS e HTTPS.', href: '/painel/dominios', complete: f.activeDomains > 0 },
     { id: 'email', level: 'recommended', title: 'E-mails ao cliente', description: f.emailConfigured ? 'Provedor de e-mail configurado.' : 'Sem provedor, os e-mails de pedido só são simulados.', href: '/painel/emails', complete: f.emailConfigured },
     { id: 'contact', level: 'recommended', title: 'Canal de atendimento', description: f.whatsapp ? 'Botão de WhatsApp ativo.' : 'Informe o WhatsApp da loja.', href: '/painel/banners', complete: f.whatsapp },
   ];

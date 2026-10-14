@@ -38,7 +38,8 @@ export class StoreController {
       select: { slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, whatsappNumber: true, whatsappMessage: true },
     });
     if (!store) throw new NotFoundException('Loja não encontrada');
-    return store;
+    const primary = await this.prisma.storeDomain.findFirst({ where: { store: { slug }, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } });
+    return { ...store, primaryDomain: primary?.hostname ?? null };
   }
 
   @Get()
