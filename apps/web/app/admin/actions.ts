@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { adminFetch, ApiError, clearSession, REFRESH_COOKIE, saveSession, serverApiUrl, Session } from '../../lib/admin/session';
+import { ACCESS_COOKIE, adminFetch, ApiError, clearSession, REFRESH_COOKIE, saveSession, serverApiUrl, Session } from '../../lib/admin/session';
 
 export type FormState = { error?: string; ok?: string };
 export type LoginState = { error?: string; email?: string; storeSlug?: string };
@@ -116,12 +116,31 @@ export async function changePasswordAction(_: FormState, form: FormData): Promis
 }
 
 export async function saveStoreAction(_: FormState, form: FormData): Promise<FormState> {
+  const name = String(form.get('name') ?? '').trim();
+  const logo = form.get('logo');
+  const removeLogo = form.get('removeLogo') === 'on';
+  let logoUrl: string | null | undefined = removeLogo ? null : undefined;
+  if (logo instanceof File && logo.size > 0) {
+    if (logo.size > 1_000_000) return { error: 'A imagem precisa ter até 1 MB.' };
+    const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+    if (!token) return { error: 'Sua sessão expirou. Entre novamente para continuar.' };
+    const uploadForm = new FormData();
+    uploadForm.set('file', logo, logo.name);
+    const response = await fetch(`${serverApiUrl}/store/logo`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: uploadForm }).catch(() => undefined);
+    if (!response) return { error: 'Não foi possível conectar ao serviço de imagens.' };
+    const result = await response.json().catch(() => undefined);
+    if (!response.ok) {
+      const message = Array.isArray(result?.message) ? result.message.join('; ') : result?.message;
+      return { error: message || 'Não foi possível enviar a imagem.' };
+    }
+    logoUrl = result.logoUrl;
+  }
   try {
-    await adminFetch('/store', { method: 'PATCH', body: { name: String(form.get('name') ?? '').trim() } });
+    await adminFetch('/store', { method: 'PATCH', body: { name, ...(logoUrl === undefined ? {} : { logoUrl }) } });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     throw error;
   }
   revalidatePath('/', 'layout');
-  return { ok: 'Dados da loja salvos. A vitrine mostra o novo nome em até um minuto.' };
+  return { ok: 'Identidade visual salva. A logo também foi definida como favicon.' };
 }
