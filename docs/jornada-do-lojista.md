@@ -23,3 +23,7 @@ Criar a loja em estado de rascunho e mostrar uma lista de conclusão no painel: 
 ## Estado atual
 
 O painel já oferece login, edição do nome, catálogo, pedidos e regras de frete. A criação pública de conta/loja e a verificação de e-mail ainda não estão implementadas. A primeira entrega desta jornada adiciona logo e favicon à configuração da loja, com armazenamento de objetos no Cloudflare R2; o assistente público deverá ser construído sobre essas etapas e não deve liberar contas antes de validar o e-mail.
+
+## Incremento de 14/10/2026
+
+O painel agora inclui /painel/primeiros-passos com etapas calculadas a partir da loja autenticada e /painel/pagamentos com estado de configuração. O editor mantém um rascunho privado, publicação explícita, histórico recuperável e controle de concorrência. Consulte [evolução do painel](evolucao-painel-2026-10-14.md) para critérios e limites. A criação pública de contas e confirmação de e-mail continuam pendentes.

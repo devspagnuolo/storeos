@@ -146,6 +146,9 @@ export async function saveStoreAction(_: FormState, form: FormData): Promise<For
 }
 
 export async function saveStorefrontAction(_: FormState, form: FormData): Promise<FormState> {
+  const version = Number(form.get('version'));
+  const publish = form.get('intent') === 'publish';
+  if (!Number.isInteger(version) || version < 0) return { error: 'Recarregue a página para obter a versão atual.' };
   const text = (key: string) => String(form.get(key) ?? '').trim();
   const heroFile = form.get('heroImage');
   let heroImageUrl: string | null = text('heroImageUrl') || null;
@@ -183,12 +186,30 @@ export async function saveStorefrontAction(_: FormState, form: FormData): Promis
   if (!/^#[0-9a-fA-F]{6}$/.test(themeConfig.accentColor)) return { error: 'Escolha uma cor válida para a loja.' };
 
   try {
-    await adminFetch('/store', { method: 'PATCH', body: { themeConfig } });
+    await adminFetch(publish ? '/store/storefront/publish' : '/store/storefront/draft', {
+      method: publish ? 'POST' : 'PATCH', body: { version, config: themeConfig },
+    });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     throw error;
   }
-  revalidatePath('/', 'layout');
+  if (publish) revalidatePath('/', 'layout');
   revalidatePath('/admin/site');
-  return { ok: 'Vitrine atualizada e publicada.' };
+  revalidatePath('/painel/site');
+  redirect('/painel/site?salvo=' + (publish ? 'publicado' : 'rascunho'));
+}
+
+export async function restoreStorefrontAction(_: FormState, form: FormData): Promise<FormState> {
+  const version = Number(form.get('version'));
+  const publicationId = String(form.get('publicationId') ?? '');
+  if (!Number.isInteger(version) || version < 0 || !publicationId) return { error: 'Recarregue o histórico e tente novamente.' };
+  try {
+    await adminFetch('/store/storefront/restore', { method: 'POST', body: { version, publicationId } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/site');
+  revalidatePath('/painel/site');
+  redirect('/painel/site?salvo=restaurado');
 }
