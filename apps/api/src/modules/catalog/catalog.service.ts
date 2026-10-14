@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { Prisma, ProductStatus, StockMovementType } from '@prisma/client';
+import { recordMovement } from '../inventory/stock-ledger';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
 export type ProductQuery = { category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number };
@@ -180,6 +181,7 @@ export class CatalogService {
       return await this.prisma.$transaction(async tx => {
         const product = await tx.product.create({ data: { ...dto, storeId, status, categories: { create: categories.map(categoryId => ({ categoryId })) }, ...(imageUrl && { images: { create: { url: imageUrl, alt: dto.name } } }) } });
         await tx.inventory.create({ data: { storeId, productId: product.id, quantity: stock } });
+        await recordMovement(tx, { storeId, productId: product.id, type: StockMovementType.INITIAL, delta: stock, reason: 'Cadastro do produto' });
         await tx.outboxEvent.create({ data: { storeId, aggregateType: 'Product', aggregateId: product.id, eventName: 'catalog.product-created.v1', payload: { sku: product.sku } } });
         return product;
       });
@@ -209,6 +211,7 @@ export class CatalogService {
         if (stock !== undefined) {
           if (inventory) await tx.inventory.update({ where: { id: inventory.id }, data: { quantity: stock } });
           else await tx.inventory.create({ data: { storeId, productId: id, quantity: stock } });
+          await recordMovement(tx, { storeId, productId: id, type: StockMovementType.ADJUSTMENT, delta: stock - (inventory?.quantity ?? 0), reason: 'Edição do produto' });
         }
         if (imageUrl !== undefined) {
           const main = await tx.productImage.findFirst({ where: { productId: id }, orderBy: { position: 'asc' } });
@@ -282,6 +285,7 @@ export class CatalogService {
           const row = await tx.inventory.findFirst({ where: { storeId, productId, variantId: variant.id } });
           if (row) await tx.inventory.update({ where: { id: row.id }, data: { quantity: entry.stock } });
           else await tx.inventory.create({ data: { storeId, productId, variantId: variant.id, quantity: entry.stock } });
+          await recordMovement(tx, { storeId, productId, variantId: variant.id, type: row ? StockMovementType.ADJUSTMENT : StockMovementType.INITIAL, delta: entry.stock - (row?.quantity ?? 0), reason: 'Edição das variações' });
         }
         // O saldo do produto só existe enquanto ele não tem variações.
         if (input.length) await tx.inventory.deleteMany({ where: { storeId, productId, variantId: null } });

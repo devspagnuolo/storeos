@@ -48,31 +48,32 @@ enum PaymentStatus {
 }
 
 model Store {
-  id            String         @id @default(uuid())
-  name          String
-  slug          String         @unique
-  logoUrl       String?        @db.Text
-  faviconUrl    String?        @db.Text
-  themeConfig   Json           @default("{}")
-  draftThemeConfig Json?
-  storefrontVersion Int        @default(0)
-  storefrontPublishedAt DateTime?
+  id                     String                  @id @default(uuid())
+  name                   String
+  slug                   String                  @unique
+  logoUrl                String?                 @db.Text
+  faviconUrl             String?                 @db.Text
+  themeConfig            Json                    @default("{}")
+  draftThemeConfig       Json?
+  storefrontVersion      Int                     @default(0)
+  storefrontPublishedAt  DateTime?
   storefrontPublications StorefrontPublication[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  users         User[]
-  products      Product[]
-  categories    Category[]
-  shippingRules ShippingRule[]
-  customers     Customer[]
-  orders        Order[]
-  outboxEvents  OutboxEvent[]
-  coupons       Coupon[]
-  brands        Brand[]
-  collections   Collection[]
-  pages         Page[]
-  emailLogs     EmailLog[]
-  promotions    Promotion[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  users                  User[]
+  products               Product[]
+  categories             Category[]
+  shippingRules          ShippingRule[]
+  customers              Customer[]
+  orders                 Order[]
+  outboxEvents           OutboxEvent[]
+  coupons                Coupon[]
+  brands                 Brand[]
+  collections            Collection[]
+  pages                  Page[]
+  emailLogs              EmailLog[]
+  promotions             Promotion[]
+  stockMovements         StockMovement[]
 }
 
 model User {
@@ -132,31 +133,31 @@ model RolePermission {
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid())
-  userId    String
-  tokenHash String
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
-  userAgent String?
-  ip        String?
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  userAgent  String?
+  ip         String?
   lastUsedAt DateTime?
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tokenHash])
   @@index([userId])
 }
 
 model Product {
-  id          String            @id @default(uuid())
-  storeId     String
-  status      ProductStatus     @default(DRAFT)
-  name        String
-  slug        String
-  sku         String
-  description String?
-  price       Decimal           @db.Decimal(14, 2)
-  currency    String            @default("BRL")
+  id             String              @id @default(uuid())
+  storeId        String
+  status         ProductStatus       @default(DRAFT)
+  name           String
+  slug           String
+  sku            String
+  description    String?
+  price          Decimal             @db.Decimal(14, 2)
+  currency       String              @default("BRL")
   brandId        String?
   seoTitle       String?
   seoDescription String?
@@ -164,16 +165,16 @@ model Product {
   widthCm        Int?
   heightCm       Int?
   lengthCm       Int?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  store       Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  variants    ProductVariant[]
-  images      ProductImage[]
-  inventory   Inventory[]
-  orderItems  OrderItem[]
-  categories  ProductCategory[]
-  brand       Brand?            @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  collections CollectionProduct[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  store          Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  variants       ProductVariant[]
+  images         ProductImage[]
+  inventory      Inventory[]
+  orderItems     OrderItem[]
+  categories     ProductCategory[]
+  brand          Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  collections    CollectionProduct[]
 
   @@unique([storeId, slug])
   @@unique([storeId, sku])
@@ -237,6 +238,31 @@ model ProductImage {
   @@index([productId, position])
 }
 
+enum StockMovementType {
+  INITIAL
+  ADJUSTMENT
+  SALE
+  RETURN
+}
+
+model StockMovement {
+  id          String            @id @default(uuid())
+  storeId     String
+  productId   String
+  variantId   String?
+  type        StockMovementType
+  delta       Int
+  balance     Int
+  reason      String?
+  orderNumber String?
+  actorId     String?
+  createdAt   DateTime          @default(now())
+  store       Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+  @@index([storeId, productId, createdAt])
+}
+
 model Inventory {
   id           String          @id @default(uuid())
   storeId      String
@@ -254,21 +280,21 @@ model Inventory {
 }
 
 model Customer {
-  id        String    @id @default(uuid())
-  storeId   String
-  email     String
-  name      String
-  phone     String?
-  notes     String?
-  tags      String[]  @default([])
-  marketingOptIn Boolean @default(false)
-  anonymizedAt DateTime?
+  id             String         @id @default(uuid())
+  storeId        String
+  email          String
+  name           String
+  phone          String?
+  notes          String?
+  tags           String[]       @default([])
+  marketingOptIn Boolean        @default(false)
+  anonymizedAt   DateTime?
   loyaltyEntries LoyaltyEntry[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  addresses Address[]
-  orders    Order[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  addresses      Address[]
+  orders         Order[]
 
   @@unique([storeId, email])
 }
@@ -288,31 +314,31 @@ model Address {
 }
 
 model Order {
-  id              String          @id @default(uuid())
-  storeId         String
-  customerId      String?
-  number          String
-  status          OrderStatus     @default(NEW)
-  subtotal        Decimal         @db.Decimal(14, 2)
-  discount        Decimal         @default(0) @db.Decimal(14, 2)
-  shipping        Decimal         @default(0) @db.Decimal(14, 2)
-  total           Decimal         @db.Decimal(14, 2)
-  currency        String          @default("BRL")
-  shippingAddress Json?
-  shippingMethod  String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customer        Customer?       @relation(fields: [customerId], references: [id])
-  items           OrderItem[]
-  payments        Payment[]
-  timeline        OrderTimeline[]
-  fulfillment     Fulfillment?
-  couponCode      String?
-  promotionDiscount Decimal       @default(0) @db.Decimal(14, 2)
-  promotions      Json?
-  redemption      CouponRedemption?
-  loyaltyEntries  LoyaltyEntry[]
+  id                String            @id @default(uuid())
+  storeId           String
+  customerId        String?
+  number            String
+  status            OrderStatus       @default(NEW)
+  subtotal          Decimal           @db.Decimal(14, 2)
+  discount          Decimal           @default(0) @db.Decimal(14, 2)
+  shipping          Decimal           @default(0) @db.Decimal(14, 2)
+  total             Decimal           @db.Decimal(14, 2)
+  currency          String            @default("BRL")
+  shippingAddress   Json?
+  shippingMethod    String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  store             Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer          Customer?         @relation(fields: [customerId], references: [id])
+  items             OrderItem[]
+  payments          Payment[]
+  timeline          OrderTimeline[]
+  fulfillment       Fulfillment?
+  couponCode        String?
+  promotionDiscount Decimal           @default(0) @db.Decimal(14, 2)
+  promotions        Json?
+  redemption        CouponRedemption?
+  loyaltyEntries    LoyaltyEntry[]
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -468,23 +494,23 @@ enum CouponType {
 }
 
 model Coupon {
-  id                String             @id @default(uuid())
-  storeId           String
-  code              String
-  description       String?
-  type              CouponType
-  value             Decimal            @default(0) @db.Decimal(14, 2)
-  minSubtotal       Decimal?           @db.Decimal(14, 2)
-  maxUses           Int?
-  usedCount         Int                @default(0)
-  oncePerCustomer   Boolean            @default(false)
-  startsAt          DateTime?
-  endsAt            DateTime?
-  active            Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  store             Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  redemptions       CouponRedemption[]
+  id              String             @id @default(uuid())
+  storeId         String
+  code            String
+  description     String?
+  type            CouponType
+  value           Decimal            @default(0) @db.Decimal(14, 2)
+  minSubtotal     Decimal?           @db.Decimal(14, 2)
+  maxUses         Int?
+  usedCount       Int                @default(0)
+  oncePerCustomer Boolean            @default(false)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  active          Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  store           Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  redemptions     CouponRedemption[]
 
   @@unique([storeId, code])
 }

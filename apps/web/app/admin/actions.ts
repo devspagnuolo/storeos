@@ -476,3 +476,18 @@ export async function saveVariantsAction(_: FormState, form: FormData): Promise<
   revalidatePath(`/admin/produtos/${id}`);
   return { ok: 'Variações salvas.' };
 }
+
+export async function adjustStockAction(_: FormState, form: FormData): Promise<FormState> {
+  const productId = String(form.get('item') ?? '').split(':')[0];
+  const variantId = String(form.get('item') ?? '').split(':')[1] || undefined;
+  const quantity = Number(String(form.get('quantity') ?? '').trim());
+  if (!productId || !Number.isInteger(quantity)) return { error: 'Informe o item e uma quantidade inteira.' };
+  try {
+    await adminFetch('/inventory/adjust', { method: 'POST', body: { productId, variantId, mode: String(form.get('mode')) === 'SET' ? 'SET' : 'DELTA', quantity, reason: String(form.get('reason') ?? '').trim() } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/estoque');
+  return { ok: 'Estoque atualizado.' };
+}
