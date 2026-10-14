@@ -1,8 +1,9 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentMethod, Prisma, ProductStatus } from '@prisma/client';
+import { BadGatewayException, BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { OrderStatus, PaymentMethod, PaymentStatus, Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { generateOrderNumber, mergeItems, priceOrderLines, RequestedItem } from '../orders/order-lines';
-import { PAYMENT_PROVIDER, PaymentProvider } from '../payments/payment-provider';
+import { OrderLifecycleService } from '../orders/order-lifecycle.service';
+import { ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
 
 export type ShippingAddress = { zipCode: string; street: string; number: string; complement?: string; district?: string; city: string; state: string };
 export type CheckoutInput = {
@@ -15,7 +16,9 @@ export type CheckoutInput = {
 
 @Injectable()
 export class CheckoutService {
-  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider) {}
+  private readonly logger = new Logger(CheckoutService.name);
+
+  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService) {}
 
   async checkout(input: CheckoutInput) {
     if (input.paymentMethod === PaymentMethod.CREDIT_CARD) throw new BadRequestException('Cartão de crédito ainda não está disponível');
@@ -23,6 +26,7 @@ export class CheckoutService {
     if (!store) throw new NotFoundException('Loja não encontrada');
     const items = mergeItems(input.items);
     const email = input.customer.email.trim().toLowerCase();
+    const expiresAt = paymentDeadline(input.paymentMethod);
 
     const order = await this.prisma.$transaction(async tx => {
       const products = await tx.product.findMany({ where: { storeId: store.id, id: { in: items.map(i => i.productId) }, status: ProductStatus.ACTIVE } });
@@ -48,7 +52,7 @@ export class CheckoutService {
           shippingAddress: input.shippingAddress as Prisma.InputJsonObject,
           items: { create: lines },
           timeline: { create: [{ status: OrderStatus.NEW, message: 'Pedido criado no checkout' }, { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento' }] },
-          payments: { create: { provider: 'pending', method: input.paymentMethod, amount: subtotal } },
+          payments: { create: { provider: 'pending', method: input.paymentMethod, amount: subtotal, expiresAt } },
         },
         include: { payments: true, items: true },
       });
@@ -59,7 +63,15 @@ export class CheckoutService {
 
     // A cobrança fica fora da transação: chamadas a gateways não devem segurar locks no banco.
     const [payment] = order.payments;
-    const charge = await this.payments.createCharge({ storeId: store.id, orderNumber: order.number, amount: order.total.toFixed(2), currency: order.currency, method: input.paymentMethod, customer: { name: input.customer.name, email } });
+    let charge: ChargeResult;
+    try {
+      charge = await this.payments.createCharge({ storeId: store.id, orderNumber: order.number, amount: order.total.toFixed(2), currency: order.currency, method: input.paymentMethod, expiresAt, customer: { name: input.customer.name, email } });
+    } catch (error) {
+      // Sem cobrança não há como pagar: cancela o pedido e devolve o estoque reservado.
+      this.logger.error(`Falha ao gerar cobrança do pedido ${order.number}: ${(error as Error).message}`);
+      await this.lifecycle.cancel({ orderId: order.id }, { message: 'Falha ao gerar a cobrança', paymentStatus: PaymentStatus.FAILED });
+      throw new BadGatewayException('Não foi possível gerar o pagamento agora. Tente novamente em instantes.');
+    }
     await this.prisma.payment.update({ where: { id: payment.id }, data: { provider: charge.provider, transactionId: charge.transactionId, status: charge.status, instructions: charge.instructions } });
 
     return {
@@ -70,7 +82,7 @@ export class CheckoutService {
       total: order.total.toFixed(2),
       currency: order.currency,
       items: order.items.map(({ sku, name, quantity, unitPrice, total }) => ({ sku, name, quantity, unitPrice: unitPrice.toFixed(2), total: total.toFixed(2) })),
-      payment: { method: input.paymentMethod, status: charge.status, instructions: charge.instructions },
+      payment: { method: input.paymentMethod, status: charge.status, expiresAt: expiresAt.toISOString(), instructions: charge.instructions },
     };
   }
 }

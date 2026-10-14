@@ -282,11 +282,15 @@ model Payment {
   transactionId String?
   amount        Decimal       @db.Decimal(14, 2)
   instructions  Json?
+  expiresAt     DateTime?
+  paidAt        DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @default(now()) @updatedAt
   order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+  @@index([provider, transactionId])
+  @@index([status, expiresAt])
 }
 
 model OrderTimeline {
