@@ -43,10 +43,12 @@ services:
         sync: false
       - key: API_PUBLIC_URL
         sync: false
-      # E-mails transacionais (Resend) e cotação de frete (Melhor Envio): vazios = modo simulado / só regras da loja.
+      # E-mails transacionais (Resend) e cotação de frete (SuperFrete ou Melhor Envio): vazios = modo simulado / só regras da loja.
       - key: RESEND_API_KEY
         sync: false
       - key: MAIL_FROM
+        sync: false
+      - key: SUPERFRETE_TOKEN
         sync: false
       - key: MELHOR_ENVIO_TOKEN
         sync: false
