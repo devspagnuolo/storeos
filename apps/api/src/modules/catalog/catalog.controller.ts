@@ -17,7 +17,9 @@ class CreateProductDto {
   @IsOptional() @IsArray() @IsString({ each: true }) categoryIds?: string[];
   @IsOptional() @IsEnum(ProductStatus) status?: ProductStatus;
   @IsOptional() @IsInt() @Min(0) @Max(1_000_000) stock?: number;
-  @IsOptional() @IsUrl({ protocols: ['https', 'http'], require_protocol: true }) imageUrl?: string;
+  @IsOptional() @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }) imageUrl?: string;
+  /** Galeria completa, na ordem; substitui as fotos atuais. */
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }, { each: true }) imageUrls?: string[];
   @IsOptional() @IsString() brandId?: string;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
@@ -36,7 +38,9 @@ class UpdateProductDto {
   @IsOptional() @IsEnum(ProductStatus) status?: ProductStatus;
   @IsOptional() @IsInt() @Min(0) @Max(1_000_000) stock?: number;
   /** String vazia remove a imagem principal. */
-  @IsOptional() @ValidateIf((_, v) => v !== '') @IsUrl({ protocols: ['https', 'http'], require_protocol: true }) imageUrl?: string;
+  @IsOptional() @ValidateIf((_, v) => v !== '') @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }) imageUrl?: string;
+  /** Galeria completa, na ordem; substitui as fotos atuais. */
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }, { each: true }) imageUrls?: string[];
   /** null remove a marca. */
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() brandId?: string | null;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
@@ -46,8 +50,8 @@ class UpdateProductDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(300) heightCm?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(300) lengthCm?: number | null;
 }
-class CreateCategoryDto { @IsString() name!: string; @Matches(SLUG) slug!: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @IsString() parentId?: string | null; }
-class UpdateCategoryDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) slug?: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() parentId?: string | null; }
+class CreateCategoryDto { @IsString() name!: string; @Matches(SLUG) slug!: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @IsString() parentId?: string | null; @IsOptional() @IsString() @MaxLength(500) bannerUrl?: string; @IsOptional() @IsString() @MaxLength(500) bannerMobileUrl?: string; }
+class UpdateCategoryDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) slug?: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() parentId?: string | null; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(500) bannerUrl?: string | null; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(500) bannerMobileUrl?: string | null; }
 class VariantAttributeDto { @IsString() @Length(1, 40) name!: string; @IsString() @Length(1, 60) value!: string; }
 class VariantDto {
   @IsOptional() @IsString() id?: string;
@@ -62,7 +66,7 @@ class CreateBrandDto { @IsString() @Length(2, 80) name!: string; @Matches(SLUG) 
 class CreateCollectionDto { @IsString() @Length(2, 80) name!: string; @Matches(SLUG) @MaxLength(80) slug!: string; @IsOptional() @IsString() @MaxLength(500) description?: string; @IsOptional() @IsBoolean() active?: boolean; @IsOptional() @IsInt() position?: number; @IsOptional() @IsArray() @ArrayMaxSize(2000) @IsString({ each: true }) skus?: string[]; }
 class UpdateCollectionDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) @MaxLength(80) slug?: string; @IsOptional() @IsString() @MaxLength(500) description?: string; @IsOptional() @IsBoolean() active?: boolean; @IsOptional() @IsInt() position?: number; @IsOptional() @IsArray() @ArrayMaxSize(2000) @IsString({ each: true }) skus?: string[]; }
 class ProductQueryDto { @IsString() store!: string; @IsOptional() @IsString() category?: string; @IsOptional() @IsString() brand?: string; @IsOptional() @IsString() collection?: string; @IsOptional() @IsString() @MaxLength(100) q?: string; @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(60) pageSize?: number; }
-class AdminProductQueryDto { @IsOptional() @IsString() @MaxLength(100) q?: string; @IsOptional() @IsEnum(ProductStatus) status?: ProductStatus; @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number; }
+class AdminProductQueryDto { @IsOptional() @IsString() @MaxLength(100) q?: string; @IsOptional() @IsString() @MaxLength(160) category?: string; @IsOptional() @IsEnum(ProductStatus) status?: ProductStatus; @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number; }
 class ImportQueryDto { @IsOptional() @IsIn(['true', 'false']) dryRun?: string; }
 class StoreQueryDto { @IsString() store!: string; }
 @ApiTags('Catalog') @Controller('catalog') export class CatalogController {

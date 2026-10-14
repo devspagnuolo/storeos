@@ -1,4 +1,5 @@
 'use client';
+import { ImageUploader } from './image-uploader';
 import { useActionState, useState } from 'react';
 import { saveProductAction } from '../../app/admin/actions';
 import { productStatusLabel, slugify } from '../../lib/admin/labels';
@@ -33,7 +34,7 @@ export function ProductForm({ product, categories, brands, created }: { product?
         </fieldset>
         <label className="text-sm font-medium sm:col-span-2">Título para o Google <span className="font-normal text-slate-400">(até 70 caracteres)</span><input name="seoTitle" maxLength={70} defaultValue={product?.seoTitle ?? ''} className="input" /></label>
         <label className="text-sm font-medium sm:col-span-2">Descrição para o Google <span className="font-normal text-slate-400">(até 160)</span><textarea name="seoDescription" rows={2} maxLength={160} defaultValue={product?.seoDescription ?? ''} className="input" /></label>
-        <label className="text-sm font-medium sm:col-span-2">URL da imagem principal<input name="imageUrl" type="url" defaultValue={product?.images[0]?.url ?? ''} placeholder="https://" className="input" /></label>
+        <div className="sm:col-span-2"><ImageUploader name="imageUrls" kind="product" multiple label="Fotos do produto" initial={product?.images.map(image => image.url) ?? []} /></div>
       </div>
       <aside className="space-y-6">
         <div className="card p-6">

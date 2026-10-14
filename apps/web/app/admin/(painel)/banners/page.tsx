@@ -1,3 +1,4 @@
+import { BannerBulkUpload } from '../../../../components/admin/banner-bulk-upload';
 import { BannerForm } from '../../../../components/admin/banner-form';
 import { WhatsappForm } from '../../../../components/admin/whatsapp-form';
 import { formatDateTime } from '../../../../lib/admin/labels';
@@ -17,9 +18,11 @@ export default async function BannersPage() {
   return (
     <>
       <h1 className="text-3xl font-bold">Banners e WhatsApp</h1>
-      <p className="mt-1 max-w-2xl text-sm text-slate-500">Os banners formam o carrossel do topo da página inicial, na ordem abaixo. Sem banners, a loja mostra a apresentação padrão. Use imagens largas (por exemplo 1920 × 700) e uma versão vertical para o celular.</p>
+      <p className="mt-1 max-w-2xl text-sm text-slate-500">Os banners formam o carrossel do topo da página inicial, na ordem abaixo. Sem banners, a loja mostra a apresentação padrão. O tamanho recomendado aparece em cada campo de imagem (1920 × 700 px no computador e 800 × 1000 px no celular).</p>
 
       <section className="card mt-6 p-6"><h2 className="mb-4 text-lg font-bold">Botão de WhatsApp</h2><WhatsappForm number={whatsapp.whatsappNumber} message={whatsapp.whatsappMessage} /></section>
+
+      <section className="card mt-6 p-6"><h2 className="mb-1 text-lg font-bold">Enviar várias imagens</h2><p className="mb-4 text-sm text-slate-500">Escolha as imagens no seu computador. O carrossel passa por elas na ordem em que aparecem.</p><BannerBulkUpload /></section>
 
       <section className="card mt-6 p-6"><h2 className="mb-4 text-lg font-bold">Novo banner</h2><BannerForm /></section>
 

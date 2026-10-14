@@ -64,6 +64,13 @@ export class EngagementService {
     return this.prisma.banner.create({ data: { ...data, storeId, imageUrl: data.imageUrl } });
   }
 
+  /** Vários slides de uma vez (envio de várias imagens): cada imagem vira um banner, na ordem recebida, no fim do carrossel. */
+  async createBanners(storeId: string, images: string[]) {
+    const created = [];
+    for (const imageUrl of images) created.push(await this.createBanner(storeId, { imageUrl }));
+    return created;
+  }
+
   async updateBanner(storeId: string, id: string, input: BannerInput) {
     if (!(await this.prisma.banner.findFirst({ where: { id, storeId } }))) throw new NotFoundException('Banner não encontrado');
     return this.prisma.banner.update({ where: { id }, data: this.bannerData(input) });

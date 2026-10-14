@@ -15,7 +15,12 @@ export class StoreAssetsService {
     return { heroImageUrl };
   }
 
-  private async uploadImage(storeId: string, file: { buffer: Buffer; mimetype: string }, folder: 'brand' | 'storefront') {
+  get configured() {
+    const { STOREOS_R2_ACCOUNT_ID, STOREOS_R2_ACCESS_KEY_ID, STOREOS_R2_SECRET_ACCESS_KEY, STOREOS_R2_BUCKET, STOREOS_R2_PUBLIC_URL } = process.env;
+    return Boolean(STOREOS_R2_ACCOUNT_ID && STOREOS_R2_ACCESS_KEY_ID && STOREOS_R2_SECRET_ACCESS_KEY && STOREOS_R2_BUCKET && STOREOS_R2_PUBLIC_URL);
+  }
+
+  async uploadImage(storeId: string, file: { buffer: Buffer; mimetype: string }, folder: 'brand' | 'storefront' | 'media') {
     const extensionByType: Record<string, string> = {
       'image/png': 'png',
       'image/jpeg': 'jpg',

@@ -75,6 +75,7 @@ model Store {
   pages                  Page[]
   menus                  Menu[]
   banners                Banner[]
+  mediaAssets            MediaAsset[]
   subscribers            NewsletterSubscriber[]
   emailLogs              EmailLog[]
   promotions             Promotion[]
@@ -196,6 +197,8 @@ model Category {
   description String?
   position    Int               @default(0)
   parentId    String?
+  bannerUrl       String?
+  bannerMobileUrl String?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   store       Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -712,4 +715,21 @@ model Promotion {
   store       Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, active])
+}
+
+/// Imagem enviada pelo painel quando não há bucket R2 configurado; servida por GET /media/:id.
+model MediaAsset {
+  id        String   @id @default(uuid())
+  storeId   String
+  kind      String
+  mime      String
+  size      Int
+  width     Int?
+  height    Int?
+  name      String?
+  data      Bytes
+  createdAt DateTime @default(now())
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
 }
