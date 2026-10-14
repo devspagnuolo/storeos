@@ -8,6 +8,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { HealthController } from './modules/health.controller';
+import { StoreBootstrapService } from './shared/access/store-bootstrap.service';
 import { PrismaModule } from './shared/infrastructure/prisma.module';
 
 @Module({
@@ -22,6 +23,6 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     CheckoutModule,
   ],
   controllers: [HealthController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }, StoreBootstrapService],
 })
 export class AppModule {}
