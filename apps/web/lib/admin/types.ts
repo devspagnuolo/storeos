@@ -48,3 +48,5 @@ export type LoyaltySummary = {
 };
 
 export type AdminPage = { id: string; slug: string; title: string; body: string; published: boolean; showInFooter: boolean; position: number; seoDescription: string | null };
+export type EmailLogEntry = { id: string; template: string; toEmail: string; subject: string; status: 'SENT' | 'SIMULATED' | 'FAILED'; error: string | null; createdAt: string };
+export type EmailLogPage = { items: EmailLogEntry[]; total: number; provider: 'resend' | 'simulated' };
