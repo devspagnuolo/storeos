@@ -163,6 +163,32 @@ export async function saveCollectionAction(_: FormState, form: FormData): Promis
   return simplePost(id ? `/catalog/collections/${encodeURIComponent(id)}` : '/catalog/collections', id ? 'PATCH' : 'POST', body, id ? 'Coleção salva.' : 'Coleção criada.');
 }
 
+export async function saveCustomerAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = encodeURIComponent(String(form.get('id')));
+  try {
+    await adminFetch(`/customers/${id}`, { method: 'PATCH', body: {
+      phone: String(form.get('phone') ?? '').trim(), notes: String(form.get('notes') ?? '').trim(),
+      tags: String(form.get('tags') ?? '').split(',').map(t => t.trim()).filter(Boolean), marketingOptIn: form.get('marketingOptIn') === 'on',
+    } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/clientes');
+  return { ok: 'Dados salvos.' };
+}
+
+export async function anonymizeCustomerAction(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    await adminFetch(`/customers/${encodeURIComponent(String(form.get('id')))}/anonymize`, { method: 'POST', body: {} });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/clientes');
+  redirect('/admin/clientes');
+}
+
 export async function saveProductAction(_: FormState, form: FormData): Promise<FormState> {
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const text = (key: string) => String(form.get(key) ?? '').trim();

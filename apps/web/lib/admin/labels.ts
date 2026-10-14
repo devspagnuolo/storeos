@@ -17,3 +17,8 @@ export const formatDateTime = (value: string) => new Date(value).toLocaleString(
 export function slugify(value: string) {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 160);
 }
+
+export const segmentLabel: Record<string, string> = { PROSPECT: 'Sem compras', NEW: 'Novo', RECURRING: 'Recorrente', VIP: 'VIP', AT_RISK: 'Em risco' };
+export const segmentTone: Record<string, string> = {
+  PROSPECT: 'bg-slate-100 text-slate-700', NEW: 'bg-violet-100 text-violet-700', RECURRING: 'bg-emerald-100 text-emerald-700', VIP: 'bg-amber-100 text-amber-800', AT_RISK: 'bg-red-100 text-red-700',
+};
