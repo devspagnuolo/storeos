@@ -1,0 +1,35 @@
+'use client';
+import { useActionState, useState } from 'react';
+import { saveProductAction } from '../../app/admin/actions';
+import { productStatusLabel, slugify } from '../../lib/admin/labels';
+import type { AdminProduct } from '../../lib/admin/types';
+import type { Category } from '../../lib/api';
+
+export function ProductForm({ product, categories, created }: { product?: AdminProduct; categories: Category[]; created?: boolean }) {
+  const [state, action, pending] = useActionState(saveProductAction, created ? { ok: 'Produto criado.' } : {});
+  const [slug, setSlug] = useState(product?.slug ?? '');
+  const [slugTouched, setSlugTouched] = useState(Boolean(product));
+  return (
+    <form action={action} className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      {product && <input type="hidden" name="id" value={product.id} />}
+      <div className="card grid gap-4 p-6 sm:grid-cols-2">
+        <label className="text-sm font-medium sm:col-span-2">Nome<input name="name" required minLength={2} maxLength={160} defaultValue={product?.name} className="input" onChange={e => { if (!slugTouched) setSlug(slugify(e.target.value)); }} /></label>
+        <label className="text-sm font-medium">URL (slug)<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" value={slug} onChange={e => { setSlugTouched(true); setSlug(e.target.value); }} className="input font-mono text-sm" /></label>
+        <label className="text-sm font-medium">SKU<input name="sku" required maxLength={60} defaultValue={product?.sku} className="input" /></label>
+        <label className="text-sm font-medium">Preço (R$)<input name="price" required inputMode="decimal" pattern="\d+([.,]\d{1,2})?" defaultValue={product?.price} className="input" /></label>
+        <label className="text-sm font-medium">Estoque físico<input name="stock" type="number" min={product?.reserved ?? 0} step={1} required defaultValue={product?.stock ?? 0} className="input" />{product && product.reserved > 0 && <span className="text-xs font-normal text-slate-500">{product.reserved} reservado(s) em pedidos pendentes</span>}</label>
+        <label className="text-sm font-medium sm:col-span-2">Descrição<textarea name="description" rows={5} maxLength={5000} defaultValue={product?.description ?? ''} className="input" /></label>
+        <label className="text-sm font-medium sm:col-span-2">URL da imagem principal<input name="imageUrl" type="url" defaultValue={product?.images[0]?.url ?? ''} placeholder="https://" className="input" /></label>
+      </div>
+      <aside className="space-y-6">
+        <div className="card p-6">
+          <label className="text-sm font-medium">Status<select name="status" defaultValue={product?.status ?? 'DRAFT'} className="input">{Object.entries(productStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <fieldset className="mt-5"><legend className="text-sm font-medium">Categorias</legend>{categories.map(c => <label key={c.id} className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" name="categoryIds" value={c.id} defaultChecked={product?.categoryIds?.includes(c.id)} />{c.name}</label>)}</fieldset>
+          {state.error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}
+          {state.ok && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{state.ok}</p>}
+          <button className="button mt-6 w-full disabled:opacity-60" disabled={pending}>{pending ? 'Salvando…' : product ? 'Salvar alterações' : 'Criar produto'}</button>
+        </div>
+      </aside>
+    </form>
+  );
+}
