@@ -20,7 +20,7 @@ const groups: { label: string; items: [href: string, label: string, icon: Icon][
   { label: 'Vendas', items: [['/painel/pedidos', 'Pedidos', 'orders']] },
   { label: 'Catálogo', items: [['/painel/produtos', 'Produtos', 'products']] },
   { label: 'Loja', items: [['/painel/site', 'Personalizar loja', 'palette'], ['/painel/frete', 'Entregas', 'truck'], ['/painel/pagamentos', 'Pagamentos', 'card']] },
-  { label: 'Sistema', items: [['/painel/configuracoes', 'Configurações', 'gear'], ['/painel/auditoria', 'Auditoria', 'shield']] },
+  { label: 'Sistema', items: [['/painel/configuracoes', 'Configurações', 'gear'], ['/painel/seguranca', 'Segurança', 'shield'], ['/painel/auditoria', 'Auditoria', 'shield']] },
 ];
 
 export function PanelNavigation({ onNavigate }: { onNavigate?: () => void }) {

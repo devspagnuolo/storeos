@@ -17,7 +17,7 @@ export type AuditEntry = {
 };
 
 /** Campos que nunca entram na trilha, em qualquer nível do corpo da requisição. */
-const SECRET_KEYS = /pass(word)?|senha|token|secret|authorization|cvv|card/i;
+const SECRET_KEYS = /pass(word)?|senha|token|secret|authorization|cvv|card|^code$|recover/i;
 const MAX_METADATA_BYTES = 8_000;
 
 export function redact(value: unknown, depth = 0): unknown {
