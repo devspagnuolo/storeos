@@ -1,6 +1,7 @@
 export type OrderRow = { id: string; number: string; status: string; total: string; createdAt: string; customer: { name: string; email: string } | null; payments: { method: string; status: string; provider: string }[]; blingSync: { status: string; blingOrderId: string | null; blingOrderNumber: string | null; blingSituationName: string | null } | null; _count: { items: number } };
 export type OrderPage = { items: OrderRow[]; total: number; page: number; pageSize: number };
-export type OrderDetail = Omit<OrderRow, 'payments' | '_count'> & {
+export type OrderDetail = Omit<OrderRow, 'payments' | '_count' | 'blingSync'> & {
+  blingSync: (NonNullable<OrderRow['blingSync']> & { blingSituationId: string | null }) | null;
   subtotal: string; shipping: string; discount: string; shippingMethod: string | null;
   shippingAddress: { zipCode: string; street: string; number: string; complement?: string; district?: string; city: string; state: string } | null;
   items: { id: string; sku: string; name: string; quantity: number; unitPrice: string; total: string }[];

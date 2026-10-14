@@ -35,7 +35,7 @@ export class OrdersService {
       ] }),
     };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.order.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, include: { customer: { select: { name: true, email: true } }, payments: { select: { method: true, status: true, provider: true } }, blingSync: { select: { status: true, blingOrderId: true, blingOrderNumber: true, blingSituationName: true } }, _count: { select: { items: true } } } }),
+      this.prisma.order.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, include: { customer: { select: { name: true, email: true } }, payments: { select: { method: true, status: true, provider: true } }, blingSync: { select: { status: true, blingOrderId: true, blingOrderNumber: true, blingSituationId: true, blingSituationName: true } }, _count: { select: { items: true } } } }),
       this.prisma.order.count({ where }),
     ]);
     return { items, total, page, pageSize };
