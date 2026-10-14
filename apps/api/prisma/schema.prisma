@@ -71,6 +71,7 @@ model Store {
   brands                 Brand[]
   collections            Collection[]
   pages                  Page[]
+  menus                  Menu[]
   emailLogs              EmailLog[]
   promotions             Promotion[]
   stockMovements         StockMovement[]
@@ -595,6 +596,17 @@ model LoyaltyEntry {
 }
 
 /// Página institucional editável pelo lojista (Sobre, Trocas e devoluções, Privacidade…).
+model Menu {
+  id        String   @id @default(uuid())
+  storeId   String
+  key       String
+  items     Json
+  updatedAt DateTime @updatedAt
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, key])
+}
+
 model Page {
   id             String   @id @default(uuid())
   storeId        String

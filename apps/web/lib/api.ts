@@ -46,3 +46,12 @@ export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent
 
 export const getPages = () => get<PageLink[]>(`/content/pages?store=${encodeURIComponent(storeSlug)}`, []);
 export const getPage = (slug: string) => get<ContentPage | null>(`/content/pages/${encodeURIComponent(slug)}?store=${encodeURIComponent(storeSlug)}`, null);
+
+export type MenuLink = { label: string; href: string; children: MenuLink[] };
+export type StorefrontMenu = { configured: boolean; items: MenuLink[] };
+export const getMenu = (key: 'main' | 'footer') => get<StorefrontMenu>(`/content/menus/${key}?store=${encodeURIComponent(storeSlug)}`, { configured: false, items: [] });
+/** Menu padrão enquanto a loja não montou o próprio: categorias principais com suas subcategorias. */
+export function defaultMenu(categories: Category[]): MenuLink[] {
+  const link = (c: Category): MenuLink => ({ label: c.name, href: `/categorias/${c.slug}`, children: categories.filter(child => child.parentId === c.id).map(link) });
+  return categories.filter(c => !c.parentId).map(link);
+}
