@@ -82,6 +82,11 @@ export class BlingInvoicesService {
     }));
   }
 
+  async findForOrder(storeId: string, orderNumber: string) {
+    const invoice = await this.prisma.blingInvoice.findFirst({ where: { storeId, order: { number: orderNumber } } });
+    return invoice ? this.publicInvoice(invoice) : null;
+  }
+
   async processDue() {
     const due = await this.prisma.blingInvoice.findMany({
       where: { status: { in: [BlingInvoiceStatus.QUEUED, BlingInvoiceStatus.FAILED, BlingInvoiceStatus.PROCESSING] }, attempts: { lt: 6 }, nextAttemptAt: { lte: new Date() } },
