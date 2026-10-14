@@ -1,16 +1,38 @@
 name: CI
-on: [pull_request, push]
+on:
+  pull_request:
+  push:
+    branches: [main]
 permissions: { contents: read }
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_DB: storeos, POSTGRES_USER: storeos, POSTGRES_PASSWORD: storeos }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U storeos -d storeos"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://storeos:storeos@localhost:5432/storeos?schema=public
     steps:
       - uses: actions/checkout@v4
+      # A versão do pnpm vem de packageManager no package.json.
       - uses: pnpm/action-setup@v4
-        with: { version: 9 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
-      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @storeos/api prisma:generate
+      - run: pnpm lint
       - run: pnpm build
       - run: pnpm test
+      - name: Migrations, seed e testes de integração
+        run: |
+          pnpm --filter @storeos/api exec prisma migrate deploy
+          pnpm db:seed
+          pnpm test:int

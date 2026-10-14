@@ -6,7 +6,7 @@ import { getProducts } from '../lib/api';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const products = await getProducts();
+  const { items: products } = await getProducts({ pageSize: 8 });
 
   return (
     <>
@@ -35,7 +35,7 @@ export default async function Home() {
           </div>
           {products.length ? (
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              {products.slice(0, 8).map((product: any) => <ProductCard product={product} key={product.id} />)}
+              {products.map(product => <ProductCard product={product} key={product.id} />)}
             </div>
           ) : (
             <div className="card p-10 text-center text-slate-500">O catálogo será exibido assim que os produtos forem publicados.</div>

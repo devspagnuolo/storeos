@@ -1,2 +1,30 @@
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
-export async function getProducts(store = 'demo') { const response = await fetch(`${apiUrl}/catalog/products?store=${encodeURIComponent(store)}`, { next: { revalidate: 60 } }); return response.ok ? response.json() : []; }
+export const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+export const storeSlug = process.env.NEXT_PUBLIC_STORE_SLUG ?? 'demo';
+
+export type ProductImage = { url: string; alt: string | null };
+export type ProductSummary = { id: string; name: string; slug: string; sku: string; price: string; images?: ProductImage[] };
+export type ProductDetail = ProductSummary & { description: string | null; available: number; categories: { name: string; slug: string }[] };
+export type Category = { id: string; name: string; slug: string; description: string | null };
+export type ProductPage = { items: ProductSummary[]; total: number; page: number; pageSize: number };
+
+const emptyPage = (page = 1, pageSize = 24): ProductPage => ({ items: [], total: 0, page, pageSize });
+
+async function get<T>(path: string, fallback: T): Promise<T> {
+  try {
+    const response = await fetch(`${apiUrl}${path}`, { next: { revalidate: 60 } });
+    return response.ok ? await response.json() : fallback;
+  } catch {
+    // A vitrine continua de pé mesmo com a API fora do ar (por exemplo, acordando no plano free).
+    return fallback;
+  }
+}
+
+export function getProducts(query: { category?: string; q?: string; page?: number; pageSize?: number } = {}) {
+  const params = new URLSearchParams({ store: storeSlug });
+  for (const [key, value] of Object.entries(query)) if (value) params.set(key, String(value));
+  return get<ProductPage>(`/catalog/products?${params}`, emptyPage(query.page, query.pageSize));
+}
+
+export const getCategories = () => get<Category[]>(`/catalog/categories?store=${encodeURIComponent(storeSlug)}`, []);
+
+export const getProduct = (slug: string) => get<ProductDetail | null>(`/catalog/products/${encodeURIComponent(slug)}?store=${encodeURIComponent(storeSlug)}`, null);

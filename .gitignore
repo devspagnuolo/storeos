@@ -6,4 +6,4 @@ coverage/
 .env.*
 !.env.example
 *.log
-apps/api/prisma/migrations/
+next-env.d.ts
