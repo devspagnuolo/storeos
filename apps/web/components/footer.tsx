@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Category, PageLink } from '../lib/api';
+import { NewsletterForm } from './newsletter-form';
 import { useStoreBrand, useStoreMenus } from './store-name';
 
 /** Rodapé da vitrine. Fica de fora do painel e do checkout, que têm o próprio foco. */
@@ -17,6 +18,8 @@ export function Footer({ categories, pages = [] }: { categories: Category[]; pag
         <div className="lg:col-span-1">
           <p className="text-lg font-black tracking-tight">{name}</p>
           <p className="mt-3 text-sm text-slate-500">Compre online com entrega para todo o Brasil e pagamento por PIX.</p>
+          <p className="mt-5 text-sm font-semibold">Receba novidades e ofertas</p>
+          <NewsletterForm />
         </div>
         <nav aria-label="Categorias">
           <p className="text-sm font-semibold">Categorias</p>

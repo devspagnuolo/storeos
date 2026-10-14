@@ -63,3 +63,7 @@ export type MenuOption = { id?: string; name: string; slug: string; parentId?: s
 export type AdminMenu = { key: 'main' | 'footer'; configured: boolean; items: AdminMenuItem[]; options: { categories: MenuOption[]; collections: MenuOption[]; brands: MenuOption[]; pages: MenuOption[] } };
 
 export type ImportReport = { dryRun: boolean; rows: number; created: number; updated: number; failed: number; errors: { line: number; message: string }[]; products: { slug: string; name: string; action: 'create' | 'update' | 'error'; variants: number }[] };
+
+export type AdminBanner = { id: string; imageUrl: string; mobileImageUrl: string | null; title: string | null; subtitle: string | null; ctaLabel: string | null; linkUrl: string | null; position: number; active: boolean; startsAt: string | null; endsAt: string | null };
+export type Subscriber = { id: string; email: string; name: string | null; source: string; createdAt: string };
+export type SubscriberPage = { items: Subscriber[]; total: number; page: number; pageSize: number };

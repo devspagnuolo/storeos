@@ -42,7 +42,7 @@ export type PageLink = { slug: string; title: string; showInFooter: boolean };
 export type ContentPage = { slug: string; title: string; body: string; seoDescription: string | null; updatedAt: string };
 
 export type StorefrontConfig = { announcementText?: string; heroTitle?: string; heroDescription?: string; heroCta?: string; heroImageUrl?: string | null; accentColor?: string };
-export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig };
+export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig; whatsappNumber?: string | null; whatsappMessage?: string | null };
 
 export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent(storeSlug)}`, { slug: storeSlug, name: 'Loja', logoUrl: null, faviconUrl: null, themeConfig: {} });
 
@@ -57,3 +57,6 @@ export function defaultMenu(categories: Category[]): MenuLink[] {
   const link = (node: TreeNode<Category>): MenuLink => ({ label: node.name, href: `/categorias/${node.slug}`, children: node.children.map(link) });
   return buildTree(categories).map(link);
 }
+
+export type BannerSlide = { id: string; imageUrl: string; mobileImageUrl: string | null; title: string | null; subtitle: string | null; ctaLabel: string | null; linkUrl: string | null };
+export const getBanners = () => get<BannerSlide[]>(`/engagement/banners?store=${encodeURIComponent(storeSlug)}`, []);

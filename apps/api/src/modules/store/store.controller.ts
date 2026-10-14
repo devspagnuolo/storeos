@@ -35,7 +35,7 @@ export class StoreController {
   async publicInfo(@Param('slug') slug: string) {
     const store = await this.prisma.store.findUnique({
       where: { slug },
-      select: { slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true },
+      select: { slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, whatsappNumber: true, whatsappMessage: true },
     });
     if (!store) throw new NotFoundException('Loja não encontrada');
     return store;
