@@ -1,10 +1,11 @@
 'use client';
 import { createContext, useContext } from 'react';
 
-const StoreNameContext = createContext('Loja');
+export type StoreBrand = { name: string; logoUrl: string | null };
+const StoreBrandContext = createContext<StoreBrand>({ name: 'Loja', logoUrl: null });
 
-export function StoreNameProvider({ name, children }: { name: string; children: React.ReactNode }) {
-  return <StoreNameContext.Provider value={name}>{children}</StoreNameContext.Provider>;
+export function StoreNameProvider({ name, logoUrl, children }: { name: string; logoUrl: string | null; children: React.ReactNode }) {
+  return <StoreBrandContext.Provider value={{ name, logoUrl }}>{children}</StoreBrandContext.Provider>;
 }
 
-export const useStoreName = () => useContext(StoreNameContext);
+export const useStoreBrand = () => useContext(StoreBrandContext);
