@@ -4,7 +4,7 @@ services:
   - type: web
     name: storeos-nexo-api
     runtime: node
-    plan: free
+    plan: starter
     region: oregon
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @storeos/api prisma:generate && pnpm --filter @storeos/api exec prisma migrate deploy && pnpm --filter @storeos/api build
     startCommand: pnpm --filter @storeos/api start
@@ -60,7 +60,7 @@ services:
   - type: web
     name: storeos-nexo-web
     runtime: node
-    plan: free
+    plan: starter
     region: oregon
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @storeos/web build
     startCommand: pnpm --filter @storeos/web start
@@ -93,6 +93,6 @@ services:
 databases:
   - name: storeos-postgres
     databaseName: storeos
-    plan: free
+    plan: basic_256mb
     region: oregon
     postgresMajorVersion: 16
