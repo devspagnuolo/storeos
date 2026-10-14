@@ -822,6 +822,7 @@ model BlingInvoice {
   attempts        Int                @default(0)
   nextAttemptAt   DateTime           @default(now())
   issuedAt        DateTime?
+  submittedAt     DateTime?
   authorizedAt    DateTime?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
