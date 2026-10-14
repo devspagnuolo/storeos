@@ -41,3 +41,9 @@ infra          manifestos Kubernetes e CI/CD
 - Segredos somente por variáveis/secret manager; nunca em código ou imagens Docker.
 
 Consulte `docs/architecture.md`, `docs/erd.md`, `docs/roadmap.md` e `docs/backlog.md`.
+
+## Painel administrativo
+
+`/admin` (login com o usuário do seed em desenvolvimento). Mostra receita, pedidos, taxa de pagamento e ticket médio dos últimos 30 dias; lista e filtra pedidos, confirma pagamento ou cancela (devolvendo estoque); cria e edita produtos com preço, estoque, status, categorias e imagem.
+
+A sessão usa cookies httpOnly: access token de 15 min e refresh token de 30 dias, rotacionado a cada renovação (`POST /api/v1/auth/refresh`). Reusar um refresh token já trocado, fora de uma janela de 30 s, revoga todas as sessões do usuário.
