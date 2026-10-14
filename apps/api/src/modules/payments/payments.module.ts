@@ -10,4 +10,4 @@ import { RedeProvider } from './rede.provider';
 import { PaymentsConfigController } from './payments-config.controller';
 import { PaymentsWebhookController } from './payments-webhook.controller';
 import { PaymentsWebhookService } from './payments-webhook.service';
-@Module({ imports: [OrdersModule], controllers: [PaymentsWebhookController, PaymentsConfigController], providers: [ManualPaymentProvider, MercadoPagoClient, MercadoPagoProvider, RedeClient, RedeProvider, PaymentRouter, PaymentsWebhookService, { provide: PAYMENT_PROVIDER, useExisting: PaymentRouter }], exports: [PAYMENT_PROVIDER] }) export class PaymentsModule {}
+@Module({ imports: [OrdersModule], controllers: [PaymentsWebhookController, PaymentsConfigController], providers: [ManualPaymentProvider, MercadoPagoClient, MercadoPagoProvider, RedeClient, RedeProvider, PaymentRouter, PaymentsWebhookService, { provide: PAYMENT_PROVIDER, useExisting: PaymentRouter }], exports: [PAYMENT_PROVIDER, MercadoPagoClient] }) export class PaymentsModule {}
