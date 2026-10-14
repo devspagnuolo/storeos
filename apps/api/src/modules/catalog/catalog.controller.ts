@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ProductStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -37,7 +37,8 @@ class UpdateProductDto {
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
 }
-class CreateCategoryDto { @IsString() name!: string; @Matches(SLUG) slug!: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; }
+class CreateCategoryDto { @IsString() name!: string; @Matches(SLUG) slug!: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @IsString() parentId?: string | null; }
+class UpdateCategoryDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) slug?: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() parentId?: string | null; }
 class CreateBrandDto { @IsString() @Length(2, 80) name!: string; @Matches(SLUG) @MaxLength(80) slug!: string; @IsOptional() @IsUrl({ protocols: ['https', 'http'], require_protocol: true }) logoUrl?: string; }
 class CreateCollectionDto { @IsString() @Length(2, 80) name!: string; @Matches(SLUG) @MaxLength(80) slug!: string; @IsOptional() @IsString() @MaxLength(500) description?: string; @IsOptional() @IsBoolean() active?: boolean; @IsOptional() @IsInt() position?: number; @IsOptional() @IsArray() @ArrayMaxSize(2000) @IsString({ each: true }) skus?: string[]; }
 class UpdateCollectionDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) @MaxLength(80) slug?: string; @IsOptional() @IsString() @MaxLength(500) description?: string; @IsOptional() @IsBoolean() active?: boolean; @IsOptional() @IsInt() position?: number; @IsOptional() @IsArray() @ArrayMaxSize(2000) @IsString({ each: true }) skus?: string[]; }
@@ -60,4 +61,6 @@ class StoreQueryDto { @IsString() store!: string; }
   @Post('products') @RequirePermissions(Permissions.CATALOG_WRITE) create(@CurrentStore() storeId: string, @Body() dto: CreateProductDto) { return this.catalog.create(storeId, dto); }
   @Patch('products/:id') @RequirePermissions(Permissions.CATALOG_WRITE) update(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdateProductDto) { return this.catalog.update(storeId, id, dto); }
   @Post('categories') @RequirePermissions(Permissions.CATALOG_WRITE) createCategory(@CurrentStore() storeId: string, @Body() dto: CreateCategoryDto) { return this.catalog.createCategory(storeId, dto); }
+  @Patch('categories/:id') @RequirePermissions(Permissions.CATALOG_WRITE) updateCategory(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdateCategoryDto) { return this.catalog.updateCategory(storeId, id, dto); }
+  @Delete('categories/:id') @HttpCode(204) @RequirePermissions(Permissions.CATALOG_WRITE) deleteCategory(@CurrentStore() storeId: string, @Param('id') id: string) { return this.catalog.deleteCategory(storeId, id); }
 }
