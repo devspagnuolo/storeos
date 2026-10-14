@@ -792,7 +792,7 @@ model BlingOrderSync {
   @@index([storeId, blingOrderId])
 }
 
-/// Importação de produtos do Bling: roda em segundo plano e o painel acompanha o andamento.
+/// Nota fiscal originada do pedido de venda Bling; número do pedido da loja permanece como chave de idempotência.\nmodel BlingInvoice {\n  id              String             @id @default(uuid())\n  storeId         String\n  orderId         String             @unique\n  connectionId    String\n  status          BlingInvoiceStatus @default(QUEUED)\n  blingInvoiceId  String?            @unique\n  invoiceNumber   String?\n  series          String?\n  accessKey       String?\n  danfeUrl        String?            @db.Text\n  xmlUrl          String?            @db.Text\n  rejectionReason String?            @db.Text\n  attempts        Int                @default(0)\n  nextAttemptAt   DateTime           @default(now())\n  issuedAt        DateTime?\n  authorizedAt    DateTime?\n  createdAt       DateTime           @default(now())\n  updatedAt       DateTime           @updatedAt\n  store           Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)\n  order           Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)\n  connection      BlingConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)\n\n  @@index([storeId, status, nextAttemptAt])\n  @@index([storeId, invoiceNumber])\n}\n\n/// Importação de produtos do Bling: roda em segundo plano e o painel acompanha o andamento.
 model BlingImport {
   id         String            @id @default(uuid())
   storeId    String
