@@ -3,7 +3,7 @@ import { formatDateTime } from '../../../../lib/admin/labels';
 import { adminFetch } from '../../../../lib/admin/session';
 import type { BlingStatus, BlingSyncRow } from '../../../../lib/admin/types';
 import { formatPrice } from '../../../../lib/format';
-import { connectBlingAction, disconnectBlingAction, resendBlingOrderAction } from '../../actions';
+import { connectBlingAction, disconnectBlingAction, resendBlingOrderAction, setAutomaticBlingInvoiceAction } from '../../actions';
 
 export const dynamic = 'force-dynamic';
 const tone = { SENT: 'bg-emerald-100 text-emerald-800', PENDING: 'bg-slate-100 text-slate-700', PROCESSING: 'bg-blue-100 text-blue-800', FAILED: 'bg-red-100 text-red-800' } as const;
@@ -64,6 +64,24 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
             <BlingImport initial={status.import} />
           </section>
 
+          <section className="card mt-6 p-6">
+            <h2 className="text-lg font-bold">Notas fiscais</h2>
+            <p className="mt-1 text-sm text-slate-500">A NF-e é gerada a partir do pedido de venda no Bling, preservando o vínculo entre os dois sistemas. A emissão automática inicia somente para pedidos pagos e exige que a configuração fiscal esteja pronta no ERP.</p>
+            <form action={setAutomaticBlingInvoiceAction} className="mt-4 rounded-xl border border-slate-200 p-4">
+              <input type="hidden" name="enabled" value={status.automaticInvoiceEnabled ? 'false' : 'true'} />
+              {status.automaticInvoiceEnabled ? <><p className="text-sm font-medium text-emerald-800">Emissão automática ativa para novos pedidos pagos.</p><button className="mt-3 text-sm text-red-700 underline">Desativar emissão automática</button></> : <>
+                <label className="flex items-start gap-2 text-sm text-slate-700"><input required type="checkbox" name="fiscalConfirmed" className="mt-1" /><span>Confirmo que regras fiscais, série, natureza da operação, certificado e dados fiscais estão configurados e testados no Bling.</span></label>
+                <button className="button mt-3">Ativar emissão automática</button>
+              </>}
+            </form>
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead className="text-left text-slate-500"><tr><th className="py-2 pr-3">Pedido STOREOS</th><th className="py-2 pr-3">NF-e</th><th className="py-2 pr-3">Status</th><th className="py-2">Detalhe</th></tr></thead>
+                <tbody className="divide-y">{status.invoices.map(invoice => <tr key={invoice.id}><td className="py-2 pr-3">{invoice.orderNumber ?? invoice.orderId}</td><td className="py-2 pr-3">{invoice.invoiceNumber ? `#${invoice.invoiceNumber}${invoice.series ? ` · série ${invoice.series}` : ''}` : '—'}</td><td className="py-2 pr-3">{({ QUEUED: 'Na fila', PROCESSING: 'Processando', GENERATED: 'Gerada / aguardando SEFAZ', AUTHORIZED: 'Autorizada', REJECTED: 'Rejeitada', FAILED: 'Com erro' } as Record<string, string>)[invoice.status]}</td><td className="py-2 text-xs text-slate-500">{invoice.rejectionReason ?? (invoice.accessKey ? `Chave ${invoice.accessKey}` : '—')}</td></tr>)}</tbody>
+              </table>
+              {!status.invoices.length && <p className="py-5 text-center text-sm text-slate-500">Nenhuma nota fiscal solicitada ainda.</p>}
+            </div>
+          </section>
           <section className="card mt-6 p-6">
             <h2 className="text-lg font-bold">Pedidos enviados ao Bling</h2>
             <p className="mb-4 mt-1 text-sm text-slate-500">Cada pedido criado é enviado em segundo plano com cliente, itens, frete e número STOREOS. O número próprio do Bling e a situação do ERP ficam vinculados ao pedido; falhas são repetidas automaticamente.</p>
