@@ -2,11 +2,13 @@
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Header } from '../../components/header';
+import { CardPayment, CardPaymentHandle } from '../../components/card-payment';
 import { PixPayment } from '../../components/pix-payment';
 import { ShippingOptions } from '../../components/shipping-options';
 import { cartSubtotalCents, lineKey, useCart } from '../../lib/cart';
 import { CheckoutForm, CheckoutResult, PromotionPreview, previewCoupon, previewPromotions, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
+import { formatCpf, getPaymentConfig, isValidCpf, PaymentConfig } from '../../lib/payment';
 import { formatCep, lookupCep, onlyDigits, quoteShipping, rememberCep, ShippingQuote } from '../../lib/shipping';
 
 const fields: { name: keyof CheckoutForm; label: string; required?: boolean; className?: string; pattern?: string; type?: string; autoComplete?: string }[] = [
@@ -35,12 +37,17 @@ export default function CheckoutPage() {
   const [couponInput, setCouponInput] = useState('');
   const [coupon, setCoupon] = useState<{ code: string; discount: number }>();
   const [couponError, setCouponError] = useState<string>();
+  const [method, setMethod] = useState<CheckoutForm['paymentMethod']>('PIX');
+  const [cpf, setCpf] = useState('');
+  const [payConfig, setPayConfig] = useState<PaymentConfig>();
+  const cardRef = useRef<CardPaymentHandle>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const itemsKey = items.map(i => `${lineKey(i)}:${i.quantity}`).join(',');
 
   useEffect(() => {
     setHydrated(true);
     setCep(rememberCep());
+    void getPaymentConfig().then(setPayConfig);
   }, []);
 
   // Recalcula o frete quando o CEP fica completo ou o carrinho muda; o servidor recalcula de novo no pedido.
@@ -104,7 +111,11 @@ export default function CheckoutPage() {
     setError(undefined);
     try {
       const form = Object.fromEntries(new FormData(event.currentTarget)) as unknown as CheckoutForm;
-      setOrder(await submitCheckout({ ...form, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items));
+      const needsCpf = method !== 'PIX' && Boolean(payConfig?.card);
+      if (method === 'CREDIT_CARD' && !isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
+      if (needsCpf && method === 'BOLETO' && cpf && !isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
+      const card = method === 'CREDIT_CARD' ? await cardRef.current?.tokenize(cpf) : undefined;
+      setOrder(await submitCheckout({ ...form, paymentMethod: method, cpf: needsCpf ? cpf : undefined, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card));
       clear();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível concluir o pedido.');
@@ -121,6 +132,12 @@ export default function CheckoutPage() {
           <p className="text-sm font-semibold text-brand">PEDIDO RECEBIDO</p>
           <h1 className="mt-1 text-3xl font-bold">Obrigado! Seu pedido é o {order.number}</h1>
           <p className="mt-4 rounded-xl bg-violet-50 p-4 text-slate-700">{order.payment.instructions.message}</p>
+          {order.payment.instructions.ticketUrl && !order.payment.instructions.pixCode && (
+            <div className="mt-6 rounded-xl border border-slate-200 p-6 text-center">
+              <a href={order.payment.instructions.ticketUrl} target="_blank" rel="noopener noreferrer" className="button">Abrir boleto</a>
+              {order.payment.instructions.barcode && <label className="mt-4 block text-left text-sm font-medium">Linha digitável<textarea readOnly value={order.payment.instructions.barcode} rows={2} className="mt-1 w-full resize-none rounded-xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs" /></label>}
+            </div>
+          )}
           {order.payment.instructions.pixCode && <PixPayment pixCode={order.payment.instructions.pixCode} qrCodeBase64={order.payment.instructions.qrCodeBase64} expiresAt={order.payment.expiresAt} />}
           <ul className="mt-6 divide-y text-sm">{order.items.map(i => <li key={i.sku} className="flex justify-between py-2"><span>{i.quantity}× {i.name}</span><span>{formatPrice(i.total)}</span></li>)}</ul>
           {order.promotions?.map(p => <div key={p.name} className="mt-4 flex justify-between border-t pt-4 text-sm text-emerald-700"><span>{p.name}</span><span>− {formatPrice(p.amount)}</span></div>)}
@@ -157,7 +174,17 @@ export default function CheckoutPage() {
               </fieldset>
               <fieldset className="sm:col-span-2">
                 <legend className="mb-2 font-bold">Pagamento</legend>
-                <label><input type="radio" name="paymentMethod" value="PIX" defaultChecked /> PIX</label>
+                <div className="flex flex-wrap gap-x-6 gap-y-2">
+                  <label><input type="radio" name="paymentMethod" value="PIX" checked={method === 'PIX'} onChange={() => setMethod('PIX')} /> PIX</label>
+                  {payConfig?.card && <label><input type="radio" name="paymentMethod" value="CREDIT_CARD" checked={method === 'CREDIT_CARD'} onChange={() => setMethod('CREDIT_CARD')} /> Cartão de crédito</label>}
+                  {payConfig?.card && <label><input type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} /> Boleto</label>}
+                </div>
+                {payConfig?.card && method !== 'PIX' && (
+                  <label className="mt-3 block text-sm font-medium">CPF do titular
+                    <input value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal sm:max-w-xs" />
+                  </label>
+                )}
+                {payConfig?.card && method === 'CREDIT_CARD' && <CardPayment ref={cardRef} publicKey={payConfig.card.publicKey} amount={subtotal - promoDiscount - discount + shipping} maxInstallments={payConfig.card.maxInstallments} cpf={cpf} />}
               </fieldset>
             </div>
             <aside className="card h-fit p-6">

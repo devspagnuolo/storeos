@@ -1,0 +1,38 @@
+export const onlyDigits = (value: string) => value.replace(/\D/g, '');
+
+/** Valida os dígitos verificadores do CPF; sequências repetidas (111.111.111-11) não valem. */
+export function isValidCpf(value: string) {
+  const cpf = onlyDigits(value);
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  const check = (length: number) => {
+    const sum = [...cpf.slice(0, length)].reduce((total, digit, index) => total + Number(digit) * (length + 1 - index), 0);
+    const rest = (sum * 10) % 11;
+    return rest === 10 ? 0 : rest;
+  };
+  return check(9) === Number(cpf[9]) && check(10) === Number(cpf[10]);
+}
+
+export const MAX_INSTALLMENTS = 12;
+
+/** Parcelas pedidas pelo cliente: inteiro entre 1 e o máximo da loja. */
+export function clampInstallments(value: unknown, max = Number(process.env.MERCADOPAGO_MAX_INSTALLMENTS ?? MAX_INSTALLMENTS)) {
+  const parsed = Math.trunc(Number(value));
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return Math.min(parsed, Math.min(max, MAX_INSTALLMENTS));
+}
+
+const DECLINES: Record<string, string> = {
+  cc_rejected_insufficient_amount: 'Saldo ou limite insuficiente no cartão.',
+  cc_rejected_bad_filled_card_number: 'Confira o número do cartão.',
+  cc_rejected_bad_filled_date: 'Confira a validade do cartão.',
+  cc_rejected_bad_filled_security_code: 'Confira o código de segurança do cartão.',
+  cc_rejected_bad_filled_other: 'Confira os dados do cartão.',
+  cc_rejected_call_for_authorize: 'Seu banco pede autorização: ligue para ele e tente de novo.',
+  cc_rejected_card_disabled: 'Cartão desativado. Ative-o com o banco ou use outro.',
+  cc_rejected_duplicated_payment: 'Você já fez um pagamento igual a este.',
+  cc_rejected_max_attempts: 'Limite de tentativas atingido. Use outro cartão.',
+  cc_rejected_high_risk: 'Pagamento recusado por segurança. Tente outro meio de pagamento.',
+};
+
+/** Mensagem amigável para um cartão recusado; o detalhe técnico do gateway nunca vai ao cliente. */
+export const declineMessage = (detail?: string | null) => (detail && DECLINES[detail]) || 'O cartão foi recusado. Confira os dados ou use outro meio de pagamento.';

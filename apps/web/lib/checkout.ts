@@ -4,7 +4,8 @@ import { toRequestItems, type CartItem } from './cart';
 export type CheckoutForm = {
   name: string; email: string;
   zipCode: string; street: string; number: string; complement?: string; district?: string; city: string; state: string;
-  paymentMethod: 'PIX' | 'BOLETO';
+  paymentMethod: 'PIX' | 'BOLETO' | 'CREDIT_CARD';
+  cpf?: string;
   shippingRuleId?: string;
   couponCode?: string;
 };
@@ -12,12 +13,12 @@ export type CheckoutForm = {
 export type CheckoutResult = {
   number: string; status: string; subtotal: string; discount: string; promotionDiscount: string; promotions: { name: string; amount: string }[]; couponCode: string | null; shipping: string; shippingMethod: string | null; total: string; currency: string;
   items: { sku: string; name: string; quantity: number; total: string }[];
-  payment: { method: string; status: string; expiresAt?: string; instructions: { message: string; pixCode?: string; qrCodeBase64?: string; ticketUrl?: string } };
+  payment: { method: string; status: string; expiresAt?: string; instructions: { message: string; pixCode?: string; qrCodeBase64?: string; ticketUrl?: string; barcode?: string; installments?: number } };
 };
 
 /** Envia o pedido direto do navegador para a API; o rate limit da API considera o IP de cada cliente. */
-export async function submitCheckout(form: CheckoutForm, items: CartItem[]): Promise<CheckoutResult> {
-  const { name, email, paymentMethod, shippingRuleId, couponCode, ...address } = form;
+export async function submitCheckout(form: CheckoutForm, items: CartItem[], card?: { token: string; paymentMethodId: string; installments: number; issuerId?: string }): Promise<CheckoutResult> {
+  const { name, email, paymentMethod, shippingRuleId, couponCode, cpf, ...address } = form;
   const response = await fetch(`${apiUrl}/checkout`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -29,6 +30,8 @@ export async function submitCheckout(form: CheckoutForm, items: CartItem[]): Pro
       paymentMethod,
       shippingRuleId,
       couponCode: couponCode || undefined,
+      cpf: cpf || undefined,
+      card,
     }),
   });
   const body = await response.json().catch(() => ({}));

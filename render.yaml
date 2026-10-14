@@ -41,6 +41,9 @@ services:
         sync: false
       - key: MERCADOPAGO_WEBHOOK_SECRET
         sync: false
+      # Chave pública (APP_USR-...): habilita cartão de crédito com parcelas no checkout.
+      - key: MERCADOPAGO_PUBLIC_KEY
+        sync: false
       - key: API_PUBLIC_URL
         sync: false
       # E-mails transacionais (Resend) e cotação de frete (SuperFrete ou Melhor Envio): vazios = modo simulado / só regras da loja.
