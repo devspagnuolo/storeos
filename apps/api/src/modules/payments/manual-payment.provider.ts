@@ -11,9 +11,10 @@ import { ChargeRequest, ChargeResult, PaymentProvider } from './payment-provider
 export class ManualPaymentProvider implements PaymentProvider {
   async createCharge(request: ChargeRequest): Promise<ChargeResult> {
     const transactionId = `manual_${randomUUID()}`;
+    const amount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: request.currency }).format(Number(request.amount));
     const instructions: Record<string, string> = request.method === PaymentMethod.BOLETO
       ? { message: `O boleto do pedido ${request.orderNumber} será enviado para ${request.customer.email}.` }
-      : { message: `Pague ${request.amount} ${request.currency} via PIX informando o pedido ${request.orderNumber}. A loja confirma o pagamento em seguida.` };
+      : { message: `Pague ${amount} via PIX informando o pedido ${request.orderNumber}. A loja confirma o pagamento em seguida.` };
     return { provider: 'manual', transactionId, status: PaymentStatus.PENDING, instructions };
   }
 }
