@@ -2,6 +2,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { createHmac } from 'node:crypto';
 import { OrderLifecycleService } from '../src/modules/orders/order-lifecycle.service';
 import { MercadoPagoClient, MercadoPagoPayment } from '../src/modules/payments/mercado-pago.client';
+import { RedeClient, RedeCharge } from '../src/modules/payments/rede.client';
 import { checkoutBody, cleanup, createStore, inventoryOf, login, prisma, startApp } from './helpers';
 
 /** Mercado Pago falso: guarda os pagamentos criados e deixa o teste mudar o status. */
@@ -11,8 +12,23 @@ class FakeMercadoPago {
   payments = new Map<string, MercadoPagoPayment>();
   private nextId = 1000;
 
-  async createPixPayment(input: { amount: number; orderNumber: string }) {
+  publicKey: string | undefined = 'TEST-public-key';
+  cardOutcome: { status: MercadoPagoPayment['status']; detail?: string } = { status: 'approved' };
+  lastRequest: Record<string, unknown> | undefined;
+
+  async createPayment(input: { method: string; amount: number; orderNumber: string }) {
     if (this.failNext) { this.failNext = false; throw new Error('gateway fora do ar'); }
+    this.lastRequest = input;
+    if (input.method === 'card') {
+      const card: MercadoPagoPayment = { id: this.nextId++, status: this.cardOutcome.status, status_detail: this.cardOutcome.detail, external_reference: input.orderNumber, transaction_amount: input.amount };
+      this.payments.set(String(card.id), card);
+      return card;
+    }
+    if (input.method === 'boleto') {
+      const boleto: MercadoPagoPayment = { id: this.nextId++, status: 'pending', external_reference: input.orderNumber, transaction_amount: input.amount, transaction_details: { external_resource_url: 'https://mp.test/boleto' }, barcode: { content: '23790000' } };
+      this.payments.set(String(boleto.id), boleto);
+      return boleto;
+    }
     const payment: MercadoPagoPayment = { id: this.nextId++, status: 'pending', external_reference: input.orderNumber, transaction_amount: input.amount, point_of_interaction: { transaction_data: { qr_code: `pix-${input.orderNumber}`, qr_code_base64: 'iVBORw0KGgo=' } } };
     this.payments.set(String(payment.id), payment);
     return payment;
@@ -29,11 +45,25 @@ class FakeMercadoPago {
   }
 }
 
+/** Rede falsa: guarda o que seria enviado e devolve o retorno combinado no teste. */
+class FakeRede {
+  configured = false;
+  returnCode = '00';
+  failNext = false;
+  last: RedeCharge | undefined;
+  async authorize(input: RedeCharge) {
+    if (this.failNext) { this.failNext = false; throw new Error('timeout'); }
+    this.last = input;
+    return { returnCode: this.returnCode, returnMessage: 'x', tid: 'TID123', reference: input.reference };
+  }
+}
+
 const mercadoPago = new FakeMercadoPago();
+const rede = new FakeRede();
 let app: NestExpressApplication;
 let api: Awaited<ReturnType<typeof startApp>>['api'];
 
-beforeAll(async () => ({ app, api } = await startApp(builder => builder.overrideProvider(MercadoPagoClient).useValue(mercadoPago))));
+beforeAll(async () => ({ app, api } = await startApp(builder => builder.overrideProvider(MercadoPagoClient).useValue(mercadoPago).overrideProvider(RedeClient).useValue(rede))));
 afterAll(() => cleanup(app));
 afterEach(() => { delete process.env.MERCADOPAGO_WEBHOOK_SECRET; });
 
@@ -102,6 +132,10 @@ describe('PIX pelo Mercado Pago', () => {
 });
 
 describe('operação manual de pedidos', () => {
+  // Sem gateway configurado a loja opera à mão.
+  beforeEach(() => { mercadoPago.configured = false; });
+  afterEach(() => { mercadoPago.configured = true; });
+
   it('boleto fica manual; a loja confirma o pagamento e o estoque é baixado', async () => {
     const { store, product } = await createStore(5);
     const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }], 'BOLETO') });
@@ -133,6 +167,133 @@ describe('operação manual de pedidos', () => {
     const expired = await app.get(OrderLifecycleService).expireOverdue();
     expect(expired).toBeGreaterThanOrEqual(1);
     expect((await orderOf(checkout.body.number)).status).toBe('CANCELLED');
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+  });
+});
+
+describe('cartão e boleto pelo Mercado Pago', () => {
+  const cpf = '529.982.247-25';
+  const card = { token: 'tok_abcdef12', paymentMethodId: 'visa', installments: 3 };
+  const pay = (slug: string, productId: string, extra: Record<string, unknown>, method = 'CREDIT_CARD') => api('/checkout', { method: 'POST', body: { ...checkoutBody(slug, [{ productId, quantity: 2 }], method), ...extra } });
+  afterEach(() => { mercadoPago.cardOutcome = { status: 'approved' }; mercadoPago.publicKey = 'TEST-public-key'; });
+
+  it('expõe a chave pública e o limite de parcelas, e some sem chave', async () => {
+    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'mercadopago', publicKey: 'TEST-public-key', maxInstallments: 12 }, boleto: true });
+    mercadoPago.publicKey = undefined;
+    expect((await api('/payments/config')).body).toEqual({ card: null, boleto: true });
+  });
+
+  it('cartão aprovado confirma o pedido na hora e baixa o estoque', async () => {
+    const { store, product } = await createStore(5);
+    const checkout = await pay(store.slug, product.id, { cpf, card });
+    expect(checkout.status).toBe(201);
+    expect(checkout.body.status).toBe('PAID');
+    expect(mercadoPago.lastRequest).toMatchObject({ method: 'card', card: { token: 'tok_abcdef12', installments: 3, paymentMethodId: 'visa' } });
+    const order = await orderOf(checkout.body.number);
+    expect(order.payments[0]).toMatchObject({ provider: 'mercadopago', status: 'PAID' });
+    expect(JSON.stringify(order.payments[0].instructions)).not.toContain('tok_abcdef12');
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 3, reserved: 0 });
+    // O webhook que chega depois não muda nada.
+    expect((await webhook(order.payments[0].transactionId!)).status).toBe(200);
+    expect((await orderOf(checkout.body.number)).timeline.filter(t => t.status === 'PAID')).toHaveLength(1);
+  });
+
+  it('cartão recusado devolve 402, cancela o pedido e libera o estoque', async () => {
+    const { store, product } = await createStore(5);
+    mercadoPago.cardOutcome = { status: 'rejected', detail: 'cc_rejected_insufficient_amount' };
+    const checkout = await pay(store.slug, product.id, { cpf, card });
+    expect(checkout.status).toBe(402);
+    expect(checkout.body.message).toMatch(/limite/);
+    const [order] = await prisma.order.findMany({ where: { storeId: store.id } });
+    expect(order.status).toBe('CANCELLED');
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+  });
+
+  it('cartão em análise fica aguardando e o webhook aprova depois', async () => {
+    const { store, product } = await createStore(5);
+    mercadoPago.cardOutcome = { status: 'in_process', detail: 'pending_contingency' };
+    const checkout = await pay(store.slug, product.id, { cpf, card });
+    expect(checkout.status).toBe(201);
+    expect(checkout.body.status).toBe('AWAITING_PAYMENT');
+    const { payments: [payment] } = await orderOf(checkout.body.number);
+    mercadoPago.setStatus(payment.transactionId!, 'approved');
+    await webhook(payment.transactionId!);
+    expect((await orderOf(checkout.body.number)).status).toBe('PAID');
+  });
+
+  it('valida CPF, dados do cartão e disponibilidade', async () => {
+    const { store, product } = await createStore(5);
+    expect((await pay(store.slug, product.id, { card })).status).toBe(400);
+    expect((await pay(store.slug, product.id, { cpf: '111.111.111-11', card })).status).toBe(400);
+    expect((await pay(store.slug, product.id, { cpf })).status).toBe(400);
+    expect((await pay(store.slug, product.id, { cpf, card: { ...card, installments: 99 } })).status).toBe(400);
+    mercadoPago.publicKey = undefined;
+    expect((await pay(store.slug, product.id, { cpf, card })).status).toBe(400);
+    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+  });
+
+  it('boleto exige CPF, devolve link e código de barras e é pago pelo webhook', async () => {
+    const { store, product } = await createStore(5);
+    expect((await pay(store.slug, product.id, {}, 'BOLETO')).status).toBe(400);
+    const checkout = await pay(store.slug, product.id, { cpf }, 'BOLETO');
+    expect(checkout.status).toBe(201);
+    expect(checkout.body.payment.instructions).toMatchObject({ ticketUrl: 'https://mp.test/boleto', barcode: '23790000' });
+    expect(mercadoPago.lastRequest).toMatchObject({ method: 'boleto', payer: { cpf: '52998224725', address: { zipCode: '01310-100', state: 'SP' } } });
+    const { payments: [payment] } = await orderOf(checkout.body.number);
+    mercadoPago.setStatus(payment.transactionId!, 'approved');
+    await webhook(payment.transactionId!);
+    expect((await orderOf(checkout.body.number)).status).toBe('PAID');
+  });
+});
+
+describe('cartão pela Rede', () => {
+  const card = { number: '4235 6477 2802 5682', holder: 'Maria Silva', expMonth: 12, expYear: 2099, cvv: '123', installments: 4 };
+  const pay = (slug: string, productId: string, cardData: Record<string, unknown> | null = card) => api('/checkout', { method: 'POST', body: { ...checkoutBody(slug, [{ productId, quantity: 2 }], 'CREDIT_CARD'), card: cardData ?? undefined } });
+  beforeEach(() => { rede.configured = true; rede.returnCode = '00'; });
+  afterEach(() => { rede.configured = false; });
+
+  it('a config aponta a Rede e não expõe chave', async () => {
+    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'rede', maxInstallments: 12, minInstallment: 5 }, boleto: true });
+  });
+
+  it('aprova na hora, manda o cartão só ao adquirente e não grava dados do cartão', async () => {
+    const { store, product } = await createStore(5);
+    const checkout = await pay(store.slug, product.id);
+    expect(checkout.status).toBe(201);
+    expect(checkout.body.status).toBe('PAID');
+    expect(rede.last).toMatchObject({ installments: 4, card: { number: '4235647728025682', cvv: '123' } });
+    const order = await orderOf(checkout.body.number);
+    expect(order.payments[0]).toMatchObject({ provider: 'rede', transactionId: 'TID123', status: 'PAID' });
+    const stored = JSON.stringify(order.payments[0]);
+    expect(stored).not.toContain('4235'); expect(stored).not.toContain('cvv');
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 3, reserved: 0 });
+  });
+
+  it('recusa devolve 402 com o motivo, cancela e libera o estoque', async () => {
+    const { store, product } = await createStore(5);
+    rede.returnCode = '51';
+    const checkout = await pay(store.slug, product.id);
+    expect(checkout.status).toBe(402);
+    expect(checkout.body.message).toMatch(/limite/);
+    expect((await prisma.order.findFirstOrThrow({ where: { storeId: store.id } })).status).toBe('CANCELLED');
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+  });
+
+  it('rejeita cartão inválido antes de falar com a Rede', async () => {
+    const { store, product } = await createStore(5);
+    rede.last = undefined;
+    expect((await pay(store.slug, product.id, { ...card, number: '4235 6477 2802 5683' })).status).toBe(400);
+    expect((await pay(store.slug, product.id, { ...card, expYear: 2020 })).status).toBe(400);
+    expect((await pay(store.slug, product.id, null)).status).toBe(400);
+    expect(rede.last).toBeUndefined();
+    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
+  });
+
+  it('cancela o pedido se a Rede não responder', async () => {
+    const { store, product } = await createStore(5);
+    rede.failNext = true;
+    expect((await pay(store.slug, product.id)).status).toBe(502);
     expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
   });
 });

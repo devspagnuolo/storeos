@@ -5,10 +5,23 @@ export type MercadoPagoPayment = {
   status: 'pending' | 'approved' | 'authorized' | 'in_process' | 'in_mediation' | 'rejected' | 'cancelled' | 'refunded' | 'charged_back';
   external_reference: string | null;
   transaction_amount: number;
+  status_detail?: string | null;
   point_of_interaction?: { transaction_data?: { qr_code?: string; qr_code_base64?: string; ticket_url?: string } };
+  transaction_details?: { external_resource_url?: string | null; total_paid_amount?: number };
+  barcode?: { content?: string | null };
 };
 
-export type CreatePixPayment = { amount: number; description: string; orderNumber: string; expiresAt: Date; payer: { email: string; firstName: string }; notificationUrl?: string };
+export type PayerAddress = { zipCode: string; street: string; number: string; district?: string; city: string; state: string };
+export type CreatePayment = {
+  method: 'pix' | 'boleto' | 'card';
+  amount: number;
+  description: string;
+  orderNumber: string;
+  expiresAt: Date;
+  payer: { email: string; firstName: string; lastName?: string; cpf?: string; address?: PayerAddress };
+  card?: { token: string; installments: number; paymentMethodId: string; issuerId?: string };
+  notificationUrl?: string;
+};
 
 /** Cliente HTTP mínimo da API de pagamentos do Mercado Pago. */
 @Injectable()
@@ -33,7 +46,16 @@ export class MercadoPagoClient {
     return response.json() as Promise<T>;
   }
 
-  createPixPayment(input: CreatePixPayment) {
+  get publicKey() {
+    return process.env.MERCADOPAGO_PUBLIC_KEY || process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY || undefined;
+  }
+
+  createPayment(input: CreatePayment) {
+    const { payer } = input;
+    const identification = payer.cpf && { type: 'CPF', number: payer.cpf };
+    const method = input.method === 'card'
+      ? { token: input.card!.token, installments: input.card!.installments, payment_method_id: input.card!.paymentMethodId, ...(input.card!.issuerId && { issuer_id: Number(input.card!.issuerId) }) }
+      : { payment_method_id: input.method === 'pix' ? 'pix' : 'bolbradesco', date_of_expiration: input.expiresAt.toISOString().replace('Z', '+00:00') };
     return this.request<MercadoPagoPayment>('/v1/payments', {
       method: 'POST',
       // A chave de idempotência evita cobrança duplicada se a requisição for repetida.
@@ -41,10 +63,16 @@ export class MercadoPagoClient {
       body: JSON.stringify({
         transaction_amount: input.amount,
         description: input.description,
-        payment_method_id: 'pix',
         external_reference: input.orderNumber,
-        date_of_expiration: input.expiresAt.toISOString().replace('Z', '+00:00'),
-        payer: { email: input.payer.email, first_name: input.payer.firstName },
+        ...method,
+        payer: {
+          email: payer.email,
+          first_name: payer.firstName,
+          ...(payer.lastName && { last_name: payer.lastName }),
+          ...(identification && { identification }),
+          // O boleto registrado exige o endereço do pagador.
+          ...(input.method === 'boleto' && payer.address && { address: { zip_code: payer.address.zipCode, street_name: payer.address.street, street_number: payer.address.number, neighborhood: payer.address.district || payer.address.city, city: payer.address.city, federal_unit: payer.address.state } }),
+        },
         ...(input.notificationUrl && { notification_url: input.notificationUrl }),
       }),
     });

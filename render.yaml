@@ -41,6 +41,16 @@ services:
         sync: false
       - key: MERCADOPAGO_WEBHOOK_SECRET
         sync: false
+      # Chave pública (APP_USR-...): habilita cartão de crédito com parcelas no checkout.
+      - key: MERCADOPAGO_PUBLIC_KEY
+        sync: false
+      # Cartão pela Rede (e.Rede/Itaú): com REDE_PV e REDE_TOKEN a Rede passa a cobrar o cartão; PIX e boleto seguem no Mercado Pago.
+      - key: REDE_PV
+        sync: false
+      - key: REDE_TOKEN
+        sync: false
+      - key: REDE_SANDBOX
+        value: "false"
       - key: API_PUBLIC_URL
         sync: false
       # E-mails transacionais (Resend) e cotação de frete (SuperFrete ou Melhor Envio): vazios = modo simulado / só regras da loja.

@@ -1,9 +1,10 @@
-import { BadGatewayException, BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ConflictException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { generateOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from '../orders/order-lines';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
-import { ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
+import { CardPayment, ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
+import { clampInstallments, declineMessage, installmentCount, isValidCardNumber, isValidCpf, onlyDigits, redeDeclineMessage } from '../payments/payment-rules';
 import { CouponsService } from '../promotions/coupons.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { ShippingService } from '../shipping/shipping.service';
@@ -18,6 +19,9 @@ export type CheckoutInput = {
   paymentMethod: PaymentMethod;
   shippingRuleId?: string;
   couponCode?: string;
+  /** CPF do pagador e dados do cartão já tokenizados no navegador; nada disso é gravado. */
+  cpf?: string;
+  card?: { token?: string; paymentMethodId?: string; installments?: number; issuerId?: string; number?: string; holder?: string; expMonth?: number; expYear?: number; cvv?: string };
 };
 
 @Injectable()
@@ -27,7 +31,27 @@ export class CheckoutService {
   constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService, private readonly promotions: PromotionsService) {}
 
   async checkout(input: CheckoutInput) {
-    if (input.paymentMethod === PaymentMethod.CREDIT_CARD) throw new BadRequestException('Cartão de crédito ainda não está disponível');
+    if (this.payments.supports && !this.payments.supports(input.paymentMethod)) throw new BadRequestException('Este meio de pagamento não está disponível');
+    const isCard = input.paymentMethod === PaymentMethod.CREDIT_CARD;
+    const cpf = input.cpf ? onlyDigits(input.cpf) : undefined;
+    if (this.payments.requiresTaxId?.(input.paymentMethod) && !(cpf && isValidCpf(cpf))) throw new BadRequestException('Informe um CPF válido');
+    if (isCard && !input.card) throw new BadRequestException('Dados do cartão ausentes');
+    const gateway = isCard ? this.payments.cardGateway?.() : null;
+    let card: CardPayment | undefined;
+    if (isCard) {
+      const raw = input.card!;
+      const installments = clampInstallments(raw.installments);
+      if (gateway === 'rede') {
+        // A Rede não tokeniza no navegador: o cartão passa por aqui só em memória, direto para o adquirente.
+        const now = new Date();
+        const expired = !raw.expYear || !raw.expMonth || raw.expYear < now.getFullYear() || (raw.expYear === now.getFullYear() && raw.expMonth < now.getMonth() + 1);
+        if (!raw.number || !isValidCardNumber(raw.number) || !raw.holder?.trim() || !raw.cvv || expired) throw new BadRequestException('Confira os dados do cartão');
+        card = { installments, number: onlyDigits(raw.number), holder: raw.holder.trim().slice(0, 30), expMonth: raw.expMonth, expYear: raw.expYear, cvv: raw.cvv };
+      } else {
+        if (!raw.token || !raw.paymentMethodId) throw new BadRequestException('Dados do cartão ausentes');
+        card = { installments, token: raw.token, paymentMethodId: raw.paymentMethodId, issuerId: raw.issuerId };
+      }
+    }
     const store = await this.prisma.store.findUnique({ where: { slug: input.storeSlug } });
     if (!store) throw new NotFoundException('Loja não encontrada');
     const items = mergeItems(input.items);
@@ -100,19 +124,35 @@ export class CheckoutService {
     // A cobrança fica fora da transação: chamadas a gateways não devem segurar locks no banco.
     const [payment] = order.payments;
     let charge: ChargeResult;
+    if (card && gateway === 'rede') card.installments = Math.min(card.installments, installmentCount(Number(order.total), clampInstallments(12)));
     try {
-      charge = await this.payments.createCharge({ storeId: store.id, orderNumber: order.number, amount: order.total.toFixed(2), currency: order.currency, method: input.paymentMethod, expiresAt, customer: { name: input.customer.name, email } });
+      charge = await this.payments.createCharge({ storeId: store.id, orderNumber: order.number, amount: order.total.toFixed(2), currency: order.currency, method: input.paymentMethod, expiresAt, customer: { name: input.customer.name, email, cpf, address: input.shippingAddress }, card });
     } catch (error) {
       // Sem cobrança não há como pagar: cancela o pedido e devolve o estoque reservado.
       this.logger.error(`Falha ao gerar cobrança do pedido ${order.number}: ${(error as Error).message}`);
       await this.lifecycle.cancel({ orderId: order.id }, { message: 'Falha ao gerar a cobrança', paymentStatus: PaymentStatus.FAILED });
       throw new BadGatewayException('Não foi possível gerar o pagamento agora. Tente novamente em instantes.');
     }
+    if (isCard && (charge.status === PaymentStatus.FAILED || charge.status === PaymentStatus.CANCELLED)) {
+      // Cartão recusado na hora: libera o estoque e deixa o cliente tentar de novo com outro cartão.
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { provider: charge.provider, transactionId: charge.transactionId, status: charge.status } });
+      await this.lifecycle.cancel({ orderId: order.id }, { message: `Cartão recusado (${charge.declineDetail ?? 'sem detalhe'})`, paymentStatus: charge.status });
+      throw new HttpException(charge.provider === 'rede' ? redeDeclineMessage(charge.declineDetail) : declineMessage(charge.declineDetail), HttpStatus.PAYMENT_REQUIRED);
+    }
     await this.prisma.payment.update({ where: { id: payment.id }, data: { provider: charge.provider, transactionId: charge.transactionId, status: charge.status, instructions: charge.instructions } });
+    let orderStatus: OrderStatus = order.status;
+    if (charge.status === PaymentStatus.PAID) {
+      // Cartão aprovado na hora: confirma o pedido sem esperar o webhook (que depois não muda nada).
+      const paid = await this.lifecycle.markPaid({ orderId: order.id }, { message: 'Pagamento aprovado no cartão' }).catch(error => {
+        this.logger.error(`Pedido ${order.number} pago, mas não confirmado: ${(error as Error).message}`);
+        return false;
+      });
+      if (paid) orderStatus = OrderStatus.PAID;
+    }
 
     return {
       number: order.number,
-      status: order.status,
+      status: orderStatus,
       subtotal: order.subtotal.toFixed(2),
       discount: order.discount.toFixed(2),
       promotionDiscount: order.promotionDiscount.toFixed(2),

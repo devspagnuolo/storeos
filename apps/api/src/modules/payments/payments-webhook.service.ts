@@ -25,7 +25,7 @@ export class PaymentsWebhookService {
     if (status === PaymentStatus.PAID) {
       // Só confirma se o valor pago cobre o total do pedido.
       if (money(remote.transaction_amount).lessThan(payment.amount)) return 'ignorado (valor menor que o pedido)';
-      const changed = await this.lifecycle.markPaid({ orderId: payment.orderId }, { message: `Pagamento PIX aprovado no Mercado Pago (${paymentId})` }).catch(error => {
+      const changed = await this.lifecycle.markPaid({ orderId: payment.orderId }, { message: `Pagamento aprovado no Mercado Pago (${paymentId})` }).catch(error => {
         this.logger.error(`Pagamento ${paymentId} aprovado, mas o pedido ${payment.order.number} não pôde ser confirmado: ${(error as Error).message}`);
         return false;
       });
