@@ -101,3 +101,27 @@ export async function deleteShippingRuleAction(form: FormData) {
   await adminFetch(`/shipping/rules/${String(form.get('id'))}`, { method: 'DELETE' });
   revalidatePath('/admin/frete');
 }
+
+export async function changePasswordAction(_: FormState, form: FormData): Promise<FormState> {
+  const newPassword = String(form.get('newPassword') ?? '');
+  if (newPassword !== String(form.get('confirmPassword') ?? '')) return { error: 'A confirmação não confere com a nova senha.' };
+  try {
+    // A API encerra todas as sessões abertas e devolve uma nova só para este navegador.
+    await saveSession(await adminFetch<Session>('/auth/password', { method: 'POST', body: { currentPassword: String(form.get('currentPassword') ?? ''), newPassword } }));
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.status === 429 ? 'Muitas tentativas. Aguarde um minuto.' : error.message };
+    throw error;
+  }
+  return { ok: 'Senha alterada. Outros dispositivos conectados precisarão entrar de novo.' };
+}
+
+export async function saveStoreAction(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    await adminFetch('/store', { method: 'PATCH', body: { name: String(form.get('name') ?? '').trim() } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/', 'layout');
+  return { ok: 'Dados da loja salvos. A vitrine mostra o novo nome em até um minuto.' };
+}

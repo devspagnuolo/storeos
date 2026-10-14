@@ -12,8 +12,8 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const product = await getProduct((await params).slug);
-  if (!product) return { title: 'Produto não encontrado | STOREOS' };
-  return { title: `${product.name} | STOREOS`, description: product.description ?? undefined, openGraph: { title: product.name, images: product.images?.map(i => i.url) } };
+  if (!product) return { title: 'Produto não encontrado' };
+  return { title: `${product.name}`, description: product.description ?? undefined, openGraph: { title: product.name, images: product.images?.map(i => i.url) } };
 }
 
 export default async function ProductPage({ params }: Props) {

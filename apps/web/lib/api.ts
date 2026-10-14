@@ -28,3 +28,7 @@ export function getProducts(query: { category?: string; q?: string; page?: numbe
 export const getCategories = () => get<Category[]>(`/catalog/categories?store=${encodeURIComponent(storeSlug)}`, []);
 
 export const getProduct = (slug: string) => get<ProductDetail | null>(`/catalog/products/${encodeURIComponent(slug)}?store=${encodeURIComponent(storeSlug)}`, null);
+
+export type StoreInfo = { slug: string; name: string };
+
+export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent(storeSlug)}`, { slug: storeSlug, name: 'Loja' });

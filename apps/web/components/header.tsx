@@ -1,3 +1,5 @@
+'use client';
 import Link from 'next/link';
 import { CartLink } from './cart-link';
-export function Header() { return <header className="border-b bg-white"><div className="shell flex h-16 items-center justify-between gap-4"><Link href="/" className="text-xl font-black tracking-tight">STORE<span className="text-brand">OS</span></Link><nav className="hidden gap-6 text-sm font-medium md:flex"><Link href="/categorias">Categorias</Link><Link href="/busca">Buscar</Link></nav><div className="flex items-center gap-3"><Link href="/conta" className="text-sm font-medium">Entrar</Link><CartLink /></div></div></header>; }
+import { useStoreName } from './store-name';
+export function Header() { const name = useStoreName(); return <header className="border-b bg-white"><div className="shell flex h-16 items-center justify-between gap-4"><Link href="/" className="text-xl font-black tracking-tight">{name}</Link><nav className="hidden gap-6 text-sm font-medium md:flex"><Link href="/categorias">Categorias</Link><Link href="/busca">Buscar</Link></nav><div className="flex items-center gap-3"><Link href="/conta" className="text-sm font-medium">Entrar</Link><CartLink /></div></div></header>; }

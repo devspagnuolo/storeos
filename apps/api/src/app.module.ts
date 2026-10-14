@@ -8,6 +8,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
+import { StoreModule } from './modules/store/store.module';
 import { HealthController } from './modules/health.controller';
 import { StoreBootstrapService } from './shared/access/store-bootstrap.service';
 import { PrismaModule } from './shared/infrastructure/prisma.module';
@@ -23,6 +24,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     OrdersModule,
     CheckoutModule,
     ShippingModule,
+    StoreModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }, StoreBootstrapService],

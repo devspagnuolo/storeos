@@ -4,7 +4,7 @@ import { ProductGrid } from '../../components/product-grid';
 import { getProducts } from '../../lib/api';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Buscar | STOREOS' };
+export const metadata: Metadata = { title: 'Buscar' };
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
   const params = await searchParams;

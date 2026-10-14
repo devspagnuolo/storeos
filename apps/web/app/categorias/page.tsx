@@ -5,7 +5,7 @@ import { ProductGrid } from '../../components/product-grid';
 import { getCategories, getProducts } from '../../lib/api';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Todos os produtos | STOREOS' };
+export const metadata: Metadata = { title: 'Todos os produtos' };
 
 export default async function CategoriesPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const page = Math.max(Number((await searchParams).page) || 1, 1);

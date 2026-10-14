@@ -12,7 +12,7 @@ type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?:
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const category = (await getCategories()).find(c => c.slug === slug);
-  return { title: category ? `${category.name} | STOREOS` : 'Categoria | STOREOS', description: category?.description ?? undefined };
+  return { title: category ? `${category.name}` : 'Categoria', description: category?.description ?? undefined };
 }
 
 export default async function CategoryPage({ params, searchParams }: Props) {
