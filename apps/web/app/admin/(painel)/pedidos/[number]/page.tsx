@@ -13,13 +13,14 @@ export const dynamic = 'force-dynamic';
 
 const paymentStatusLabel: Record<string, string> = { PENDING: 'Pendente', AUTHORIZED: 'Autorizado', PAID: 'Pago', FAILED: 'Recusado', REFUNDED: 'Reembolsado', CANCELLED: 'Cancelado' };
 
-export default async function OrderPage({ params }: { params: Promise<{ number: string }> }) {
-  const { number } = await params;
+export default async function OrderPage({ params, searchParams }: { params: Promise<{ number: string }>; searchParams: Promise<{ nfSolicitada?: string; nfErro?: string }> }) {
+  const [{ number }, query] = await Promise.all([params, searchParams]);
   const order = await adminFetch<OrderDetail>(`/orders/${encodeURIComponent(number)}`).catch(error => {
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   });
-  const address = order.shippingAddress;\n  const invoice = await adminFetch<{ status: string; invoiceNumber: string | null; series: string | null; accessKey: string | null; rejectionReason: string | null; authorizedAt: string | null; issuedAt: string | null }>(`/bling/orders/${encodeURIComponent(number)}/invoice`).catch(() => null);
+  const address = order.shippingAddress;
+  const invoice = await adminFetch<{ status: string; invoiceNumber: string | null; series: string | null; accessKey: string | null; rejectionReason: string | null; authorizedAt: string | null; issuedAt: string | null }>(`/bling/orders/${encodeURIComponent(number)}/invoice`).catch(() => null);
   return (
     <>
       <Link href="/admin/pedidos" className="text-sm text-slate-500">← Pedidos</Link>
