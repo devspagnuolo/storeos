@@ -206,6 +206,29 @@ export async function loyaltyAction(_: LoyaltyState, form: FormData): Promise<Lo
   }
 }
 
+export async function savePageAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = form.get('id') ? String(form.get('id')) : undefined;
+  const title = String(form.get('title') ?? '').trim();
+  const body = {
+    title, body: String(form.get('body') ?? '').trim(), published: form.get('published') === 'on', showInFooter: form.get('showInFooter') === 'on',
+    seoDescription: String(form.get('seoDescription') ?? '').trim() || undefined,
+    ...(id ? {} : { slug: String(form.get('slug') ?? '').trim() || slugifyServer(title) }),
+  };
+  try {
+    await adminFetch(id ? `/content/admin/pages/${encodeURIComponent(id)}` : '/content/admin/pages', { method: id ? 'PATCH' : 'POST', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/paginas');
+  return { ok: id ? 'Página salva.' : 'Página criada.' };
+}
+
+export async function deletePageAction(form: FormData) {
+  await adminFetch(`/content/admin/pages/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/paginas');
+}
+
 export async function saveProductAction(_: FormState, form: FormData): Promise<FormState> {
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const text = (key: string) => String(form.get(key) ?? '').trim();

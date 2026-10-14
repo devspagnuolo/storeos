@@ -35,7 +35,13 @@ export const getCollections = () => get<Collection[]>(`/catalog/collections?stor
 
 export const getProduct = (slug: string) => get<ProductDetail | null>(`/catalog/products/${encodeURIComponent(slug)}?store=${encodeURIComponent(storeSlug)}`, null);
 
+export type PageLink = { slug: string; title: string; showInFooter: boolean };
+export type ContentPage = { slug: string; title: string; body: string; seoDescription: string | null; updatedAt: string };
+
 export type StorefrontConfig = { announcementText?: string; heroTitle?: string; heroDescription?: string; heroCta?: string; heroImageUrl?: string | null; accentColor?: string };
 export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig };
 
 export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent(storeSlug)}`, { slug: storeSlug, name: 'Loja', logoUrl: null, faviconUrl: null, themeConfig: {} });
+
+export const getPages = () => get<PageLink[]>(`/content/pages?store=${encodeURIComponent(storeSlug)}`, []);
+export const getPage = (slug: string) => get<ContentPage | null>(`/content/pages/${encodeURIComponent(slug)}?store=${encodeURIComponent(storeSlug)}`, null);

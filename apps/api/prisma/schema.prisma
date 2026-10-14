@@ -70,6 +70,7 @@ model Store {
   coupons       Coupon[]
   brands        Brand[]
   collections   Collection[]
+  pages         Page[]
 }
 
 model User {
@@ -549,4 +550,23 @@ model LoyaltyEntry {
 
   @@unique([orderId, type])
   @@index([storeId, customerId, createdAt])
+}
+
+/// Página institucional editável pelo lojista (Sobre, Trocas e devoluções, Privacidade…).
+model Page {
+  id             String   @id @default(uuid())
+  storeId        String
+  slug           String
+  title          String
+  body           String
+  published      Boolean  @default(false)
+  showInFooter   Boolean  @default(true)
+  position       Int      @default(0)
+  seoDescription String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, slug])
+  @@index([storeId, published, position])
 }

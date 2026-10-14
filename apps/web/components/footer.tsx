@@ -1,11 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { Category } from '../lib/api';
+import type { Category, PageLink } from '../lib/api';
 import { useStoreBrand } from './store-name';
 
 /** Rodapé da vitrine. Fica de fora do painel e do checkout, que têm o próprio foco. */
-export function Footer({ categories }: { categories: Category[] }) {
+export function Footer({ categories, pages = [] }: { categories: Category[]; pages?: PageLink[] }) {
   const { name } = useStoreBrand();
   const pathname = usePathname();
   if (/^\/(admin|painel|checkout)(\/|$)/.test(pathname)) return null;
@@ -30,6 +30,7 @@ export function Footer({ categories }: { categories: Category[] }) {
             <li><Link href="/carrinho" className={link}>Carrinho</Link></li>
             <li><Link href="/busca" className={link}>Buscar produtos</Link></li>
             <li><Link href="/conta" className={link}>Minha conta</Link></li>
+            {pages.filter(page => page.showInFooter).map(page => <li key={page.slug}><Link href={`/p/${page.slug}`} className={link}>{page.title}</Link></li>)}
           </ul>
         </nav>
         <div>
