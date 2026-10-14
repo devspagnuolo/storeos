@@ -1,6 +1,7 @@
 import { money } from '../../shared/money/money';
 import { buildPackages, DEFAULT_PACKAGE } from './carrier';
 import { MelhorEnvioClient } from './melhor-envio.client';
+import { SuperFreteClient } from './superfrete.client';
 
 describe('pacotes para transportadoras', () => {
   it('usa as medidas do produto e cai no padrão quando faltam', () => {
@@ -45,5 +46,37 @@ describe('MelhorEnvioClient', () => {
     process.env.MELHOR_ENVIO_TOKEN = 't';
     jest.spyOn(global, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }));
     await expect(new MelhorEnvioClient().quote({ fromZip: '1', toZip: '2', packages: [] })).rejects.toThrow('500');
+  });
+});
+
+describe('SuperFreteClient', () => {
+  const original = { ...process.env };
+  afterEach(() => { process.env = { ...original }; jest.restoreAllMocks(); });
+
+  it('só fica ativo com token e CEP de origem', () => {
+    delete process.env.SUPERFRETE_TOKEN; delete process.env.SHIPPING_ORIGIN_ZIP;
+    expect(new SuperFreteClient().enabled).toBe(false);
+    process.env.SUPERFRETE_TOKEN = 't'; process.env.SHIPPING_ORIGIN_ZIP = '09015-000';
+    expect(new SuperFreteClient().enabled).toBe(true);
+  });
+
+  it('cota PAC, SEDEX e Mini Envios e ignora serviços com erro', async () => {
+    process.env.SUPERFRETE_TOKEN = 't';
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify([
+      { id: 1, name: 'PAC', price: 21.5, delivery_range: { min: 4, max: 7 } },
+      { id: 2, name: 'SEDEX', price: '38.90', delivery_time: 2 },
+      { id: 17, name: 'Mini Envios', price: 14, delivery_time: 6, has_error: true, error: 'Medidas acima do limite' },
+    ])));
+    const offers = await new SuperFreteClient().quote({ fromZip: '09015000', toZip: '01310100', packages: [{ id: 'p', widthCm: 20, heightCm: 5, lengthCm: 25, weightKg: 0.3, unitValue: 80, quantity: 2 }] });
+    expect(offers.map(o => [o.id, o.name, o.price.toFixed(2), o.minDays, o.maxDays])).toEqual([['sf:1', 'Correios PAC', '21.50', 4, 7], ['sf:2', 'Correios SEDEX', '38.90', 2, 2]]);
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.superfrete.com/api/v0/calculator');
+    expect(JSON.parse(init.body as string)).toMatchObject({ from: { postal_code: '09015000' }, to: { postal_code: '01310100' }, services: '1,2,17', products: [{ quantity: 2, weight: 0.3, height: 5 }] });
+  });
+
+  it('propaga falha HTTP', async () => {
+    process.env.SUPERFRETE_TOKEN = 't';
+    jest.spyOn(global, 'fetch').mockResolvedValue(new Response('no', { status: 401 }));
+    await expect(new SuperFreteClient().quote({ fromZip: '1', toZip: '2', packages: [] })).rejects.toThrow('401');
   });
 });

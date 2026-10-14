@@ -56,3 +56,8 @@ export type AdminPromotion = { id: string; name: string; type: 'PERCENT_OFF' | '
 export type StockMovement = { id: string; type: 'INITIAL' | 'ADJUSTMENT' | 'SALE' | 'RETURN'; delta: number; balance: number; reason: string | null; orderNumber: string | null; productName: string | null; sku: string | null; createdAt: string };
 export type StockMovementPage = { items: StockMovement[]; total: number; page: number; pageSize: number };
 export type StockItem = { productId: string; variantId: string | null; name: string; sku: string; variation: string; status: string; price: string; quantity: number; reserved: number; available: number };
+
+export type MenuItemType = 'ALL' | 'CATEGORY' | 'COLLECTION' | 'BRAND' | 'PAGE' | 'LINK';
+export type AdminMenuItem = { label: string; type: MenuItemType; ref?: string; children?: AdminMenuItem[] };
+export type MenuOption = { name: string; slug: string; parentId?: string | null };
+export type AdminMenu = { key: 'main' | 'footer'; configured: boolean; items: AdminMenuItem[]; options: { categories: MenuOption[]; collections: MenuOption[]; brands: MenuOption[]; pages: MenuOption[] } };

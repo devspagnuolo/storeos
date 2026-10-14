@@ -491,3 +491,23 @@ export async function adjustStockAction(_: FormState, form: FormData): Promise<F
   revalidatePath('/admin/estoque');
   return { ok: 'Estoque atualizado.' };
 }
+
+export async function saveMenuAction(_: FormState, form: FormData): Promise<FormState> {
+  const key = String(form.get('key')) === 'footer' ? 'footer' : 'main';
+  let items: unknown;
+  try { items = JSON.parse(String(form.get('items') ?? '[]')); } catch { return { error: 'Menu inválido.' }; }
+  try {
+    await adminFetch(`/content/admin/menus/${key}`, { method: 'PUT', body: { items } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/', 'layout');
+  return { ok: 'Menu salvo. Já está na loja.' };
+}
+
+export async function resetMenuAction(form: FormData) {
+  const key = String(form.get('key')) === 'footer' ? 'footer' : 'main';
+  await adminFetch(`/content/admin/menus/${key}`, { method: 'DELETE' });
+  revalidatePath('/', 'layout');
+}

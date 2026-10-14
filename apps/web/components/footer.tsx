@@ -2,11 +2,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Category, PageLink } from '../lib/api';
-import { useStoreBrand } from './store-name';
+import { useStoreBrand, useStoreMenus } from './store-name';
 
 /** Rodapé da vitrine. Fica de fora do painel e do checkout, que têm o próprio foco. */
 export function Footer({ categories, pages = [] }: { categories: Category[]; pages?: PageLink[] }) {
   const { name } = useStoreBrand();
+  const { footer } = useStoreMenus();
   const pathname = usePathname();
   if (/^\/(admin|painel|checkout)(\/|$)/.test(pathname)) return null;
   const link = 'hover:text-brand';
@@ -21,7 +22,9 @@ export function Footer({ categories, pages = [] }: { categories: Category[]; pag
           <p className="text-sm font-semibold">Categorias</p>
           <ul className="mt-3 space-y-2 text-sm text-slate-500">
             <li><Link href="/categorias" className={link}>Todos os produtos</Link></li>
-            {categories.slice(0, 6).map(category => <li key={category.id}><Link href={`/categorias/${category.slug}`} className={link}>{category.name}</Link></li>)}
+            {footer
+              ? footer.map(item => <li key={`${item.href}-${item.label}`}><Link href={item.href} className={link}>{item.label}</Link></li>)
+              : categories.filter(category => !category.parentId).slice(0, 6).map(category => <li key={category.id}><Link href={`/categorias/${category.slug}`} className={link}>{category.name}</Link></li>)}
           </ul>
         </nav>
         <nav aria-label="Minha compra">
