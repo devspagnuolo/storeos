@@ -78,9 +78,9 @@ const intInRange = (raw: string | undefined, min: number, max: number) => {
   return value !== undefined && Math.round(value) >= min && Math.round(value) <= max ? Math.round(value) : undefined;
 };
 
-/** "Blusas > Regatas, Calças" vira [["Blusas","Regatas"],["Calças"]]; só os dois primeiros níveis valem. */
+/** "Blusas > Regatas, Calças" vira [["Blusas","Regatas"],["Calças"]]; até quatro níveis. */
 export const parseCategories = (raw: string | undefined) =>
-  (raw ?? '').split(/[,|]/).map(path => path.split('>').map(part => part.trim()).filter(Boolean).slice(0, 2)).filter(path => path.length);
+  (raw ?? '').split(/[,|]/).map(path => path.split('>').map(part => part.trim()).filter(Boolean).slice(0, 4)).filter(path => path.length);
 
 const isVisible = (raw: string | undefined) => !/^(n[aã]o|false|0|rascunho|draft|inativo|oculto)$/i.test((raw ?? '').trim());
 

@@ -416,7 +416,7 @@ export async function saveCategoryAction(_: FormState, form: FormData): Promise<
   const name = String(form.get('name') ?? '').trim();
   const parentId = String(form.get('parentId') ?? '') || null;
   try {
-    await adminFetch(id ? `/catalog/categories/${encodeURIComponent(id)}` : '/catalog/categories', { method: id ? 'PATCH' : 'POST', body: { name, parentId, ...(id ? {} : { slug: slugifyServer(name) }) } });
+    await adminFetch(id ? `/catalog/categories/${encodeURIComponent(id)}` : '/catalog/categories', { method: id ? 'PATCH' : 'POST', body: { name, parentId, ...(id && form.get('position') !== null ? { position: Number(form.get('position')) || 0 } : {}), ...(id ? {} : { slug: slugifyServer(name) }) } });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     throw error;
