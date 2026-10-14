@@ -273,6 +273,7 @@ model Order {
   items           OrderItem[]
   payments        Payment[]
   timeline        OrderTimeline[]
+  fulfillment     Fulfillment?
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -394,4 +395,27 @@ model AuditLog {
   @@index([storeId, createdAt(sort: Desc)])
   @@index([storeId, actorId, createdAt(sort: Desc)])
   @@index([storeId, entity, entityId])
+}
+
+/// Dados logísticos e fiscais do pedido (separação, nota, expedição, entrega, devolução). Um por pedido.
+model Fulfillment {
+  id            String    @id @default(uuid())
+  orderId       String    @unique
+  storeId       String
+  pickedAt      DateTime?
+  invoiceNumber String?
+  invoiceKey    String?
+  invoicedAt    DateTime?
+  carrier       String?
+  trackingCode  String?
+  trackingUrl   String?
+  shippedAt     DateTime?
+  deliveredAt   DateTime?
+  returnReason  String?
+  returnedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, trackingCode])
 }
