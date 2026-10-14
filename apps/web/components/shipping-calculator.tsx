@@ -2,9 +2,11 @@
 import { FormEvent, useState } from 'react';
 import type { CartItem } from '../lib/cart';
 import { formatCep, quoteShipping, rememberCep, ShippingQuote } from '../lib/shipping';
+import { useStoreBrand } from './store-name';
 import { ShippingOptions } from './shipping-options';
 
 export function ShippingCalculator({ items }: { items: CartItem[] }) {
+  const { slug } = useStoreBrand();
   const [cep, setCep] = useState(() => (typeof window === 'undefined' ? '' : rememberCep()));
   const [quote, setQuote] = useState<ShippingQuote>();
   const [error, setError] = useState<string>();
@@ -15,7 +17,7 @@ export function ShippingCalculator({ items }: { items: CartItem[] }) {
     setLoading(true);
     setError(undefined);
     try {
-      setQuote(await quoteShipping(cep, items));
+      setQuote(await quoteShipping(slug, cep, items));
       rememberCep(cep);
     } catch (e) {
       setQuote(undefined);

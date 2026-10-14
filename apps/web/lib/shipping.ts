@@ -1,4 +1,4 @@
-import { apiUrl, storeSlug } from './api';
+import { apiUrl } from './config';
 import { toRequestItems, type CartItem } from './cart';
 
 export type ShippingOption = { id: string; name: string; price: string; minDays: number; maxDays: number; free: boolean };
@@ -31,7 +31,7 @@ export function rememberCep(cep?: string) {
   return cep ?? '';
 }
 
-export async function quoteShipping(zipCode: string, items: CartItem[]): Promise<ShippingQuote> {
+export async function quoteShipping(storeSlug: string, zipCode: string, items: CartItem[]): Promise<ShippingQuote> {
   const response = await fetch(`${apiUrl}/shipping/quote`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

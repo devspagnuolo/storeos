@@ -9,6 +9,7 @@ import { cartSubtotalCents, lineKey, useCart } from '../../lib/cart';
 import { CheckoutForm, CheckoutResult, PromotionPreview, previewCoupon, previewPromotions, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
 import { formatCpf, getPaymentConfig, isValidCpf, PaymentConfig } from '../../lib/payment';
+import { useStoreBrand } from '../../components/store-name';
 import { formatCep, lookupCep, onlyDigits, quoteShipping, rememberCep, ShippingQuote } from '../../lib/shipping';
 
 const fields: { name: keyof CheckoutForm; label: string; required?: boolean; className?: string; pattern?: string; type?: string; autoComplete?: string }[] = [
@@ -24,6 +25,7 @@ const fields: { name: keyof CheckoutForm; label: string; required?: boolean; cla
 ];
 
 export default function CheckoutPage() {
+  const { slug } = useStoreBrand();
   const { items, clear } = useCart();
   const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -55,7 +57,7 @@ export default function CheckoutPage() {
     if (onlyDigits(value).length !== 8 || !items.length) return setQuote(undefined);
     setQuoteError(undefined);
     try {
-      const next = await quoteShipping(value, items);
+      const next = await quoteShipping(slug, value, items);
       setQuote(next);
       setShippingRuleId(current => next.options.some(o => o.id === current) ? current : next.options[0]?.id);
       rememberCep(value);
@@ -93,7 +95,7 @@ export default function CheckoutPage() {
     if (!code.trim()) return;
     setCouponError(undefined);
     try {
-      const result = await previewCoupon(code, items, shipping);
+      const result = await previewCoupon(slug, code, items, shipping);
       setCoupon({ code: result.code, discount: Number(result.discount) });
     } catch (e) {
       setCoupon(undefined);
@@ -101,7 +103,7 @@ export default function CheckoutPage() {
     }
   }
 
-  useEffect(() => { if (items.length) void previewPromotions(items).then(setPromo).catch(() => setPromo(undefined)); else setPromo(undefined); }, [itemsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (items.length) void previewPromotions(slug, items).then(setPromo).catch(() => setPromo(undefined)); else setPromo(undefined); }, [itemsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Frete ou itens mudaram: recalcula o desconto do cupom já aplicado (frete grátis depende do frete).
   useEffect(() => { if (coupon) void applyCoupon(coupon.code); }, [shipping, itemsKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -114,7 +116,7 @@ export default function CheckoutPage() {
       const form = Object.fromEntries(new FormData(event.currentTarget)) as unknown as CheckoutForm;
       if (!isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
       const card = method === 'CREDIT_CARD' ? await cardRef.current?.tokenize(cpf) : undefined;
-      setOrder(await submitCheckout({ ...form, paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card));
+      setOrder(await submitCheckout(slug, { ...form, paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card));
       clear();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível concluir o pedido.');
