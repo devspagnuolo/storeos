@@ -34,6 +34,8 @@ export class CheckoutService {
     if (this.payments.supports && !this.payments.supports(input.paymentMethod)) throw new BadRequestException('Este meio de pagamento não está disponível');
     const isCard = input.paymentMethod === PaymentMethod.CREDIT_CARD;
     const cpf = input.cpf ? onlyDigits(input.cpf) : undefined;
+    // O CPF vai para o cadastro do cliente (nota fiscal e pedido no ERP); só é guardado se for válido.
+    const validCpf = cpf && isValidCpf(cpf) ? cpf : undefined;
     if (this.payments.requiresTaxId?.(input.paymentMethod) && !(cpf && isValidCpf(cpf))) throw new BadRequestException('Informe um CPF válido');
     if (isCard && !input.card) throw new BadRequestException('Dados do cartão ausentes');
     const gateway = isCard ? this.payments.cardGateway?.() : null;
@@ -90,8 +92,8 @@ export class CheckoutService {
       }
       const customer = await tx.customer.upsert({
         where: { storeId_email: { storeId: store.id, email } },
-        create: { storeId: store.id, email, name: input.customer.name },
-        update: { name: input.customer.name },
+        create: { storeId: store.id, email, name: input.customer.name, ...(validCpf && { document: validCpf }) },
+        update: { name: input.customer.name, ...(validCpf && { document: validCpf }) },
       });
       // Promoções automáticas entram primeiro; o cupom incide sobre o que sobrou.
       const promo = await this.promotions.evaluate(tx, store.id, lines);

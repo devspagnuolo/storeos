@@ -597,3 +597,35 @@ export async function unsubscribeAction(form: FormData) {
   await adminFetch(`/engagement/admin/newsletter/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
   revalidatePath('/admin/newsletter');
 }
+
+/** Leva o lojista à tela de autorização do Bling; ele volta pelo endereço de retorno da API. */
+export async function connectBlingAction(): Promise<void> {
+  let url: string | undefined;
+  try {
+    ({ url } = await adminFetch<{ url: string }>('/bling/connect'));
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+  }
+  redirect(url ?? '/admin/bling?erro=1');
+}
+
+export async function disconnectBlingAction() {
+  await adminFetch('/bling/connection', { method: 'DELETE' });
+  revalidatePath('/admin/bling');
+}
+
+export async function importBlingAction(): Promise<FormState> {
+  try {
+    await adminFetch('/bling/import', { method: 'POST', body: {} });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/bling');
+  return { ok: 'Importação iniciada. Acompanhe o andamento abaixo.' };
+}
+
+export async function resendBlingOrderAction(form: FormData) {
+  await adminFetch(`/bling/orders/${encodeURIComponent(String(form.get('number')))}/send`, { method: 'POST', body: {} });
+  revalidatePath('/admin/bling');
+}

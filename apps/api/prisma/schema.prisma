@@ -76,6 +76,9 @@ model Store {
   menus                  Menu[]
   banners                Banner[]
   mediaAssets            MediaAsset[]
+  blingConnection        BlingConnection?
+  blingOrderSyncs        BlingOrderSync[]
+  blingImports           BlingImport[]
   subscribers            NewsletterSubscriber[]
   emailLogs              EmailLog[]
   promotions             Promotion[]
@@ -190,21 +193,21 @@ model Product {
 }
 
 model Category {
-  id          String            @id @default(uuid())
-  storeId     String
-  name        String
-  slug        String
-  description String?
-  position    Int               @default(0)
-  parentId    String?
+  id              String            @id @default(uuid())
+  storeId         String
+  name            String
+  slug            String
+  description     String?
+  position        Int               @default(0)
+  parentId        String?
   bannerUrl       String?
   bannerMobileUrl String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  store       Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  parent      Category?         @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Category[]        @relation("CategoryTree")
-  products    ProductCategory[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  parent          Category?         @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Category[]        @relation("CategoryTree")
+  products        ProductCategory[]
 
   @@unique([storeId, slug])
   @@index([storeId, position])
@@ -293,6 +296,8 @@ model Customer {
   email          String
   name           String
   phone          String?
+  /// CPF/CNPJ (só dígitos), informado no checkout para a nota fiscal e o pedido no ERP.
+  document       String?
   notes          String?
   tags           String[]       @default([])
   marketingOptIn Boolean        @default(false)
@@ -347,6 +352,7 @@ model Order {
   promotions        Json?
   redemption        CouponRedemption?
   loyaltyEntries    LoyaltyEntry[]
+  blingSync         BlingOrderSync?
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -732,4 +738,66 @@ model MediaAsset {
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, createdAt])
+}
+
+enum BlingSyncStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum BlingImportStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// Conta do Bling conectada por OAuth; os tokens ficam cifrados (AES-256-GCM).
+model BlingConnection {
+  id              String   @id @default(uuid())
+  storeId         String   @unique
+  accessTokenEnc  String
+  refreshTokenEnc String
+  expiresAt       DateTime
+  connectedAt     DateTime @default(now())
+  lastError       String?
+  updatedAt       DateTime @updatedAt
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+/// Um pedido do site enviado (ou a enviar) ao Bling; `numeroLoja` no Bling é o número do pedido daqui.
+model BlingOrderSync {
+  id            String          @id @default(uuid())
+  storeId       String
+  orderId       String          @unique
+  status        BlingSyncStatus @default(PENDING)
+  blingOrderId  String?
+  attempts      Int             @default(0)
+  lastError     String?
+  nextAttemptAt DateTime        @default(now())
+  sentAt        DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  store         Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status])
+}
+
+/// Importação de produtos do Bling: roda em segundo plano e o painel acompanha o andamento.
+model BlingImport {
+  id         String            @id @default(uuid())
+  storeId    String
+  status     BlingImportStatus @default(RUNNING)
+  total      Int               @default(0)
+  processed  Int               @default(0)
+  created    Int               @default(0)
+  updated    Int               @default(0)
+  failed     Int               @default(0)
+  errors     Json              @default("[]")
+  startedAt  DateTime          @default(now())
+  finishedAt DateTime?
+  store      Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, startedAt])
 }

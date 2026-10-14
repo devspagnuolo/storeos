@@ -1,0 +1,62 @@
+import { BadRequestException, Controller, Delete, Get, HttpCode, Param, Post, Query, Res } from '@nestjs/common';
+import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { BlingSyncStatus } from '@prisma/client';
+import { Response } from 'express';
+import { CurrentStore } from '../../shared/auth/current-store.decorator';
+import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
+import { PrismaService } from '../../shared/infrastructure/prisma.service';
+import { BlingAuthService } from './bling-auth.service';
+import { BlingImportService } from './bling-import.service';
+import { BlingOrdersService } from './bling-orders.service';
+import { BlingClient } from './bling.client';
+
+const webOrigin = () => (process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localhost:3000').replace(/\/$/, '');
+
+@ApiTags('Bling')
+@Controller('bling')
+export class BlingController {
+  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService) {}
+
+  @Get('status') @RequirePermissions(Permissions.SETTINGS_WRITE)
+  async status(@CurrentStore() storeId: string) {
+    const [connection, latestImport, sync] = await Promise.all([this.prisma.blingConnection.findUnique({ where: { storeId } }), this.imports.latest(storeId), this.orders.list(storeId)]);
+    const apiUrl = process.env.API_PUBLIC_URL?.replace(/\/$/, '');
+    return {
+      appConfigured: this.client.appConfigured,
+      callbackUrl: apiUrl ? `${apiUrl}/api/v1/bling/callback` : null,
+      connected: Boolean(connection), connectedAt: connection?.connectedAt ?? null, lastError: connection?.lastError ?? null,
+      import: latestImport, orders: sync.counts,
+    };
+  }
+
+  @Get('connect') @RequirePermissions(Permissions.SETTINGS_WRITE)
+  connect(@CurrentStore() storeId: string) {
+    return { url: this.auth.connectUrl(storeId) };
+  }
+
+  /** Destino do redirecionamento do Bling após o lojista autorizar. Público: a identidade vem do `state` assinado. */
+  @Get('callback') @ApiExcludeEndpoint()
+  async callback(@Query('code') code: string | undefined, @Query('state') state: string | undefined, @Res() res: Response) {
+    if (!code || !state) throw new BadRequestException('Retorno do Bling incompleto');
+    try {
+      await this.auth.finishConnect(code, state);
+      res.redirect(`${webOrigin()}/admin/bling?conectado=1`);
+    } catch {
+      res.redirect(`${webOrigin()}/admin/bling?erro=1`);
+    }
+  }
+
+  @Delete('connection') @HttpCode(204) @RequirePermissions(Permissions.SETTINGS_WRITE)
+  disconnect(@CurrentStore() storeId: string) { return this.auth.disconnect(storeId); }
+
+  @Post('import') @HttpCode(202) @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
+  startImport(@CurrentStore() storeId: string) { return this.imports.start(storeId); }
+
+  @Get('orders') @RequirePermissions(Permissions.ORDERS_READ)
+  listOrders(@CurrentStore() storeId: string, @Query('status') status?: string) {
+    return this.orders.list(storeId, status && status in BlingSyncStatus ? (status as BlingSyncStatus) : undefined);
+  }
+
+  @Post('orders/:number/send') @HttpCode(200) @RequirePermissions(Permissions.ORDERS_WRITE)
+  sendOrder(@CurrentStore() storeId: string, @Param('number') number: string) { return this.orders.resend(storeId, number); }
+}
