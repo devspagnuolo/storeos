@@ -30,6 +30,7 @@ export const getCategories = () => get<Category[]>(`/catalog/categories?store=${
 
 export const getProduct = (slug: string) => get<ProductDetail | null>(`/catalog/products/${encodeURIComponent(slug)}?store=${encodeURIComponent(storeSlug)}`, null);
 
-export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null };
+export type StorefrontConfig = { announcementText?: string; heroTitle?: string; heroDescription?: string; heroCta?: string; heroImageUrl?: string | null; accentColor?: string };
+export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig };
 
-export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent(storeSlug)}`, { slug: storeSlug, name: 'Loja', logoUrl: null, faviconUrl: null });
+export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent(storeSlug)}`, { slug: storeSlug, name: 'Loja', logoUrl: null, faviconUrl: null, themeConfig: {} });

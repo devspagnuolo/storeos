@@ -6,6 +6,16 @@ const hmac = (key: Buffer | string, value: string) => createHmac('sha256', key).
 @Injectable()
 export class StoreAssetsService {
   async uploadLogo(storeId: string, file: { buffer: Buffer; mimetype: string }) {
+    const logoUrl = await this.uploadImage(storeId, file, 'brand');
+    return { logoUrl };
+  }
+
+  async uploadHero(storeId: string, file: { buffer: Buffer; mimetype: string }) {
+    const heroImageUrl = await this.uploadImage(storeId, file, 'storefront');
+    return { heroImageUrl };
+  }
+
+  private async uploadImage(storeId: string, file: { buffer: Buffer; mimetype: string }, folder: 'brand' | 'storefront') {
     const extensionByType: Record<string, string> = {
       'image/png': 'png',
       'image/jpeg': 'jpg',
@@ -24,7 +34,7 @@ export class StoreAssetsService {
     }
 
     const host = accountId + '.r2.cloudflarestorage.com';
-    const objectKey = 'stores/' + storeId + '/brand/' + randomUUID() + '.' + extension;
+    const objectKey = 'stores/' + storeId + '/' + folder + '/' + randomUUID() + '.' + extension;
     const uri = '/' + bucket + '/' + objectKey.split('/').map(encodeURIComponent).join('/');
     const now = new Date();
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
@@ -47,7 +57,7 @@ export class StoreAssetsService {
     const endpoint = 'https://' + host + uri + '?' + query + '&X-Amz-Signature=' + signature;
     const response = await fetch(endpoint, { method: 'PUT', headers: { 'content-type': file.mimetype }, body: file.buffer as unknown as BodyInit });
     if (!response.ok) throw new ServiceUnavailableException('Não foi possível salvar a imagem da loja.');
-    return { logoUrl: publicUrl.replace(/\/$/, '') + '/' + objectKey.split('/').map(encodeURIComponent).join('/') };
+    return publicUrl.replace(/\/$/, '') + '/' + objectKey.split('/').map(encodeURIComponent).join('/');
   }
 
   private matchesSignature(buffer: Buffer, mime: string) {

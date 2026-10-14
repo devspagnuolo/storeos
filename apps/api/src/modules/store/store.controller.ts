@@ -1,18 +1,30 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUrl, Length, MaxLength } from 'class-validator';
+import { IsObject, IsOptional, IsString, IsUrl, Length, MaxLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { StoreAssetsService } from './store-assets.service';
+import { sanitizeStorefrontConfig } from './storefront-config';
 
 class UpdateStoreDto {
   @IsOptional() @IsString() @Length(2, 80) name?: string;
   @IsOptional() @IsString() @MaxLength(500) @IsUrl({ protocols: ['https'], require_protocol: true }) logoUrl?: string | null;
+  @IsOptional() @IsObject() themeConfig?: Record<string, unknown>;
 }
 
-const view = (store: { id: string; slug: string; name: string; logoUrl: string | null; faviconUrl: string | null }) => ({ id: store.id, slug: store.slug, name: store.name, logoUrl: store.logoUrl, faviconUrl: store.faviconUrl });
+const view = (store: { id: string; slug: string; name: string; logoUrl: string | null; faviconUrl: string | null; themeConfig: unknown }) => ({
+  id: store.id,
+  slug: store.slug,
+  name: store.name,
+  logoUrl: store.logoUrl,
+  faviconUrl: store.faviconUrl,
+  themeConfig: store.themeConfig,
+});
+
+const acceptedImageTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'];
 
 @ApiTags('Store')
 @Controller('store')
@@ -21,7 +33,10 @@ export class StoreController {
 
   @Get('public/:slug')
   async publicInfo(@Param('slug') slug: string) {
-    const store = await this.prisma.store.findUnique({ where: { slug }, select: { slug: true, name: true, logoUrl: true, faviconUrl: true } });
+    const store = await this.prisma.store.findUnique({
+      where: { slug },
+      select: { slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true },
+    });
     if (!store) throw new NotFoundException('Loja não encontrada');
     return store;
   }
@@ -35,11 +50,18 @@ export class StoreController {
   @Patch()
   @RequirePermissions(Permissions.SETTINGS_WRITE)
   async update(@CurrentStore() storeId: string, @Body() dto: UpdateStoreDto) {
-    const data: { name?: string; logoUrl?: string | null; faviconUrl?: string | null } = {};
+    const data: Prisma.StoreUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.logoUrl !== undefined) {
       data.logoUrl = dto.logoUrl;
       data.faviconUrl = dto.logoUrl;
+    }
+    if (dto.themeConfig !== undefined) {
+      const store = await this.prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { themeConfig: true } });
+      const current = store.themeConfig && typeof store.themeConfig === 'object' && !Array.isArray(store.themeConfig)
+        ? store.themeConfig as Record<string, unknown>
+        : {};
+      data.themeConfig = { ...current, ...sanitizeStorefrontConfig(dto.themeConfig) } as Prisma.InputJsonValue;
     }
     return view(await this.prisma.store.update({ where: { id: storeId }, data }));
   }
@@ -49,10 +71,22 @@ export class StoreController {
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 1_000_000 },
-    fileFilter: (_request, file, callback) => callback(null, ['image/png', 'image/jpeg', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'].includes(file.mimetype)),
+    fileFilter: (_request, file, callback) => callback(null, acceptedImageTypes.includes(file.mimetype)),
   }))
   async uploadLogo(@CurrentStore() storeId: string, @UploadedFile() file?: { buffer: Buffer; mimetype: string }) {
     if (!file) throw new BadRequestException('Selecione um arquivo PNG, JPG, WebP ou ICO de até 1 MB.');
     return this.assets.uploadLogo(storeId, file);
+  }
+
+  @Post('hero')
+  @RequirePermissions(Permissions.SETTINGS_WRITE)
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 5_000_000 },
+    fileFilter: (_request, file, callback) => callback(null, ['image/png', 'image/jpeg', 'image/webp'].includes(file.mimetype)),
+  }))
+  async uploadHero(@CurrentStore() storeId: string, @UploadedFile() file?: { buffer: Buffer; mimetype: string }) {
+    if (!file) throw new BadRequestException('Selecione uma imagem PNG, JPG ou WebP de até 5 MB.');
+    return this.assets.uploadHero(storeId, file);
   }
 }
