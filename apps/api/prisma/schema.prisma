@@ -764,6 +764,13 @@ enum BlingInvoiceStatus {
   FAILED
 }
 
+enum BlingWebhookStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
 /// Conta do Bling conectada por OAuth; os tokens ficam cifrados (AES-256-GCM).
 model BlingConnection {
   id              String   @id @default(uuid())
@@ -804,6 +811,29 @@ model BlingOrderSync {
 
   @@index([storeId, status])
   @@index([storeId, blingOrderId])
+}
+
+/// Caixa de entrada idempotente dos webhooks autenticados do Bling.
+model BlingWebhookEvent {
+  id            String             @id @default(uuid())
+  eventId       String             @unique
+  companyId     String
+  event         String
+  version       String             @default("v1")
+  remoteId      String
+  orderNumber   String?
+  payload       Json
+  status        BlingWebhookStatus @default(PENDING)
+  attempts      Int                @default(0)
+  lastError     String?
+  nextAttemptAt DateTime           @default(now())
+  receivedAt    DateTime           @default(now())
+  processedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([status, nextAttemptAt, receivedAt])
+  @@index([companyId, receivedAt])
 }
 
 /// Nota fiscal originada do pedido de venda Bling; número do pedido da loja permanece como chave de idempotência.
