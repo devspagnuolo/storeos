@@ -66,8 +66,13 @@ export class BlingWebhookService {
   }
 
   @Interval(2_000)
+  async tick() {
+    if (process.env.BLING_WORKER === 'off') return;
+    await this.processDue();
+  }
+
   async processDue() {
-    if (this.running || process.env.BLING_WORKER === 'off') return 0;
+    if (this.running) return 0;
     this.running = true;
     let processed = 0;
     try {
