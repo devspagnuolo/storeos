@@ -153,7 +153,7 @@ export class BlingInvoicesService {
       const situation = typeof data.situacao === 'object' ? data.situacao?.id ?? data.situacao?.valor : data.situacao;
       const authorized = String(situation) === '5' || String(situation) === '6';
       const rejected = String(situation) === '4' || String(situation) === '9';
-      await this.prisma.blingInvoice.update({
+      const saved = await this.prisma.blingInvoice.update({
         where: { id },
         data: {
           status: authorized ? BlingInvoiceStatus.AUTHORIZED : rejected ? BlingInvoiceStatus.REJECTED : BlingInvoiceStatus.GENERATED,
@@ -165,6 +165,17 @@ export class BlingInvoicesService {
           nextAttemptAt: authorized || rejected ? new Date('9999-12-31T00:00:00.000Z') : new Date(Date.now() + 5 * 60_000),
         },
       });
+      if (authorized) {
+        await this.prisma.fulfillment.upsert({
+          where: { orderId: invoice.orderId },
+          create: { orderId: invoice.orderId, storeId: invoice.storeId, invoiceNumber: saved.invoiceNumber, invoiceKey: saved.accessKey, invoicedAt: saved.authorizedAt ?? new Date() },
+          update: { invoiceNumber: saved.invoiceNumber, invoiceKey: saved.accessKey, invoicedAt: saved.authorizedAt ?? new Date() },
+        });
+        await this.prisma.$transaction(async tx => {
+          const changed = await tx.order.updateMany({ where: { id: invoice.orderId, status: 'PICKING' }, data: { status: 'INVOICED' } });
+          if (changed.count) await tx.orderTimeline.create({ data: { orderId: invoice.orderId, status: 'INVOICED', message: 'NF-e autorizada pela SEFAZ via Bling.' } });
+        });
+      }
     } catch (error) {
       const attempts = invoice.attempts + 1;
       const message = (error as Error).message.slice(0, 1000);
