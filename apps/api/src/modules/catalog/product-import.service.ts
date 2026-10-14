@@ -57,7 +57,7 @@ export class ProductImportService {
     return (await this.prisma.brand.findFirst({ where: { storeId, slug } }))?.id ?? (await this.catalog.createBrand(storeId, { name, slug })).id;
   }
 
-  private async save(storeId: string, p: ImportProduct, existingId?: string) {
+  async save(storeId: string, p: ImportProduct, existingId?: string) {
     const categoryIds = await this.categoryIds(storeId, p.categories);
     const brandId = await this.brandId(storeId, p.brand);
     const common = {

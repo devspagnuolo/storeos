@@ -86,8 +86,7 @@ export default function CheckoutPage() {
   const shipping = chosen ? Number(chosen.price) : 0;
   const promoDiscount = promo ? Number(promo.discount) : 0;
   const discount = coupon?.discount ?? 0;
-  // O Mercado Pago exige o CPF no cartão e no boleto; a Rede não pede.
-  const needsCpf = (method === 'BOLETO' && Boolean(payConfig?.boleto)) || (method === 'CREDIT_CARD' && payConfig?.card?.provider === 'mercadopago');
+  // O CPF é sempre pedido: vai na nota fiscal e no pedido registrado no ERP (e é exigido pelo Mercado Pago no cartão e no boleto).
   const blocked = Boolean(quote?.required && !quote.options.length);
 
   async function applyCoupon(code = couponInput) {
@@ -113,9 +112,9 @@ export default function CheckoutPage() {
     setError(undefined);
     try {
       const form = Object.fromEntries(new FormData(event.currentTarget)) as unknown as CheckoutForm;
-      if (needsCpf && !isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
+      if (!isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
       const card = method === 'CREDIT_CARD' ? await cardRef.current?.tokenize(cpf) : undefined;
-      setOrder(await submitCheckout({ ...form, paymentMethod: method, cpf: needsCpf ? cpf : undefined, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card));
+      setOrder(await submitCheckout({ ...form, paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card));
       clear();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível concluir o pedido.');
@@ -168,6 +167,9 @@ export default function CheckoutPage() {
                     : <input name={f.name} required={f.required} pattern={f.pattern} type={f.type ?? 'text'} autoComplete={f.autoComplete} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />}
                 </label>
               ))}
+              <label className="text-sm font-medium sm:col-span-2">CPF (para a nota fiscal)
+                <input value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal sm:max-w-xs" />
+              </label>
               <fieldset className="sm:col-span-2">
                 <legend className="mb-2 font-bold">Entrega</legend>
                 {quote ? <ShippingOptions quote={quote} name="shippingRuleId" selected={shippingRuleId} onSelect={setShippingRuleId} /> : <p className="text-sm text-slate-500">{quoteError ?? 'Informe o CEP para ver as opções de entrega.'}</p>}
@@ -179,11 +181,6 @@ export default function CheckoutPage() {
                   {payConfig?.card && <label><input type="radio" name="paymentMethod" value="CREDIT_CARD" checked={method === 'CREDIT_CARD'} onChange={() => setMethod('CREDIT_CARD')} /> Cartão de crédito</label>}
                   {payConfig?.boleto && <label><input type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} /> Boleto</label>}
                 </div>
-                {needsCpf && (
-                  <label className="mt-3 block text-sm font-medium">CPF do titular
-                    <input value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal sm:max-w-xs" />
-                  </label>
-                )}
                 {payConfig?.card && method === 'CREDIT_CARD' && <CardPayment ref={cardRef} config={payConfig.card} amount={subtotal - promoDiscount - discount + shipping} cpf={cpf} />}
               </fieldset>
             </div>

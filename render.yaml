@@ -44,6 +44,11 @@ services:
       # Chave pública (APP_USR-...): habilita cartão de crédito com parcelas no checkout.
       - key: MERCADOPAGO_PUBLIC_KEY
         sync: false
+      # Bling (ERP): aplicativo criado em Preferências > Integrações; o link de redirecionamento é API_PUBLIC_URL/api/v1/bling/callback.
+      - key: BLING_CLIENT_ID
+        sync: false
+      - key: BLING_CLIENT_SECRET
+        sync: false
       # Cartão pela Rede (e.Rede/Itaú): com REDE_PV e REDE_TOKEN a Rede passa a cobrar o cartão; PIX e boleto seguem no Mercado Pago.
       - key: REDE_PV
         sync: false

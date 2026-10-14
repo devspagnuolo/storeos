@@ -67,3 +67,7 @@ export type ImportReport = { dryRun: boolean; rows: number; created: number; upd
 export type AdminBanner = { id: string; imageUrl: string; mobileImageUrl: string | null; title: string | null; subtitle: string | null; ctaLabel: string | null; linkUrl: string | null; position: number; active: boolean; startsAt: string | null; endsAt: string | null };
 export type Subscriber = { id: string; email: string; name: string | null; source: string; createdAt: string };
 export type SubscriberPage = { items: Subscriber[]; total: number; page: number; pageSize: number };
+
+export type BlingImportJob = { id: string; status: 'RUNNING' | 'DONE' | 'FAILED'; total: number; processed: number; created: number; updated: number; failed: number; errors: { message: string }[]; startedAt: string; finishedAt: string | null };
+export type BlingStatus = { appConfigured: boolean; callbackUrl: string | null; connected: boolean; connectedAt: string | null; lastError: string | null; import: BlingImportJob | null; orders: Partial<Record<'PENDING' | 'SENT' | 'FAILED', number>> };
+export type BlingSyncRow = { id: string; orderNumber: string; total: string; orderStatus: string; status: 'PENDING' | 'SENT' | 'FAILED'; blingOrderId: string | null; attempts: number; lastError: string | null; nextAttemptAt: string; sentAt: string | null };

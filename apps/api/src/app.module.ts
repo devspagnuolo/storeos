@@ -16,6 +16,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { EngagementModule } from './modules/engagement/engagement.module';
+import { BlingModule } from './modules/bling/bling.module';
 import { MediaModule } from './modules/media/media.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { StoreModule } from './modules/store/store.module';
@@ -39,6 +40,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     InventoryModule,
     EngagementModule,
     MediaModule,
+    BlingModule,
     NotificationsModule,
     ContentModule,
     LoyaltyModule,
