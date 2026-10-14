@@ -184,13 +184,17 @@ model Category {
   slug        String
   description String?
   position    Int               @default(0)
+  parentId    String?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   store       Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  parent      Category?         @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[]        @relation("CategoryTree")
   products    ProductCategory[]
 
   @@unique([storeId, slug])
   @@index([storeId, position])
+  @@index([parentId])
 }
 
 model ProductCategory {

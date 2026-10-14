@@ -404,3 +404,22 @@ export async function restoreStorefrontAction(_: FormState, form: FormData): Pro
   revalidatePath('/painel/site');
   redirect('/painel/site?salvo=restaurado');
 }
+
+export async function saveCategoryAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = form.get('id') ? String(form.get('id')) : undefined;
+  const name = String(form.get('name') ?? '').trim();
+  const parentId = String(form.get('parentId') ?? '') || null;
+  try {
+    await adminFetch(id ? `/catalog/categories/${encodeURIComponent(id)}` : '/catalog/categories', { method: id ? 'PATCH' : 'POST', body: { name, parentId, ...(id ? {} : { slug: slugifyServer(name) }) } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/categorias');
+  return { ok: id ? 'Categoria salva.' : 'Categoria criada.' };
+}
+
+export async function deleteCategoryAction(form: FormData) {
+  await adminFetch(`/catalog/categories/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/categorias');
+}

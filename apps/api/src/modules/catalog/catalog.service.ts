@@ -7,7 +7,8 @@ export type CreateProductInput = { name: string; slug: string; sku: string; pric
 export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string };
 export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
 export type CollectionInput = { name?: string; slug?: string; description?: string; active?: boolean; position?: number; skus?: string[] };
-export type CreateCategoryInput = { name: string; slug: string; description?: string; position?: number };
+export type CreateCategoryInput = { name: string; slug: string; description?: string; position?: number; parentId?: string | null };
+export type UpdateCategoryInput = Partial<CreateCategoryInput>;
 
 const isUniqueViolation = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
@@ -29,7 +30,7 @@ export class CatalogService {
     const where: Prisma.ProductWhereInput = {
       storeId,
       status: ProductStatus.ACTIVE,
-      ...(query.category && { categories: { some: { category: { slug: query.category } } } }),
+      ...(query.category && { categories: { some: { category: { OR: [{ slug: query.category }, { parent: { slug: query.category } }] } } } }),
       ...(query.brand && { brand: { slug: query.brand } }),
       ...(query.collection && { collections: { some: { collection: { slug: query.collection, active: true } } } }),
       ...(q && { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { sku: { equals: q, mode: 'insensitive' } }] }),
@@ -56,16 +57,44 @@ export class CatalogService {
   async categories(storeSlug: string) {
     const storeId = await this.storeId(storeSlug);
     if (!storeId) return [];
-    return this.prisma.category.findMany({ where: { storeId }, orderBy: [{ position: 'asc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, description: true } });
+    return this.prisma.category.findMany({ where: { storeId }, orderBy: [{ position: 'asc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, description: true, parentId: true } });
+  }
+
+  /** Duas camadas (categoria e subcategoria) bastam para o catálogo e mantêm menus e filtros simples. */
+  private async assertParent(storeId: string, parentId: string | null | undefined, selfId?: string) {
+    if (!parentId) return;
+    if (parentId === selfId) throw new BadRequestException('Uma categoria não pode ser subcategoria dela mesma');
+    const parent = await this.prisma.category.findFirst({ where: { id: parentId, storeId } });
+    if (!parent) throw new BadRequestException('Categoria pai inválida');
+    if (parent.parentId) throw new BadRequestException('Só há dois níveis: escolha uma categoria principal como pai');
+    if (selfId && (await this.prisma.category.count({ where: { storeId, parentId: selfId } })) > 0) throw new BadRequestException('Esta categoria já tem subcategorias e não pode virar subcategoria');
   }
 
   async createCategory(storeId: string, dto: CreateCategoryInput) {
+    await this.assertParent(storeId, dto.parentId);
     try {
       return await this.prisma.category.create({ data: { ...dto, storeId } });
     } catch (error) {
       if (isUniqueViolation(error)) throw new ConflictException('Já existe uma categoria com essa URL nesta loja');
       throw error;
     }
+  }
+
+  async updateCategory(storeId: string, id: string, dto: UpdateCategoryInput) {
+    if (!(await this.prisma.category.findFirst({ where: { id, storeId } }))) throw new NotFoundException('Categoria não encontrada');
+    if (dto.parentId !== undefined) await this.assertParent(storeId, dto.parentId, id);
+    try {
+      return await this.prisma.category.update({ where: { id }, data: dto });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ConflictException('Já existe uma categoria com essa URL nesta loja');
+      throw error;
+    }
+  }
+
+  /** As subcategorias sobem para o nível principal e os produtos só perdem o vínculo com esta categoria. */
+  async deleteCategory(storeId: string, id: string) {
+    const { count } = await this.prisma.category.deleteMany({ where: { id, storeId } });
+    if (!count) throw new NotFoundException('Categoria não encontrada');
   }
 
   private async assertBrand(storeId: string, brandId?: string | null) {
