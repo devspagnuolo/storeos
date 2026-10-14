@@ -12,6 +12,7 @@ export const prisma = new PrismaClient();
 export async function startApp(customize: (builder: TestingModuleBuilder) => TestingModuleBuilder = b => b) {
   process.env.THROTTLE_DISABLED = 'true';
   process.env.PAYMENT_EXPIRY_JOB = 'off';
+  process.env.OUTBOX_WORKER = 'off';
   const moduleRef = await customize(Test.createTestingModule({ imports: [AppModule] })).compile();
   const app = configureApp(moduleRef.createNestApplication<NestExpressApplication>());
   await app.listen(0);

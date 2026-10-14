@@ -12,6 +12,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { ContentModule } from './modules/content/content.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { StoreModule } from './modules/store/store.module';
@@ -32,6 +33,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     CheckoutModule,
     ShippingModule,
     PromotionsModule,
+    NotificationsModule,
     ContentModule,
     LoyaltyModule,
     CustomersModule,

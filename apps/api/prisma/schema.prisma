@@ -71,6 +71,7 @@ model Store {
   brands        Brand[]
   collections   Collection[]
   pages         Page[]
+  emailLogs     EmailLog[]
 }
 
 model User {
@@ -569,4 +570,28 @@ model Page {
 
   @@unique([storeId, slug])
   @@index([storeId, published, position])
+}
+
+enum EmailStatus {
+  SENT
+  SIMULATED
+  FAILED
+}
+
+/// Registro de cada e-mail transacional: o que foi (ou seria) enviado, para quem e o resultado.
+model EmailLog {
+  id         String      @id @default(uuid())
+  storeId    String
+  eventId    String?
+  template   String
+  toEmail    String
+  subject    String
+  body       String
+  status     EmailStatus
+  error      String?
+  providerId String?
+  createdAt  DateTime    @default(now())
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
 }
