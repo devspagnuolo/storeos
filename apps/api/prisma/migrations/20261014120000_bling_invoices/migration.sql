@@ -33,3 +33,5 @@ CREATE INDEX "BlingInvoice_storeId_invoiceNumber_idx" ON "BlingInvoice"("storeId
 ALTER TABLE "BlingInvoice" ADD CONSTRAINT "BlingInvoice_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "Store"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "BlingInvoice" ADD CONSTRAINT "BlingInvoice_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "BlingInvoice" ADD CONSTRAINT "BlingInvoice_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "BlingConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "BlingInvoice" ADD COLUMN "submittedAt" TIMESTAMP(3);
