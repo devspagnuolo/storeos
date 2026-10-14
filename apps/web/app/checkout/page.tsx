@@ -5,7 +5,7 @@ import { Header } from '../../components/header';
 import { PixPayment } from '../../components/pix-payment';
 import { ShippingOptions } from '../../components/shipping-options';
 import { cartSubtotalCents, useCart } from '../../lib/cart';
-import { CheckoutForm, CheckoutResult, submitCheckout } from '../../lib/checkout';
+import { CheckoutForm, CheckoutResult, previewCoupon, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
 import { formatCep, lookupCep, onlyDigits, quoteShipping, rememberCep, ShippingQuote } from '../../lib/shipping';
 
@@ -31,6 +31,9 @@ export default function CheckoutPage() {
   const [quote, setQuote] = useState<ShippingQuote>();
   const [quoteError, setQuoteError] = useState<string>();
   const [shippingRuleId, setShippingRuleId] = useState<string>();
+  const [couponInput, setCouponInput] = useState('');
+  const [coupon, setCoupon] = useState<{ code: string; discount: number }>();
+  const [couponError, setCouponError] = useState<string>();
   const formRef = useRef<HTMLFormElement>(null);
   const itemsKey = items.map(i => `${i.productId}:${i.quantity}`).join(',');
 
@@ -73,7 +76,23 @@ export default function CheckoutPage() {
   const subtotal = cartSubtotalCents(items) / 100;
   const chosen = quote?.options.find(o => o.id === shippingRuleId);
   const shipping = chosen ? Number(chosen.price) : 0;
+  const discount = coupon?.discount ?? 0;
   const blocked = Boolean(quote?.required && !quote.options.length);
+
+  async function applyCoupon(code = couponInput) {
+    if (!code.trim()) return;
+    setCouponError(undefined);
+    try {
+      const result = await previewCoupon(code, items, shipping);
+      setCoupon({ code: result.code, discount: Number(result.discount) });
+    } catch (e) {
+      setCoupon(undefined);
+      setCouponError(e instanceof Error ? e.message : 'Cupom inválido');
+    }
+  }
+
+  // Frete ou itens mudaram: recalcula o desconto do cupom já aplicado (frete grátis depende do frete).
+  useEffect(() => { if (coupon) void applyCoupon(coupon.code); }, [shipping, itemsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,7 +100,7 @@ export default function CheckoutPage() {
     setError(undefined);
     try {
       const form = Object.fromEntries(new FormData(event.currentTarget)) as unknown as CheckoutForm;
-      setOrder(await submitCheckout({ ...form, shippingRuleId: quote?.required ? shippingRuleId : undefined }, items));
+      setOrder(await submitCheckout({ ...form, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items));
       clear();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível concluir o pedido.');
@@ -100,6 +119,7 @@ export default function CheckoutPage() {
           <p className="mt-4 rounded-xl bg-violet-50 p-4 text-slate-700">{order.payment.instructions.message}</p>
           {order.payment.instructions.pixCode && <PixPayment pixCode={order.payment.instructions.pixCode} qrCodeBase64={order.payment.instructions.qrCodeBase64} expiresAt={order.payment.expiresAt} />}
           <ul className="mt-6 divide-y text-sm">{order.items.map(i => <li key={i.sku} className="flex justify-between py-2"><span>{i.quantity}× {i.name}</span><span>{formatPrice(i.total)}</span></li>)}</ul>
+          {Number(order.discount) > 0 && <div className="mt-4 flex justify-between border-t pt-4 text-sm text-emerald-700"><span>Cupom {order.couponCode}</span><span>− {formatPrice(order.discount)}</span></div>}
           {order.shippingMethod && <div className="mt-4 flex justify-between border-t pt-4 text-sm"><span>Frete ({order.shippingMethod})</span><span>{Number(order.shipping) ? formatPrice(order.shipping) : 'Grátis'}</span></div>}
           <div className="mt-4 flex justify-between border-t pt-4 text-lg"><span>Total</span><b>{formatPrice(order.total)}</b></div>
           <Link href="/categorias" className="button mt-8">Continuar comprando</Link>
@@ -139,7 +159,12 @@ export default function CheckoutPage() {
               <ul className="divide-y text-sm">{items.map(i => <li key={i.productId} className="flex justify-between py-2"><span>{i.quantity}× {i.name}</span><span>{formatPrice((Number(i.price) * 100 * i.quantity) / 100)}</span></li>)}</ul>
               <div className="mt-4 flex justify-between border-t pt-4 text-sm"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div>
               <div className="mt-2 flex justify-between text-sm"><span>Frete</span><span>{!quote?.required ? (quote ? 'A combinar' : '—') : !chosen ? '—' : chosen.free ? 'Grátis' : formatPrice(chosen.price)}</span></div>
-              <div className="mt-4 flex justify-between border-t pt-4"><span>Total</span><b>{formatPrice(subtotal + shipping)}</b></div>
+              <div className="mt-4 border-t pt-4">
+                <div className="flex gap-2"><input value={couponInput} onChange={e => setCouponInput(e.target.value)} placeholder="Cupom de desconto" aria-label="Cupom de desconto" maxLength={32} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm uppercase" /><button type="button" onClick={() => void applyCoupon()} className="button-ghost text-sm">Aplicar</button></div>
+                {couponError && <p role="alert" className="mt-2 text-xs text-red-700">{couponError}</p>}
+              </div>
+              {coupon && <div className="mt-3 flex justify-between text-sm text-emerald-700"><span>Cupom {coupon.code} <button type="button" onClick={() => { setCoupon(undefined); setCouponInput(''); }} className="underline">remover</button></span><span>− {formatPrice(coupon.discount)}</span></div>}
+              <div className="mt-4 flex justify-between border-t pt-4"><span>Total</span><b>{formatPrice(subtotal - discount + shipping)}</b></div>
               {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
               <button className="button mt-6 w-full disabled:opacity-60" disabled={submitting || !hydrated || blocked}>{submitting ? 'Enviando…' : 'Confirmar pedido'}</button>
             </aside>

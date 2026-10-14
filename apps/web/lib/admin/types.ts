@@ -16,3 +16,5 @@ export type ShippingRule = { id: string; name: string; states: string[]; price: 
 
 export type AuditRow = { id: string; action: string; entity: string | null; entityId: string | null; outcome: 'SUCCESS' | 'DENIED' | 'FAILURE'; statusCode: number | null; ip: string | null; userAgent: string | null; createdAt: string; metadata: Record<string, unknown> | null; actor: { id: string; name: string; email: string } | null };
 export type AuditPage = { items: AuditRow[]; total: number; page: number; pageSize: number };
+
+export type AdminCoupon = { id: string; code: string; description: string | null; type: 'PERCENT' | 'FIXED' | 'FREE_SHIPPING'; value: string; minSubtotal: string | null; maxUses: number | null; usedCount: number; oncePerCustomer: boolean; startsAt: string | null; endsAt: string | null; active: boolean };

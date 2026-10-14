@@ -67,6 +67,7 @@ model Store {
   customers     Customer[]
   orders        Order[]
   outboxEvents  OutboxEvent[]
+  coupons       Coupon[]
 }
 
 model User {
@@ -280,6 +281,8 @@ model Order {
   payments        Payment[]
   timeline        OrderTimeline[]
   fulfillment     Fulfillment?
+  couponCode      String?
+  redemption      CouponRedemption?
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -424,4 +427,45 @@ model Fulfillment {
   order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([storeId, trackingCode])
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+  FREE_SHIPPING
+}
+
+model Coupon {
+  id                String             @id @default(uuid())
+  storeId           String
+  code              String
+  description       String?
+  type              CouponType
+  value             Decimal            @default(0) @db.Decimal(14, 2)
+  minSubtotal       Decimal?           @db.Decimal(14, 2)
+  maxUses           Int?
+  usedCount         Int                @default(0)
+  oncePerCustomer   Boolean            @default(false)
+  startsAt          DateTime?
+  endsAt            DateTime?
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  store             Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  redemptions       CouponRedemption[]
+
+  @@unique([storeId, code])
+}
+
+model CouponRedemption {
+  id         String   @id @default(uuid())
+  couponId   String
+  orderId    String   @unique
+  customerId String?
+  amount     Decimal  @db.Decimal(14, 2)
+  createdAt  DateTime @default(now())
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([couponId, customerId])
 }
