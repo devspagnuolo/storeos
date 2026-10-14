@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsInt, IsObject, IsString, Max, MaxLength, Min } from 'class-validator';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
@@ -24,6 +24,10 @@ export class StorefrontController {
   @Get()
   @ApiOperation({ summary: 'Consultar rascunho privado, versão atual e histórico da loja autenticada' })
   get(@CurrentStore() storeId: string) { return this.storefront.get(storeId); }
+
+  @Get('publications/:id')
+  @ApiOperation({ summary: 'Consultar a configuração de uma publicação (para comparar versões)' })
+  publication(@CurrentStore() storeId: string, @Param('id') id: string) { return this.storefront.getPublication(storeId, id); }
 
   @Patch('draft')
   @ApiOperation({ summary: 'Salvar rascunho sem alterar a vitrine pública; 409 se a versão mudou' })

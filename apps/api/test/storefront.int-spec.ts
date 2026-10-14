@@ -102,3 +102,55 @@ describe('guia de configuração', () => {
     expect(after.completed).toBe(before.completed + 2);
   });
 });
+
+describe('editor visual: seções e tema', () => {
+  const sections = [
+    { id: 'hero-1', type: 'hero', props: { title: 'Outono' } },
+    { id: 'prod-1', type: 'products', props: { limit: 4 } },
+    { id: 'vid-1', type: 'video', props: { url: 'https://youtu.be/dQw4w9WgXcQ' } },
+  ];
+
+  it('mantém seções e tema em rascunho privado até publicar, e compara versões', async () => {
+    const { store } = await createStore();
+    const token = await login(api, store, ['settings.write']);
+    const config = { accentColor: '#E11D74', design: { preset: 'moderno', font: 'serif' }, home: { sections } };
+    expect((await api('/store/storefront/draft', { method: 'PATCH', token, body: { version: 0, config } })).status).toBe(200);
+    const pub1 = (await api('/store/public/' + store.slug)).body;
+    expect(pub1.themeConfig.home).toBeUndefined();
+
+    const reordered = { ...config, home: { sections: [sections[1], sections[0], { ...sections[2], hidden: true }] } };
+    expect((await api('/store/storefront/publish', { method: 'POST', token, body: { version: 1, config: reordered } })).status).toBe(200);
+    const live = (await api('/store/public/' + store.slug)).body.themeConfig;
+    expect(live.home.sections.map((s: { id: string; hidden: boolean }) => s.id)).toEqual(['prod-1', 'hero-1', 'vid-1']);
+    expect(live.home.sections[2]).toMatchObject({ hidden: true, props: { provider: 'youtube', videoId: 'dQw4w9WgXcQ' } });
+    expect(live.design).toEqual({ preset: 'moderno', font: 'serif' });
+
+    const state = (await api('/store/storefront', { token })).body;
+    const publication = await api('/store/storefront/publications/' + state.publications[0].id, { token });
+    expect(publication.body.config.home.sections[0].id).toBe('prod-1');
+  });
+
+  it.each([
+    ['tipo de seção desconhecido', { home: { sections: [{ id: 'a', type: 'html', props: { html: '<script>alert(1)</script>' } }] } }],
+    ['propriedade fora da lista', { home: { sections: [{ id: 'a', type: 'text', props: { body: 'oi', onclick: 'x' } }] } }],
+    ['imagem por http', { home: { sections: [{ id: 'a', type: 'image', props: { imageUrl: 'http://x.com/a.png' } }] } }],
+    ['link javascript', { home: { sections: [{ id: 'a', type: 'image', props: { imageUrl: '/a.png', href: 'javascript:alert(1)' } }] } }],
+    ['vídeo de outro site', { home: { sections: [{ id: 'a', type: 'video', props: { url: 'https://evil.example/v' } }] } }],
+    ['CSS livre no visual', { design: { css: 'body{display:none}' } }],
+    ['contraste ilegível', { design: { textColor: '#EEEEEE', backgroundColor: '#FFFFFF' } }],
+  ])('recusa %s', async (_, config) => {
+    const { store } = await createStore();
+    const token = await login(api, store, ['settings.write']);
+    expect((await api('/store/storefront/draft', { method: 'PATCH', token, body: { version: 0, config } })).status).toBe(400);
+    expect((await api('/store/storefront/publish', { method: 'POST', token, body: { version: 0, config } })).status).toBe(400);
+  });
+
+  it('não expõe publicações de outra loja', async () => {
+    const first = await createStore();
+    const second = await createStore();
+    const token = await login(api, first.store, ['settings.write']);
+    const other = await prisma.storefrontPublication.create({ data: { storeId: second.store.id, version: 1, config: { heroTitle: 'Outra' } } });
+    expect((await api('/store/storefront/publications/' + other.id, { token })).status).toBe(404);
+    expect((await api('/store/storefront/publications/' + other.id)).status).toBe(401);
+  });
+});

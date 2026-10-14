@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { sanitizeDesign, sanitizeSections, type HomeSection, type StorefrontDesign } from './storefront-sections';
 
 export type StorefrontConfig = {
   announcementText?: string;
@@ -7,9 +8,11 @@ export type StorefrontConfig = {
   heroCta?: string;
   heroImageUrl?: string | null;
   accentColor?: string;
+  design?: StorefrontDesign;
+  home?: { sections: HomeSection[] };
 };
 
-const allowedKeys = new Set(['announcementText', 'heroTitle', 'heroDescription', 'heroCta', 'heroImageUrl', 'accentColor']);
+const allowedKeys = new Set(['announcementText', 'heroTitle', 'heroDescription', 'heroCta', 'heroImageUrl', 'accentColor', 'design', 'home']);
 const textLimits: Record<string, number> = {
   announcementText: 100,
   heroTitle: 120,
@@ -54,6 +57,13 @@ export function sanitizeStorefrontConfig(input: unknown): StorefrontConfig {
       throw new BadRequestException('Escolha uma cor hexadecimal válida.');
     }
     result.accentColor = values.accentColor.toUpperCase();
+  }
+  if (values.design !== undefined) result.design = sanitizeDesign(values.design);
+  if (values.home !== undefined) {
+    if (!values.home || typeof values.home !== 'object' || Array.isArray(values.home)) throw new BadRequestException('Configuração da página inicial inválida.');
+    const home = values.home as Record<string, unknown>;
+    for (const key of Object.keys(home)) if (key !== 'sections') throw new BadRequestException(`Campo da página inicial não permitido: ${key}.`);
+    result.home = { sections: sanitizeSections(home.sections) };
   }
   return result;
 }

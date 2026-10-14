@@ -55,6 +55,12 @@ export class StorefrontService {
     return this.save(storeId, version, publication.config, false, actorId);
   }
 
+  async getPublication(storeId: string, id: string) {
+    const publication = await this.prisma.storefrontPublication.findFirst({ where: { id, storeId }, select: { id: true, version: true, config: true, createdAt: true } });
+    if (!publication) throw new NotFoundException('Publicação não encontrada nesta loja.');
+    return publication;
+  }
+
   async legacyPublish(storeId: string, input: unknown, actorId: string) {
     const store = await this.prisma.store.findUniqueOrThrow({ where: { id: storeId } });
     const current = store.themeConfig;
