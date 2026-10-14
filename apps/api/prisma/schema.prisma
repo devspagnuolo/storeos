@@ -245,6 +245,11 @@ model Customer {
   storeId   String
   email     String
   name      String
+  phone     String?
+  notes     String?
+  tags      String[]  @default([])
+  marketingOptIn Boolean @default(false)
+  anonymizedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
