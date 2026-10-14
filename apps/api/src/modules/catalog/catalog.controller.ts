@@ -1,11 +1,12 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ProductStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUrl, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUrl, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { CatalogService } from './catalog.service';
+import { ProductImportService } from './product-import.service';
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 class CreateProductDto {
   @IsString() @Length(2, 160) name!: string;
@@ -62,10 +63,13 @@ class CreateCollectionDto { @IsString() @Length(2, 80) name!: string; @Matches(S
 class UpdateCollectionDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) @MaxLength(80) slug?: string; @IsOptional() @IsString() @MaxLength(500) description?: string; @IsOptional() @IsBoolean() active?: boolean; @IsOptional() @IsInt() position?: number; @IsOptional() @IsArray() @ArrayMaxSize(2000) @IsString({ each: true }) skus?: string[]; }
 class ProductQueryDto { @IsString() store!: string; @IsOptional() @IsString() category?: string; @IsOptional() @IsString() brand?: string; @IsOptional() @IsString() collection?: string; @IsOptional() @IsString() @MaxLength(100) q?: string; @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(60) pageSize?: number; }
 class AdminProductQueryDto { @IsOptional() @IsString() @MaxLength(100) q?: string; @IsOptional() @IsEnum(ProductStatus) status?: ProductStatus; @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number; }
+class ImportQueryDto { @IsOptional() @IsIn(['true', 'false']) dryRun?: string; }
 class StoreQueryDto { @IsString() store!: string; }
 @ApiTags('Catalog') @Controller('catalog') export class CatalogController {
-  constructor(private readonly catalog: CatalogService) {}
+  constructor(private readonly catalog: CatalogService, private readonly imports: ProductImportService) {}
   @Get('products') list(@Query() { store, ...query }: ProductQueryDto) { return this.catalog.listPublic(store, query); }
+  @Post('products/import') @HttpCode(200) @RequirePermissions(Permissions.CATALOG_WRITE) importProducts(@CurrentStore() storeId: string, @Body() csv: string, @Query() { dryRun }: ImportQueryDto) { return this.imports.importCsv(storeId, csv, dryRun === 'true'); }
+  @Get('admin/export.csv') @Header('Content-Type', 'text/csv; charset=utf-8') @Header('Content-Disposition', 'attachment; filename="produtos.csv"') @RequirePermissions(Permissions.CATALOG_WRITE) exportProducts(@CurrentStore() storeId: string) { return this.imports.exportCsv(storeId); }
   @Get('products/:slug') product(@Query() { store }: StoreQueryDto, @Param('slug') slug: string) { return this.catalog.bySlug(store, slug); }
   @Get('brands') brands(@Query() { store }: StoreQueryDto) { return this.catalog.brands(store); }
   @Get('collections') collections(@Query() { store }: StoreQueryDto) { return this.catalog.collections(store); }

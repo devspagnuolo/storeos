@@ -511,3 +511,21 @@ export async function resetMenuAction(form: FormData) {
   await adminFetch(`/content/admin/menus/${key}`, { method: 'DELETE' });
   revalidatePath('/', 'layout');
 }
+
+export type ImportState = { error?: string; report?: import('../../lib/admin/types').ImportReport };
+
+/** Envia a planilha de produtos (CSV) para a API; "check" só confere, "import" grava. */
+export async function importProductsAction(_: ImportState, form: FormData): Promise<ImportState> {
+  const file = form.get('file');
+  if (!(file instanceof File) || !file.size) return { error: 'Escolha o arquivo CSV da planilha.' };
+  if (file.size > 3_500_000) return { error: 'O arquivo passa de 3,5 MB. Divida a planilha em partes menores.' };
+  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+  if (!token) redirect('/admin/login');
+  const dryRun = String(form.get('mode')) !== 'import';
+  const response = await fetch(`${serverApiUrl}/catalog/products/import?dryRun=${dryRun}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'text/csv' }, body: await file.text(), cache: 'no-store' });
+  if (response.status === 401) redirect('/admin/login');
+  const body = await response.json().catch(() => undefined);
+  if (!response.ok) return { error: (Array.isArray(body?.message) ? body.message.join('; ') : body?.message) || 'Não foi possível ler a planilha.' };
+  if (!dryRun) { revalidatePath('/admin/produtos'); revalidatePath('/', 'layout'); }
+  return { report: body };
+}
