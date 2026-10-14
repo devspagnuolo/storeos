@@ -21,6 +21,15 @@ export function ProductForm({ product, categories, brands, created }: { product?
         <label className="text-sm font-medium sm:col-span-2">Descrição<textarea name="description" rows={5} maxLength={5000} defaultValue={product?.description ?? ''} className="input" /></label>
         <label className="text-sm font-medium">Marca<select name="brandId" defaultValue={product?.brandId ?? ''} className="input"><option value="">Sem marca</option>{brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
         <div className="hidden sm:block" />
+        <fieldset className="sm:col-span-2">
+          <legend className="text-sm font-medium">Peso e medidas da embalagem <span className="font-normal text-slate-400">(para calcular o frete nos Correios e transportadoras)</span></legend>
+          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <label className="text-sm">Peso (g)<input name="weightGrams" inputMode="numeric" defaultValue={product?.weightGrams ?? ''} placeholder="300" className="input" /></label>
+            <label className="text-sm">Largura (cm)<input name="widthCm" inputMode="numeric" defaultValue={product?.widthCm ?? ''} placeholder="20" className="input" /></label>
+            <label className="text-sm">Altura (cm)<input name="heightCm" inputMode="numeric" defaultValue={product?.heightCm ?? ''} placeholder="5" className="input" /></label>
+            <label className="text-sm">Comprimento (cm)<input name="lengthCm" inputMode="numeric" defaultValue={product?.lengthCm ?? ''} placeholder="25" className="input" /></label>
+          </div>
+        </fieldset>
         <label className="text-sm font-medium sm:col-span-2">Título para o Google <span className="font-normal text-slate-400">(até 70 caracteres)</span><input name="seoTitle" maxLength={70} defaultValue={product?.seoTitle ?? ''} className="input" /></label>
         <label className="text-sm font-medium sm:col-span-2">Descrição para o Google <span className="font-normal text-slate-400">(até 160)</span><textarea name="seoDescription" rows={2} maxLength={160} defaultValue={product?.seoDescription ?? ''} className="input" /></label>
         <label className="text-sm font-medium sm:col-span-2">URL da imagem principal<input name="imageUrl" type="url" defaultValue={product?.images[0]?.url ?? ''} placeholder="https://" className="input" /></label>

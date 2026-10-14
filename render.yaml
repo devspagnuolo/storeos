@@ -43,6 +43,15 @@ services:
         sync: false
       - key: API_PUBLIC_URL
         sync: false
+      # E-mails transacionais (Resend) e cotação de frete (Melhor Envio): vazios = modo simulado / só regras da loja.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MELHOR_ENVIO_TOKEN
+        sync: false
+      - key: SHIPPING_ORIGIN_ZIP
+        sync: false
       - key: SWAGGER_ENABLED
         value: "false"
       # Cloudflare R2: configure no serviço API e sincronize o Blueprint após criar o bucket.

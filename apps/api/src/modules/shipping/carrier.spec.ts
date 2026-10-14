@@ -1,0 +1,49 @@
+import { money } from '../../shared/money/money';
+import { buildPackages, DEFAULT_PACKAGE } from './carrier';
+import { MelhorEnvioClient } from './melhor-envio.client';
+
+describe('pacotes para transportadoras', () => {
+  it('usa as medidas do produto e cai no padrão quando faltam', () => {
+    const products = [
+      { id: 'a', price: money('99.90'), weightGrams: 450, widthCm: 30, heightCm: 6, lengthCm: 35 },
+      { id: 'b', price: '50.00', weightGrams: null, widthCm: null, heightCm: null, lengthCm: null },
+    ];
+    const [a, b] = buildPackages([{ productId: 'a', quantity: 2 }, { productId: 'b', quantity: 1 }], products);
+    expect(a).toMatchObject({ weightKg: 0.45, widthCm: 30, heightCm: 6, lengthCm: 35, unitValue: 99.9, quantity: 2 });
+    expect(b).toMatchObject({ weightKg: DEFAULT_PACKAGE.weightGrams / 1000, widthCm: DEFAULT_PACKAGE.widthCm, unitValue: 50 });
+  });
+});
+
+describe('MelhorEnvioClient', () => {
+  const original = { ...process.env };
+  afterEach(() => { process.env = { ...original }; jest.restoreAllMocks(); });
+
+  it('só fica ativo com token e CEP de origem', () => {
+    delete process.env.MELHOR_ENVIO_TOKEN; delete process.env.SHIPPING_ORIGIN_ZIP;
+    expect(new MelhorEnvioClient().enabled).toBe(false);
+    process.env.MELHOR_ENVIO_TOKEN = 't';
+    expect(new MelhorEnvioClient().enabled).toBe(false);
+    process.env.SHIPPING_ORIGIN_ZIP = '09015-000';
+    expect(new MelhorEnvioClient().enabled).toBe(true);
+  });
+
+  it('converte a resposta, ignora serviços com erro e usa o preço personalizado', async () => {
+    process.env.MELHOR_ENVIO_TOKEN = 't';
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify([
+      { id: 1, name: 'PAC', price: '25.00', custom_price: '22.50', delivery_range: { min: 5, max: 8 }, company: { name: 'Correios' } },
+      { id: 2, name: 'SEDEX', price: '45.10', delivery_time: 2, company: { name: 'Correios' } },
+      { id: 3, name: '.Package', error: 'Serviço indisponível', company: { name: 'Jadlog' } },
+    ])));
+    const offers = await new MelhorEnvioClient().quote({ fromZip: '09015000', toZip: '01310100', packages: [{ id: 'p', widthCm: 20, heightCm: 5, lengthCm: 25, weightKg: 0.3, unitValue: 80, quantity: 2 }] });
+    expect(offers.map(o => [o.id, o.name, o.price.toFixed(2), o.minDays, o.maxDays])).toEqual([['me:1', 'Correios PAC', '22.50', 5, 8], ['me:2', 'Correios SEDEX', '45.10', 2, 2]]);
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://melhorenvio.com.br/api/v2/me/shipment/calculate');
+    expect(JSON.parse(init.body as string)).toMatchObject({ from: { postal_code: '09015000' }, to: { postal_code: '01310100' }, products: [{ id: 'p', weight: 0.3, insurance_value: 80, quantity: 2 }] });
+  });
+
+  it('propaga falha HTTP para o serviço decidir o que fazer', async () => {
+    process.env.MELHOR_ENVIO_TOKEN = 't';
+    jest.spyOn(global, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }));
+    await expect(new MelhorEnvioClient().quote({ fromZip: '1', toZip: '2', packages: [] })).rejects.toThrow('500');
+  });
+});

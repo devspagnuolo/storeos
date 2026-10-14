@@ -16,3 +16,11 @@ describe('shippingOptions', () => {
     expect(shippingOptions(rules, 'SP', money(200))[0]).toMatchObject({ free: true, price: money(0) });
   });
 });
+
+describe('frete grátis exclusivo', () => {
+  it('só oferece a regra quando o frete grátis é atingido', () => {
+    const rules = [rule({ id: 'gratis', price: money(0), freeAbove: money(350), freeOnly: true }), rule({ id: 'pac' })];
+    expect(shippingOptions(rules, 'SP', money('349.99')).map(o => o.id)).toEqual(['pac']);
+    expect(shippingOptions(rules, 'SP', money(350)).map(o => o.id)).toEqual(['gratis', 'pac']);
+  });
+});

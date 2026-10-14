@@ -10,10 +10,10 @@ export type OrderDetail = Omit<OrderRow, 'payments' | '_count'> & {
 };
 export type Summary = { days: number; revenue: string; paidOrders: number; averageTicket: string; orders: number; awaitingPayment: number; paymentRate: number; lowStockProducts: number };
 export type AdminVariant = { id: string; sku: string; price: string | null; attributes: { name: string; value: string }[]; stock: number; reserved: number; active: boolean };
-export type AdminProduct = { variants?: AdminVariant[]; id: string; name: string; slug: string; sku: string; price: string; status: string; description: string | null; stock: number; reserved: number; images: { url: string }[]; categoryIds?: string[]; brandId?: string | null; seoTitle?: string | null; seoDescription?: string | null; updatedAt: string };
+export type AdminProduct = { variants?: AdminVariant[]; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; id: string; name: string; slug: string; sku: string; price: string; status: string; description: string | null; stock: number; reserved: number; images: { url: string }[]; categoryIds?: string[]; brandId?: string | null; seoTitle?: string | null; seoDescription?: string | null; updatedAt: string };
 export type AdminProductPage = { items: AdminProduct[]; total: number; page: number; pageSize: number };
 
-export type ShippingRule = { id: string; name: string; states: string[]; price: string; freeAbove: string | null; minDays: number; maxDays: number; active: boolean; position: number };
+export type ShippingRule = { id: string; name: string; states: string[]; price: string; freeAbove: string | null; freeOnly: boolean; minDays: number; maxDays: number; active: boolean; position: number };
 
 export type AuditRow = { id: string; action: string; entity: string | null; entityId: string | null; outcome: 'SUCCESS' | 'DENIED' | 'FAILURE'; statusCode: number | null; ip: string | null; userAgent: string | null; createdAt: string; metadata: Record<string, unknown> | null; actor: { id: string; name: string; email: string } | null };
 export type AuditPage = { items: AuditRow[]; total: number; page: number; pageSize: number };

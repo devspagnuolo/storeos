@@ -19,6 +19,7 @@ class CreateRuleDto {
   @IsOptional() @IsArray() @IsIn(STATES, { each: true }) states?: string[];
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100_000) price!: number;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) freeAbove?: number | null;
+  @IsOptional() @IsBoolean() freeOnly?: boolean;
   @IsInt() @Min(0) @Max(120) minDays!: number;
   @IsInt() @Min(0) @Max(120) maxDays!: number;
   @IsOptional() @IsBoolean() active?: boolean;
@@ -29,6 +30,7 @@ class UpdateRuleDto {
   @IsOptional() @IsArray() @IsIn(STATES, { each: true }) states?: string[];
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100_000) price?: number;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) freeAbove?: number | null;
+  @IsOptional() @IsBoolean() freeOnly?: boolean;
   @IsOptional() @IsInt() @Min(0) @Max(120) minDays?: number;
   @IsOptional() @IsInt() @Min(0) @Max(120) maxDays?: number;
   @IsOptional() @IsBoolean() active?: boolean;
@@ -38,6 +40,8 @@ class UpdateRuleDto {
 @ApiTags('Shipping') @Controller('shipping') export class ShippingController {
   constructor(private readonly shipping: ShippingService) {}
   @Post('quote') @HttpCode(200) @Throttle({ default: { limit: 60, ttl: 60_000 } }) quote(@Body() dto: QuoteDto) { return this.shipping.quote(dto.storeSlug, dto.zipCode, dto.items); }
+  /** Painel: mostra se a cotação em transportadoras está ligada. */
+  @Get('carrier') @RequirePermissions(Permissions.SETTINGS_WRITE) carrierStatus() { return this.shipping.carrierStatus(); }
   @Get('rules') @RequirePermissions(Permissions.SETTINGS_WRITE) list(@CurrentStore() storeId: string) { return this.shipping.list(storeId); }
   @Post('rules') @RequirePermissions(Permissions.SETTINGS_WRITE) create(@CurrentStore() storeId: string, @Body() dto: CreateRuleDto) { return this.shipping.create(storeId, dto); }
   @Patch('rules/:id') @RequirePermissions(Permissions.SETTINGS_WRITE) update(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdateRuleDto) { return this.shipping.update(storeId, id, dto); }
