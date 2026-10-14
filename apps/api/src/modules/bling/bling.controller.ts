@@ -73,6 +73,9 @@ export class BlingController {
   @Post('orders/:number/invoice') @HttpCode(202) @RequirePermissions(Permissions.ORDERS_WRITE)
   requestInvoice(@CurrentStore() storeId: string, @Param('number') number: string) { return this.invoices.request(storeId, number); }
 
+  @Get('orders/:number/invoice') @RequirePermissions(Permissions.ORDERS_READ)
+  findInvoice(@CurrentStore() storeId: string, @Param('number') number: string) { return this.invoices.findForOrder(storeId, number); }
+
   @Post('invoice-settings/automatic') @HttpCode(200) @RequirePermissions(Permissions.SETTINGS_WRITE)
   setAutomaticInvoice(@CurrentStore() storeId: string, @Body('enabled') enabled: unknown) {
     if (typeof enabled !== 'boolean') throw new BadRequestException('Informe enabled como true ou false');
