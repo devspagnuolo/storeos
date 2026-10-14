@@ -4,9 +4,9 @@ import { pointsForOrder } from './tiers';
 type Tx = Prisma.TransactionClient;
 
 /** Credita os pontos do pedido pago. A chave única (pedido, tipo) torna a operação idempotente. */
-export async function earnForOrder(tx: Tx, order: { id: string; storeId: string; customerId: string | null; subtotal: Prisma.Decimal; discount: Prisma.Decimal; number: string }) {
+export async function earnForOrder(tx: Tx, order: { id: string; storeId: string; customerId: string | null; subtotal: Prisma.Decimal; discount: Prisma.Decimal; promotionDiscount?: Prisma.Decimal; number: string }) {
   if (!order.customerId) return;
-  const points = pointsForOrder(order.subtotal, order.discount);
+  const points = pointsForOrder(order.subtotal, order.discount.plus(order.promotionDiscount ?? 0));
   if (!points) return;
   await tx.loyaltyEntry.upsert({
     where: { orderId_type: { orderId: order.id, type: LoyaltyEntryType.EARN } },

@@ -23,7 +23,7 @@ const groups: { label: string; items: [href: string, label: string, icon: Icon][
   { label: 'Hoje', items: [['/painel', 'Visão geral', 'home'], ['/painel/primeiros-passos', 'Primeiros passos', 'flag']] },
   { label: 'Vendas', items: [['/painel/pedidos', 'Pedidos', 'orders'], ['/painel/clientes', 'Clientes', 'users'], ['/painel/relatorios', 'Relatórios', 'chart']] },
   { label: 'Catálogo', items: [['/painel/produtos', 'Produtos', 'products'], ['/painel/categorias', 'Categorias', 'tag'], ['/painel/colecoes', 'Coleções e marcas', 'tag']] },
-  { label: 'Loja', items: [['/painel/cupons', 'Cupons', 'tag'], ['/painel/site', 'Personalizar loja', 'palette'], ['/painel/paginas', 'Páginas', 'doc'], ['/painel/emails', 'E-mails', 'doc'], ['/painel/frete', 'Entregas', 'truck'], ['/painel/pagamentos', 'Pagamentos', 'card']] },
+  { label: 'Loja', items: [['/painel/cupons', 'Cupons', 'tag'], ['/painel/promocoes', 'Promoções', 'tag'], ['/painel/site', 'Personalizar loja', 'palette'], ['/painel/paginas', 'Páginas', 'doc'], ['/painel/emails', 'E-mails', 'doc'], ['/painel/frete', 'Entregas', 'truck'], ['/painel/pagamentos', 'Pagamentos', 'card']] },
   { label: 'Sistema', items: [['/painel/configuracoes', 'Configurações', 'gear'], ['/painel/seguranca', 'Segurança', 'shield'], ['/painel/auditoria', 'Auditoria', 'shield']] },
 ];
 

@@ -20,7 +20,7 @@ export class AnalyticsService {
         FROM "Order" WHERE "storeId" = ${storeId} AND "createdAt" >= ${start} AND "createdAt" < ${end} AND "status" IN (${paidList})
         GROUP BY 1 ORDER BY 1`,
       this.prisma.$queryRaw<{ revenue: Prisma.Decimal | null; orders: bigint; discount: Prisma.Decimal | null; shipping: Prisma.Decimal | null; customers: bigint }[]>`
-        SELECT SUM("total") AS revenue, COUNT(*) AS orders, SUM("discount") AS discount, SUM("shipping") AS shipping, COUNT(DISTINCT "customerId") AS customers
+        SELECT SUM("total") AS revenue, COUNT(*) AS orders, SUM("discount" + "promotionDiscount") AS discount, SUM("shipping") AS shipping, COUNT(DISTINCT "customerId") AS customers
         FROM "Order" WHERE "storeId" = ${storeId} AND "createdAt" >= ${start} AND "createdAt" < ${end} AND "status" IN (${paidList})`,
       this.prisma.$queryRaw<{ sku: string; name: string; quantity: bigint; revenue: Prisma.Decimal }[]>`
         SELECT i."sku", MAX(i."name") AS name, SUM(i."quantity") AS quantity, SUM(i."total") AS revenue

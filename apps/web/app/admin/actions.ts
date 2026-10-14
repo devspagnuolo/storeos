@@ -423,3 +423,32 @@ export async function deleteCategoryAction(form: FormData) {
   await adminFetch(`/catalog/categories/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
   revalidatePath('/admin/categorias');
 }
+
+export async function createPromotionAction(_: FormState, form: FormData): Promise<FormState> {
+  const num = (name: string) => { const raw = String(form.get(name) ?? '').trim().replace(',', '.'); return raw ? Number(raw) : undefined; };
+  const date = (name: string) => { const raw = String(form.get(name) ?? ''); return raw ? new Date(raw).toISOString() : undefined; };
+  const type = String(form.get('type'));
+  try {
+    await adminFetch('/promotions', { method: 'POST', body: {
+      name: String(form.get('name') ?? '').trim(), type,
+      value: type === 'BUY_X_PAY_Y' ? undefined : num('value'), buyQty: type === 'BUY_X_PAY_Y' ? num('buyQty') : undefined, payQty: type === 'BUY_X_PAY_Y' ? num('payQty') : undefined,
+      minSubtotal: type === 'CART_PERCENT' ? num('minSubtotal') : undefined, skus: type === 'CART_PERCENT' ? undefined : skuList(form.get('skus')),
+      startsAt: date('startsAt'), endsAt: date('endsAt'),
+    } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/promocoes');
+  return { ok: 'Promoção criada e já ativa na loja.' };
+}
+
+export async function togglePromotionAction(form: FormData) {
+  await adminFetch(`/promotions/${encodeURIComponent(String(form.get('id')))}`, { method: 'PATCH', body: { active: form.get('active') === 'true' } });
+  revalidatePath('/admin/promocoes');
+}
+
+export async function deletePromotionAction(form: FormData) {
+  await adminFetch(`/promotions/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/promocoes');
+}

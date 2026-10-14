@@ -12,6 +12,7 @@ import { mergeItems, priceOrderLines } from '../orders/order-lines';
 import { OrderItemDto } from '../orders/orders.controller';
 import { ProductStatus } from '@prisma/client';
 import { CouponsService } from './coupons.service';
+import { PromotionsService } from './promotions.service';
 
 class CreateCouponDto {
   @IsString() @Length(3, 32) @Matches(/^[A-Za-z0-9_-]+$/) code!: string;
@@ -42,7 +43,7 @@ class PreviewDto {
 }
 
 @ApiTags('Coupons') @Controller('coupons') export class CouponsController {
-  constructor(private readonly coupons: CouponsService, private readonly prisma: PrismaService) {}
+  constructor(private readonly coupons: CouponsService, private readonly promotions: PromotionsService, private readonly prisma: PrismaService) {}
   @Get() @RequirePermissions(Permissions.MARKETING_WRITE) list(@CurrentStore() storeId: string) { return this.coupons.list(storeId); }
   @Post() @RequirePermissions(Permissions.MARKETING_WRITE) create(@CurrentStore() storeId: string, @Body() dto: CreateCouponDto) { return this.coupons.create(storeId, dto); }
   @Patch(':id') @RequirePermissions(Permissions.MARKETING_WRITE) update(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdateCouponDto) { return this.coupons.update(storeId, id, dto); }
@@ -52,7 +53,9 @@ class PreviewDto {
     const store = await this.prisma.store.findUnique({ where: { slug: dto.storeSlug } });
     if (!store) throw new NotFoundException('Loja não encontrada');
     const products = await this.prisma.product.findMany({ where: { storeId: store.id, id: { in: dto.items.map(i => i.productId) }, status: ProductStatus.ACTIVE } });
-    const { subtotal } = priceOrderLines(mergeItems(dto.items), products);
-    return this.coupons.preview(store.id, dto.code, subtotal, money(dto.shipping ?? 0));
+    const { lines, subtotal } = priceOrderLines(mergeItems(dto.items), products);
+    // Mesma ordem do checkout: promoções automáticas primeiro, cupom sobre o restante.
+    const { discount } = await this.promotions.evaluate(this.prisma, store.id, lines);
+    return this.coupons.preview(store.id, dto.code, subtotal.minus(discount), money(dto.shipping ?? 0));
   }
 }
