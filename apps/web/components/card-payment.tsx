@@ -1,9 +1,10 @@
 'use client';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { formatPrice } from '../lib/format';
-import { formatCardNumber, formatExpiry, loadMercadoPago, onlyDigits, parseExpiry } from '../lib/payment';
+import { formatCardNumber, formatExpiry, installmentCount, loadMercadoPago, onlyDigits, parseExpiry, PaymentConfig } from '../lib/payment';
 
-export type CardPayload = { token: string; paymentMethodId: string; installments: number; issuerId?: string };
+/** Mercado Pago devolve um token; a Rede não tokeniza no navegador, então segue o cartão, só em trânsito e nunca gravado. */
+export type CardPayload = { installments: number; token?: string; paymentMethodId?: string; issuerId?: string; number?: string; holder?: string; expMonth?: number; expYear?: number; cvv?: string };
 export type CardPaymentHandle = { tokenize(cpf: string): Promise<CardPayload> };
 type Option = { installments: number; label: string };
 
@@ -13,7 +14,10 @@ const input = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2
  * Campos do cartão. Nenhum deles tem `name`, então nunca são enviados ao nosso servidor:
  * o MP.js troca os dados por um token e só o token segue no pedido.
  */
-export const CardPayment = forwardRef<CardPaymentHandle, { publicKey: string; amount: number; maxInstallments: number; cpf: string }>(function CardPayment({ publicKey, amount, maxInstallments, cpf }, ref) {
+export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<PaymentConfig['card']>; amount: number; cpf: string }>(function CardPayment({ config, amount, cpf }, ref) {
+  const isRede = config.provider === 'rede';
+  const publicKey = config.provider === 'mercadopago' ? config.publicKey : '';
+  const maxInstallments = config.maxInstallments;
   const [number, setNumber] = useState('');
   const [holder, setHolder] = useState('');
   const [expiry, setExpiry] = useState('');
@@ -25,10 +29,11 @@ export const CardPayment = forwardRef<CardPaymentHandle, { publicKey: string; am
   const [sdkError, setSdkError] = useState<string>();
   const bin = onlyDigits(number).slice(0, 8);
 
-  useEffect(() => { loadMercadoPago(publicKey).then(instance => { sdk.current = instance; }).catch(e => setSdkError((e as Error).message)); }, [publicKey]);
+  useEffect(() => { if (isRede) return; loadMercadoPago(publicKey).then(instance => { sdk.current = instance; }).catch(e => setSdkError((e as Error).message)); }, [publicKey, isRede]);
 
   // Bandeira, emissor e parcelas dependem do BIN (primeiros dígitos) e do valor do pedido.
   const refreshInstallments = useCallback(async () => {
+    if (isRede) return;
     if (!sdk.current || bin.length < 6) return;
     try {
       const methods = await sdk.current.getPaymentMethods({ bin: bin.slice(0, 6) });
@@ -44,7 +49,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { publicKey: string; am
     } catch {
       // Sem as opções do gateway, o cliente ainda pode pagar à vista.
     }
-  }, [bin, amount, maxInstallments]);
+  }, [bin, amount, maxInstallments, isRede]);
 
   useEffect(() => { void refreshInstallments(); }, [refreshInstallments]);
 
@@ -52,6 +57,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { publicKey: string; am
     async tokenize(cpfValue: string) {
       const valid = parseExpiry(expiry);
       if (onlyDigits(number).length < 13 || !holder.trim() || !valid || cvv.length < 3) throw new Error('Confira os dados do cartão.');
+      if (isRede) return { number: onlyDigits(number), holder: holder.trim(), expMonth: valid.month, expYear: valid.year, cvv, installments };
       if (!sdk.current) throw new Error(sdkError ?? 'O pagamento por cartão ainda está carregando. Tente de novo.');
       if (!method.current) await refreshInstallments();
       if (!method.current) throw new Error('Não reconhecemos este cartão. Confira o número.');
@@ -61,7 +67,15 @@ export const CardPayment = forwardRef<CardPaymentHandle, { publicKey: string; am
       }).catch(() => { throw new Error('Não foi possível validar o cartão. Confira os dados.'); });
       return { token: token.id, paymentMethodId: method.current.id, issuerId: method.current.issuerId, installments };
     },
-  }), [number, holder, expiry, cvv, installments, sdkError, cpf, refreshInstallments]);
+  }), [number, holder, expiry, cvv, installments, sdkError, cpf, refreshInstallments, isRede]);
+
+  // Rede: parcelas sem juros, calculadas aqui; o servidor aplica o mesmo limite.
+  useEffect(() => {
+    if (config.provider !== 'rede') return;
+    const count = installmentCount(amount, config.maxInstallments, config.minInstallment);
+    setOptions(Array.from({ length: count }, (_, i) => ({ installments: i + 1, label: `${i + 1}x de ${formatPrice(amount / (i + 1))} sem juros` })));
+    setInstallments(current => Math.min(current, count));
+  }, [config, amount]);
 
   return (
     <div className="mt-3 grid gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
@@ -83,7 +97,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { publicKey: string; am
           {options.map(option => <option key={option.installments} value={option.installments}>{option.label}</option>)}
         </select>
       </label>
-      <p className="text-xs text-slate-500 sm:col-span-2">Pagamento processado pelo Mercado Pago. Os dados do cartão não passam pelo nosso servidor.</p>
+      <p className="text-xs text-slate-500 sm:col-span-2">{isRede ? 'Pagamento processado pela Rede. Os dados do cartão são enviados com segurança e não ficam guardados.' : 'Pagamento processado pelo Mercado Pago. Os dados do cartão não passam pelo nosso servidor.'}</p>
     </div>
   );
 });

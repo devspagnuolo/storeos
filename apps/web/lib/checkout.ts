@@ -17,7 +17,7 @@ export type CheckoutResult = {
 };
 
 /** Envia o pedido direto do navegador para a API; o rate limit da API considera o IP de cada cliente. */
-export async function submitCheckout(form: CheckoutForm, items: CartItem[], card?: { token: string; paymentMethodId: string; installments: number; issuerId?: string }): Promise<CheckoutResult> {
+export async function submitCheckout(form: CheckoutForm, items: CartItem[], card?: import('../components/card-payment').CardPayload): Promise<CheckoutResult> {
   const { name, email, paymentMethod, shippingRuleId, couponCode, cpf, ...address } = form;
   const response = await fetch(`${apiUrl}/checkout`, {
     method: 'POST',

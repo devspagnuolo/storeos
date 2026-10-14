@@ -36,3 +36,34 @@ const DECLINES: Record<string, string> = {
 
 /** Mensagem amigável para um cartão recusado; o detalhe técnico do gateway nunca vai ao cliente. */
 export const declineMessage = (detail?: string | null) => (detail && DECLINES[detail]) || 'O cartão foi recusado. Confira os dados ou use outro meio de pagamento.';
+
+/** Algoritmo de Luhn: pega número de cartão digitado errado antes de gastar uma chamada ao adquirente. */
+export function isValidCardNumber(value: string) {
+  const digits = onlyDigits(value);
+  if (digits.length < 13 || digits.length > 19) return false;
+  let sum = 0;
+  [...digits].reverse().forEach((char, index) => {
+    let digit = Number(char);
+    if (index % 2 === 1) { digit *= 2; if (digit > 9) digit -= 9; }
+    sum += digit;
+  });
+  return sum % 10 === 0;
+}
+
+const REDE_DECLINES: Record<string, string> = {
+  '51': 'Saldo ou limite insuficiente no cartão.',
+  '54': 'Cartão vencido. Confira a validade.',
+  '14': 'Confira o número do cartão.',
+  '82': 'Confira o código de segurança do cartão.',
+  '57': 'Cartão sem permissão para esta compra. Fale com o banco ou use outro.',
+  '62': 'Cartão restrito. Fale com o banco ou use outro.',
+  '65': 'Limite de compras do cartão excedido hoje.',
+};
+
+/** Traduz o código de retorno da Rede; códigos desconhecidos viram a mensagem genérica de recusa. */
+export const redeDeclineMessage = (code?: string | null) => (code && REDE_DECLINES[code]) || 'O cartão foi recusado. Confira os dados ou use outro meio de pagamento.';
+
+/** Parcelas sem juros: valor mínimo por parcela, para o cliente não parcelar R$ 30 em 12x. */
+export function installmentCount(total: number, max: number, minInstallment = Number(process.env.REDE_MIN_INSTALLMENT ?? 5)) {
+  return Math.max(1, Math.min(max, Math.floor(total / Math.max(minInstallment, 0.01))));
+}

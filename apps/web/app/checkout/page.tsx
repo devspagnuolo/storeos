@@ -86,6 +86,8 @@ export default function CheckoutPage() {
   const shipping = chosen ? Number(chosen.price) : 0;
   const promoDiscount = promo ? Number(promo.discount) : 0;
   const discount = coupon?.discount ?? 0;
+  // O Mercado Pago exige o CPF no cartão e no boleto; a Rede não pede.
+  const needsCpf = (method === 'BOLETO' && Boolean(payConfig?.boleto)) || (method === 'CREDIT_CARD' && payConfig?.card?.provider === 'mercadopago');
   const blocked = Boolean(quote?.required && !quote.options.length);
 
   async function applyCoupon(code = couponInput) {
@@ -111,9 +113,7 @@ export default function CheckoutPage() {
     setError(undefined);
     try {
       const form = Object.fromEntries(new FormData(event.currentTarget)) as unknown as CheckoutForm;
-      const needsCpf = method !== 'PIX' && Boolean(payConfig?.card);
-      if (method === 'CREDIT_CARD' && !isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
-      if (needsCpf && method === 'BOLETO' && cpf && !isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
+      if (needsCpf && !isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
       const card = method === 'CREDIT_CARD' ? await cardRef.current?.tokenize(cpf) : undefined;
       setOrder(await submitCheckout({ ...form, paymentMethod: method, cpf: needsCpf ? cpf : undefined, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card));
       clear();
@@ -177,14 +177,14 @@ export default function CheckoutPage() {
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                   <label><input type="radio" name="paymentMethod" value="PIX" checked={method === 'PIX'} onChange={() => setMethod('PIX')} /> PIX</label>
                   {payConfig?.card && <label><input type="radio" name="paymentMethod" value="CREDIT_CARD" checked={method === 'CREDIT_CARD'} onChange={() => setMethod('CREDIT_CARD')} /> Cartão de crédito</label>}
-                  {payConfig?.card && <label><input type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} /> Boleto</label>}
+                  {payConfig?.boleto && <label><input type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} /> Boleto</label>}
                 </div>
-                {payConfig?.card && method !== 'PIX' && (
+                {needsCpf && (
                   <label className="mt-3 block text-sm font-medium">CPF do titular
                     <input value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal sm:max-w-xs" />
                   </label>
                 )}
-                {payConfig?.card && method === 'CREDIT_CARD' && <CardPayment ref={cardRef} publicKey={payConfig.card.publicKey} amount={subtotal - promoDiscount - discount + shipping} maxInstallments={payConfig.card.maxInstallments} cpf={cpf} />}
+                {payConfig?.card && method === 'CREDIT_CARD' && <CardPayment ref={cardRef} config={payConfig.card} amount={subtotal - promoDiscount - discount + shipping} cpf={cpf} />}
               </fieldset>
             </div>
             <aside className="card h-fit p-6">

@@ -26,7 +26,7 @@ export class MercadoPagoProvider implements PaymentProvider {
     const apiUrl = process.env.API_PUBLIC_URL?.replace(/\/$/, '');
     const [firstName, ...rest] = request.customer.name.trim().split(/\s+/);
     const method = request.method === PaymentMethod.CREDIT_CARD ? 'card' : request.method === PaymentMethod.BOLETO ? 'boleto' : 'pix';
-    if (method === 'card' && !request.card) throw new Error('Cartão sem token');
+    if (method === 'card' && (!request.card?.token || !request.card.paymentMethodId)) throw new Error('Cartão sem token');
     const payment = await this.client.createPayment({
       method,
       amount: Number(request.amount),
@@ -34,7 +34,7 @@ export class MercadoPagoProvider implements PaymentProvider {
       orderNumber: request.orderNumber,
       expiresAt: request.expiresAt,
       payer: { email: request.customer.email, firstName, lastName: rest.join(' ') || undefined, cpf: request.customer.cpf, address: request.customer.address },
-      card: request.card,
+      card: method === 'card' ? { token: request.card!.token!, paymentMethodId: request.card!.paymentMethodId!, installments: request.card!.installments, issuerId: request.card!.issuerId } : undefined,
       notificationUrl: apiUrl && `${apiUrl}/api/v1/payments/webhooks/mercadopago`,
     });
     const status = mapMercadoPagoStatus(payment.status);

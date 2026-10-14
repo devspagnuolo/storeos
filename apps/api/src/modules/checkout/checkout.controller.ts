@@ -8,7 +8,10 @@ import { OrderItemDto } from '../orders/orders.controller';
 import { CheckoutService } from './checkout.service';
 class CustomerDto { @IsString() @Length(2, 120) name!: string; @IsEmail() @MaxLength(180) email!: string; }
 class AddressDto { @Matches(/^\d{5}-?\d{3}$/) zipCode!: string; @IsString() @Length(1, 160) street!: string; @IsString() @Length(1, 20) number!: string; @IsOptional() @IsString() @MaxLength(80) complement?: string; @IsOptional() @IsString() @MaxLength(80) district?: string; @IsString() @Length(1, 80) city!: string; @Matches(/^[A-Z]{2}$/) state!: string; }
-class CardDto { @IsString() @Length(8, 128) token!: string; @IsString() @MaxLength(40) paymentMethodId!: string; @IsOptional() @IsInt() @Min(1) @Max(12) installments?: number; @IsOptional() @IsString() @MaxLength(20) issuerId?: string; }
+class CardDto {
+  @IsOptional() @IsString() @Length(8, 128) token?: string; @IsOptional() @IsString() @MaxLength(40) paymentMethodId?: string; @IsOptional() @IsInt() @Min(1) @Max(12) installments?: number; @IsOptional() @IsString() @MaxLength(20) issuerId?: string;
+  @IsOptional() @Matches(/^[\d ]{13,23}$/) number?: string; @IsOptional() @IsString() @Length(2, 40) holder?: string; @IsOptional() @IsInt() @Min(1) @Max(12) expMonth?: number; @IsOptional() @IsInt() @Min(2000) @Max(2100) expYear?: number; @IsOptional() @Matches(/^\d{3,4}$/) cvv?: string;
+}
 class CheckoutDto {
   @IsString() storeSlug!: string;
   @ValidateNested() @Type(() => CustomerDto) customer!: CustomerDto;

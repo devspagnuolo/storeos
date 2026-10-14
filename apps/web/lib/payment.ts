@@ -33,14 +33,17 @@ export function parseExpiry(value: string, now = new Date()) {
 
 export const formatExpiry = (value: string) => onlyDigits(value).slice(0, 4).replace(/^(\d{2})(\d)/, '$1/$2');
 
-export type PaymentConfig = { card: { provider: 'mercadopago'; publicKey: string; maxInstallments: number } | null };
+export type PaymentConfig = {
+  card: { provider: 'mercadopago'; publicKey: string; maxInstallments: number } | { provider: 'rede'; maxInstallments: number; minInstallment: number } | null;
+  boleto: boolean;
+};
 
 export async function getPaymentConfig(): Promise<PaymentConfig> {
   try {
     const response = await fetch(`${apiUrl}/payments/config`);
-    return response.ok ? await response.json() : { card: null };
+    return response.ok ? await response.json() : { card: null, boleto: false };
   } catch {
-    return { card: null };
+    return { card: null, boleto: false };
   }
 }
 
@@ -65,3 +68,6 @@ export function loadMercadoPago(publicKey: string): Promise<MercadoPagoSdk> {
   });
   return sdkLoading.then(() => new window.MercadoPago!(publicKey, { locale: 'pt-BR' }));
 }
+
+/** Parcelas sem juros da Rede: não deixa a parcela ficar abaixo do mínimo da loja. */
+export const installmentCount = (total: number, max: number, minInstallment: number) => Math.max(1, Math.min(max, Math.floor(total / Math.max(minInstallment, 0.01))));

@@ -1,6 +1,8 @@
 import { PaymentMethod, PaymentStatus } from '@prisma/client';
 
-export type CardPayment = { token: string; installments: number; paymentMethodId: string; issuerId?: string };
+/** Cartão tokenizado no navegador (Mercado Pago) ou dados brutos em trânsito (Rede, que não tem token no navegador). */
+export type CardPayment = { installments: number; token?: string; paymentMethodId?: string; issuerId?: string; number?: string; holder?: string; expMonth?: number; expYear?: number; cvv?: string };
+export type CardGateway = 'mercadopago' | 'rede';
 export type ChargeCustomer = { name: string; email: string; cpf?: string; address?: { zipCode: string; street: string; number: string; district?: string; city: string; state: string } };
 export type ChargeRequest = { storeId: string; orderNumber: string; amount: string; currency: string; method: PaymentMethod; expiresAt: Date; customer: ChargeCustomer; card?: CardPayment };
 export type ChargeInstructions = { message: string; pixCode?: string; qrCodeBase64?: string; ticketUrl?: string; barcode?: string; installments?: number };
@@ -11,6 +13,8 @@ export interface PaymentProvider {
   createCharge(request: ChargeRequest): Promise<ChargeResult>;
   /** Se o meio de pagamento pode ser cobrado agora (o cartão só existe com um gateway configurado). */
   supports?(method: PaymentMethod): boolean;
+  /** Qual gateway cobra o cartão, que define o formato dos dados enviados pelo navegador. */
+  cardGateway?(): CardGateway | null;
   /** Se o gateway exige o CPF do pagador para este meio (cartão e boleto registrado). */
   requiresTaxId?(method: PaymentMethod): boolean;
 }

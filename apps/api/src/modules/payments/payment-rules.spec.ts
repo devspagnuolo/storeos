@@ -1,4 +1,4 @@
-import { clampInstallments, declineMessage, isValidCpf, onlyDigits } from './payment-rules';
+import { clampInstallments, declineMessage, installmentCount, isValidCardNumber, isValidCpf, onlyDigits, redeDeclineMessage } from './payment-rules';
 
 describe('payment-rules', () => {
   it('valida CPF', () => {
@@ -24,4 +24,21 @@ describe('payment-rules', () => {
   });
 
   it('extrai dígitos', () => expect(onlyDigits('12.3-4')).toBe('1234'));
+
+  it('valida número de cartão com Luhn', () => {
+    expect(isValidCardNumber('4235 6477 2802 5682')).toBe(true);
+    expect(isValidCardNumber('4235647728025683')).toBe(false);
+    expect(isValidCardNumber('1234')).toBe(false);
+  });
+
+  it('traduz retornos da Rede', () => {
+    expect(redeDeclineMessage('51')).toMatch(/limite/);
+    expect(redeDeclineMessage('99')).toMatch(/recusado/);
+  });
+
+  it('limita parcelas pelo valor mínimo', () => {
+    expect(installmentCount(30, 12, 5)).toBe(6);
+    expect(installmentCount(300, 12, 5)).toBe(12);
+    expect(installmentCount(3, 12, 5)).toBe(1);
+  });
 });
