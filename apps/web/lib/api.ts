@@ -4,7 +4,8 @@ export const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:30
 
 export type ProductImage = { url: string; alt: string | null };
 export type ProductSummary = { id: string; name: string; slug: string; sku: string; price: string; images?: ProductImage[] };
-export type ProductDetail = ProductSummary & { description: string | null; available: number; categories: { name: string; slug: string }[]; brand?: { name: string; slug: string } | null; seoTitle?: string | null; seoDescription?: string | null };
+export type ProductVariant = { id: string; sku: string; price: string | null; attributes: { name: string; value: string }[]; available: number };
+export type ProductDetail = ProductSummary & { description: string | null; available: number; variants?: ProductVariant[]; categories: { name: string; slug: string }[]; brand?: { name: string; slug: string } | null; seoTitle?: string | null; seoDescription?: string | null };
 export type Brand = { id: string; name: string; slug: string; logoUrl: string | null };
 export type Collection = { id: string; name: string; slug: string; description: string | null };
 export type Category = { id: string; name: string; slug: string; description: string | null; parentId: string | null };

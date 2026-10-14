@@ -8,9 +8,8 @@ import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { money } from '../../shared/money/money';
-import { mergeItems, priceOrderLines } from '../orders/order-lines';
+import { mergeItems, priceOrderLines, productsForPricing } from '../orders/order-lines';
 import { OrderItemDto } from '../orders/orders.controller';
-import { ProductStatus } from '@prisma/client';
 import { CouponsService } from './coupons.service';
 import { PromotionsService } from './promotions.service';
 
@@ -52,8 +51,9 @@ class PreviewDto {
   @Post('preview') @HttpCode(200) @Throttle({ default: { limit: 20, ttl: 60_000 } }) async preview(@Body() dto: PreviewDto) {
     const store = await this.prisma.store.findUnique({ where: { slug: dto.storeSlug } });
     if (!store) throw new NotFoundException('Loja não encontrada');
-    const products = await this.prisma.product.findMany({ where: { storeId: store.id, id: { in: dto.items.map(i => i.productId) }, status: ProductStatus.ACTIVE } });
-    const { lines, subtotal } = priceOrderLines(mergeItems(dto.items), products);
+    const items = mergeItems(dto.items);
+    const products = await productsForPricing(this.prisma, store.id, items);
+    const { lines, subtotal } = priceOrderLines(items, products);
     // Mesma ordem do checkout: promoções automáticas primeiro, cupom sobre o restante.
     const { discount } = await this.promotions.evaluate(this.prisma, store.id, lines);
     return this.coupons.preview(store.id, dto.code, subtotal.minus(discount), money(dto.shipping ?? 0));

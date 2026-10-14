@@ -8,6 +8,7 @@ export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sk
 export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
 export type CollectionInput = { name?: string; slug?: string; description?: string; active?: boolean; position?: number; skus?: string[] };
 export type CreateCategoryInput = { name: string; slug: string; description?: string; position?: number; parentId?: string | null };
+export type VariantInput = { id?: string; sku: string; attributes: { name: string; value: string }[]; price?: number | null; stock: number; active?: boolean };
 export type UpdateCategoryInput = Partial<CreateCategoryInput>;
 
 const isUniqueViolation = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -46,12 +47,15 @@ export class CatalogService {
     const storeId = await this.storeId(storeSlug);
     const product = storeId && await this.prisma.product.findFirst({
       where: { storeId, slug, status: ProductStatus.ACTIVE },
-      include: { brand: { select: { name: true, slug: true } }, images: { orderBy: { position: 'asc' } }, variants: true, inventory: true, categories: { include: { category: { select: { name: true, slug: true } } } } },
+      include: { brand: { select: { name: true, slug: true } }, images: { orderBy: { position: 'asc' } }, variants: { where: { active: true }, orderBy: { position: 'asc' } }, inventory: true, categories: { include: { category: { select: { name: true, slug: true } } } } },
     });
     if (!product) throw new NotFoundException('Produto não encontrado');
-    const { inventory, categories, ...rest } = product;
-    const available = inventory.filter(i => !i.variantId).reduce((sum, i) => sum + Math.max(i.quantity - i.reserved, 0), 0);
-    return { ...rest, available, categories: categories.map(c => c.category) };
+    const { inventory, categories, variants, ...rest } = product;
+    const free = (rows: typeof inventory) => rows.reduce((sum, i) => sum + Math.max(i.quantity - i.reserved, 0), 0);
+    // Com variações, o saldo vive em cada uma; sem elas, no produto.
+    const withStock = variants.map(v => ({ ...v, available: free(inventory.filter(i => i.variantId === v.id)) }));
+    const available = variants.length ? free(inventory.filter(i => i.variantId && variants.some(v => v.id === i.variantId))) : free(inventory.filter(i => !i.variantId));
+    return { ...rest, variants: withStock, available, categories: categories.map(c => c.category) };
   }
 
   async categories(storeSlug: string) {
@@ -187,11 +191,13 @@ export class CatalogService {
 
   /** Atualiza dados, status, categorias, imagem principal e saldo físico (o reservado não muda aqui). */
   async update(storeId: string, id: string, { categoryIds, stock, imageUrl, ...dto }: UpdateProductInput) {
-    const existing = await this.prisma.product.findFirst({ where: { id, storeId }, include: { inventory: true } });
+    const existing = await this.prisma.product.findFirst({ where: { id, storeId }, include: { inventory: true, _count: { select: { variants: true } } } });
     if (!existing) throw new NotFoundException('Produto não encontrado');
     const categories = categoryIds && await this.assertCategories(storeId, categoryIds);
     await this.assertBrand(storeId, dto.brandId);
     const inventory = existing.inventory.find(i => !i.variantId);
+    // Com variações, o saldo é de cada uma e o campo único é ignorado.
+    if (existing._count.variants) stock = undefined;
     if (stock !== undefined && inventory && stock < inventory.reserved) throw new BadRequestException(`O estoque não pode ficar abaixo das ${inventory.reserved} unidades reservadas em pedidos pendentes`);
     try {
       return await this.prisma.$transaction(async tx => {
@@ -225,16 +231,66 @@ export class CatalogService {
     const term = q?.trim();
     const where: Prisma.ProductWhereInput = { storeId, ...(status && { status }), ...(term && { OR: [{ name: { contains: term, mode: 'insensitive' } }, { sku: { contains: term, mode: 'insensitive' } }] }) };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 }, inventory: { where: { variantId: null } } }, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 }, inventory: true, _count: { select: { variants: true } } }, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.product.count({ where }),
     ]);
-    return { items: items.map(({ inventory, ...p }) => ({ ...p, stock: inventory[0]?.quantity ?? 0, reserved: inventory[0]?.reserved ?? 0 })), total, page, pageSize };
+    // Produto com variações mostra a soma dos saldos delas.
+    return { items: items.map(({ inventory, _count, ...p }) => { const rows = _count.variants ? inventory.filter(i => i.variantId) : inventory.filter(i => !i.variantId); return { ...p, variantCount: _count.variants, stock: rows.reduce((s, i) => s + i.quantity, 0), reserved: rows.reduce((s, i) => s + i.reserved, 0) }; }), total, page, pageSize };
   }
 
   async adminGet(storeId: string, id: string) {
-    const product = await this.prisma.product.findFirst({ where: { id, storeId }, include: { images: { orderBy: { position: 'asc' } }, inventory: { where: { variantId: null } }, categories: true } });
+    const product = await this.prisma.product.findFirst({ where: { id, storeId }, include: { images: { orderBy: { position: 'asc' } }, inventory: true, categories: true, variants: { orderBy: { position: 'asc' } } } });
     if (!product) throw new NotFoundException('Produto não encontrado');
-    const { inventory, categories, ...rest } = product;
-    return { ...rest, stock: inventory[0]?.quantity ?? 0, reserved: inventory[0]?.reserved ?? 0, categoryIds: categories.map(c => c.categoryId) };
+    const { inventory, categories, variants, ...rest } = product;
+    const base = inventory.find(i => !i.variantId);
+    return {
+      ...rest, stock: base?.quantity ?? 0, reserved: base?.reserved ?? 0, categoryIds: categories.map(c => c.categoryId),
+      variants: variants.map(v => { const row = inventory.find(i => i.variantId === v.id); return { ...v, stock: row?.quantity ?? 0, reserved: row?.reserved ?? 0 }; }),
+    };
+  }
+
+  /**
+   * Substitui as variações do produto (cor, tamanho…). Quem tem `id` é atualizado, quem não tem é criado e o que faltar é removido,
+   * desde que não tenha unidades reservadas. Com variações o saldo passa a ser de cada uma; sem elas, volta a ser do produto.
+   */
+  async replaceVariants(storeId: string, productId: string, input: VariantInput[]) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, storeId }, include: { variants: { include: { inventory: true } }, inventory: { where: { variantId: null } } } });
+    if (!product) throw new NotFoundException('Produto não encontrado');
+    const skus = input.map(v => v.sku.trim());
+    if (input.some(v => !v.attributes.length)) throw new BadRequestException('Cada variação precisa de ao menos um atributo (por exemplo, Cor)');
+    const names = input.map(v => v.attributes.map(a => a.name.trim().toLowerCase()).join('|'));
+    if (new Set(names).size > 1) throw new BadRequestException('Todas as variações devem usar os mesmos atributos, na mesma ordem');
+    if (new Set(skus).size !== skus.length) throw new BadRequestException('Há SKUs repetidos nas variações');
+    const combos = input.map(v => JSON.stringify(v.attributes.map(a => [a.name.trim().toLowerCase(), a.value.trim().toLowerCase()])));
+    if (new Set(combos).size !== combos.length) throw new BadRequestException('Há combinações repetidas nas variações');
+    const keep = new Set(input.filter(v => v.id).map(v => v.id));
+    for (const id of keep) if (!product.variants.some(v => v.id === id)) throw new BadRequestException('Variação inválida');
+    for (const variant of product.variants) {
+      const reserved = variant.inventory.reduce((sum, row) => sum + row.reserved, 0);
+      if (!keep.has(variant.id) && reserved > 0) throw new BadRequestException(`A variação ${variant.sku} tem ${reserved} unidades reservadas e não pode ser removida agora`);
+    }
+    for (const entry of input) {
+      const row = entry.id ? product.variants.find(v => v.id === entry.id)?.inventory[0] : undefined;
+      if (row && entry.stock < row.reserved) throw new BadRequestException(`O estoque de ${entry.sku} não pode ficar abaixo das ${row.reserved} unidades reservadas`);
+    }
+    try {
+      await this.prisma.$transaction(async tx => {
+        await tx.productVariant.deleteMany({ where: { productId, id: { notIn: [...keep] as string[] } } });
+        for (const [position, entry] of input.entries()) {
+          const data = { sku: entry.sku.trim(), attributes: entry.attributes.map(a => ({ name: a.name.trim(), value: a.value.trim() })) as Prisma.InputJsonArray, price: entry.price ?? null, active: entry.active ?? true, position };
+          const variant = entry.id ? await tx.productVariant.update({ where: { id: entry.id }, data }) : await tx.productVariant.create({ data: { ...data, productId } });
+          const row = await tx.inventory.findFirst({ where: { storeId, productId, variantId: variant.id } });
+          if (row) await tx.inventory.update({ where: { id: row.id }, data: { quantity: entry.stock } });
+          else await tx.inventory.create({ data: { storeId, productId, variantId: variant.id, quantity: entry.stock } });
+        }
+        // O saldo do produto só existe enquanto ele não tem variações.
+        if (input.length) await tx.inventory.deleteMany({ where: { storeId, productId, variantId: null } });
+        else if (!product.inventory.length) await tx.inventory.create({ data: { storeId, productId, quantity: 0 } });
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ConflictException('Já existe uma variação com esse SKU neste produto');
+      throw error;
+    }
+    return this.adminGet(storeId, productId);
   }
 }

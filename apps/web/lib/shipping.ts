@@ -1,5 +1,5 @@
 import { apiUrl, storeSlug } from './api';
-import type { CartItem } from './cart';
+import { toRequestItems, type CartItem } from './cart';
 
 export type ShippingOption = { id: string; name: string; price: string; minDays: number; maxDays: number; free: boolean };
 export type ShippingQuote = { state: string; subtotal: string; required: boolean; options: ShippingOption[] };
@@ -35,7 +35,7 @@ export async function quoteShipping(zipCode: string, items: CartItem[]): Promise
   const response = await fetch(`${apiUrl}/shipping/quote`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ storeSlug, zipCode, items: items.map(i => ({ productId: i.productId, quantity: i.quantity })) }),
+    body: JSON.stringify({ storeSlug, zipCode, items: toRequestItems(items) }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(response.status === 400 ? 'CEP inválido.' : body.message || 'Não foi possível calcular o frete.');

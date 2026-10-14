@@ -1,8 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ProductStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUrl, Length, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUrl, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { CatalogService } from './catalog.service';
@@ -39,6 +39,16 @@ class UpdateProductDto {
 }
 class CreateCategoryDto { @IsString() name!: string; @Matches(SLUG) slug!: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @IsString() parentId?: string | null; }
 class UpdateCategoryDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) slug?: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() parentId?: string | null; }
+class VariantAttributeDto { @IsString() @Length(1, 40) name!: string; @IsString() @Length(1, 60) value!: string; }
+class VariantDto {
+  @IsOptional() @IsString() id?: string;
+  @IsString() @Length(1, 64) sku!: string;
+  @IsArray() @ArrayMaxSize(3) @ValidateNested({ each: true }) @Type(() => VariantAttributeDto) attributes!: VariantAttributeDto[];
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) price?: number | null;
+  @IsInt() @Min(0) @Max(1_000_000) stock!: number;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+class ReplaceVariantsDto { @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => VariantDto) variants!: VariantDto[]; }
 class CreateBrandDto { @IsString() @Length(2, 80) name!: string; @Matches(SLUG) @MaxLength(80) slug!: string; @IsOptional() @IsUrl({ protocols: ['https', 'http'], require_protocol: true }) logoUrl?: string; }
 class CreateCollectionDto { @IsString() @Length(2, 80) name!: string; @Matches(SLUG) @MaxLength(80) slug!: string; @IsOptional() @IsString() @MaxLength(500) description?: string; @IsOptional() @IsBoolean() active?: boolean; @IsOptional() @IsInt() position?: number; @IsOptional() @IsArray() @ArrayMaxSize(2000) @IsString({ each: true }) skus?: string[]; }
 class UpdateCollectionDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) @MaxLength(80) slug?: string; @IsOptional() @IsString() @MaxLength(500) description?: string; @IsOptional() @IsBoolean() active?: boolean; @IsOptional() @IsInt() position?: number; @IsOptional() @IsArray() @ArrayMaxSize(2000) @IsString({ each: true }) skus?: string[]; }
@@ -60,6 +70,7 @@ class StoreQueryDto { @IsString() store!: string; }
   @Get('admin/products/:id') @RequirePermissions(Permissions.CATALOG_WRITE) adminGet(@CurrentStore() storeId: string, @Param('id') id: string) { return this.catalog.adminGet(storeId, id); }
   @Post('products') @RequirePermissions(Permissions.CATALOG_WRITE) create(@CurrentStore() storeId: string, @Body() dto: CreateProductDto) { return this.catalog.create(storeId, dto); }
   @Patch('products/:id') @RequirePermissions(Permissions.CATALOG_WRITE) update(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdateProductDto) { return this.catalog.update(storeId, id, dto); }
+  @Put('products/:id/variants') @RequirePermissions(Permissions.CATALOG_WRITE) replaceVariants(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: ReplaceVariantsDto) { return this.catalog.replaceVariants(storeId, id, dto.variants); }
   @Post('categories') @RequirePermissions(Permissions.CATALOG_WRITE) createCategory(@CurrentStore() storeId: string, @Body() dto: CreateCategoryDto) { return this.catalog.createCategory(storeId, dto); }
   @Patch('categories/:id') @RequirePermissions(Permissions.CATALOG_WRITE) updateCategory(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdateCategoryDto) { return this.catalog.updateCategory(storeId, id, dto); }
   @Delete('categories/:id') @HttpCode(204) @RequirePermissions(Permissions.CATALOG_WRITE) deleteCategory(@CurrentStore() storeId: string, @Param('id') id: string) { return this.catalog.deleteCategory(storeId, id); }

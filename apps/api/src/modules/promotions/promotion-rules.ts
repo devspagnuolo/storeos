@@ -5,11 +5,11 @@ export type PromotionRule = {
   id: string; name: string; type: PromotionType; value: Money; buyQty: number | null; payQty: number | null;
   minSubtotal: Money | null; skus: string[]; active: boolean; startsAt: Date | null; endsAt: Date | null;
 };
-export type PromoLine = { sku: string; quantity: number; unitPrice: Money; total: Money };
+export type PromoLine = { sku: string; productSku?: string; quantity: number; unitPrice: Money; total: Money };
 export type AppliedPromotion = { id: string; name: string; amount: string };
 
 const isLive = (promotion: PromotionRule, now: Date) => promotion.active && (!promotion.startsAt || promotion.startsAt <= now) && (!promotion.endsAt || promotion.endsAt >= now);
-const covers = (promotion: PromotionRule, line: PromoLine) => !promotion.skus.length || promotion.skus.includes(line.sku);
+const covers = (promotion: PromotionRule, line: PromoLine) => !promotion.skus.length || promotion.skus.includes(line.sku) || Boolean(line.productSku && promotion.skus.includes(line.productSku));
 
 /** Desconto de uma promoção de item sobre uma linha (percentual ou "leve X pague Y"). */
 export function lineDiscount(promotion: PromotionRule, line: PromoLine): Money {

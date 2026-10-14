@@ -1,7 +1,7 @@
 import { BadGatewayException, BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentMethod, PaymentStatus, Prisma, ProductStatus } from '@prisma/client';
+import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
-import { generateOrderNumber, mergeItems, priceOrderLines, RequestedItem } from '../orders/order-lines';
+import { generateOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from '../orders/order-lines';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
 import { ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
 import { CouponsService } from '../promotions/coupons.service';
@@ -37,7 +37,7 @@ export class CheckoutService {
     if (state !== input.shippingAddress.state) throw new BadRequestException('O CEP não corresponde ao estado informado');
 
     const order = await this.prisma.$transaction(async tx => {
-      const products = await tx.product.findMany({ where: { storeId: store.id, id: { in: items.map(i => i.productId) }, status: ProductStatus.ACTIVE } });
+      const products = await productsForPricing(tx, store.id, items);
       const { lines, subtotal } = priceOrderLines(items, products);
       // O frete é recalculado aqui a partir das regras da loja; o cliente só escolhe a opção.
       let shipping = money(0);
@@ -53,9 +53,9 @@ export class CheckoutService {
       for (const item of items) {
         // Reserva atômica: só incrementa se ainda houver saldo livre, evitando venda acima do estoque.
         const reserved = await tx.$executeRaw`UPDATE "Inventory" SET "reserved" = "reserved" + ${item.quantity}, "updatedAt" = NOW()
-          WHERE "storeId" = ${store.id} AND "productId" = ${item.productId} AND "variantId" IS NULL AND "quantity" - "reserved" >= ${item.quantity}`;
+          WHERE "storeId" = ${store.id} AND "productId" = ${item.productId} AND ${inventoryOf(item.variantId)} AND "quantity" - "reserved" >= ${item.quantity}`;
         if (reserved !== 1) {
-          const name = lines.find(line => line.productId === item.productId)?.name;
+          const name = lines.find(line => line.productId === item.productId && line.variantId === item.variantId)?.name;
           throw new ConflictException(`Estoque insuficiente para ${name}`);
         }
       }
@@ -80,7 +80,7 @@ export class CheckoutService {
         data: {
           storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, promotionDiscount: promo.discount, promotions: promo.applied as unknown as Prisma.InputJsonArray, shipping, total, shippingMethod, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : null,
           shippingAddress: input.shippingAddress as Prisma.InputJsonObject,
-          items: { create: lines },
+          items: { create: persistLines(lines) },
           timeline: { create: [{ status: OrderStatus.NEW, message: 'Pedido criado no checkout' }, { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento' }] },
           payments: { create: { provider: 'pending', method: input.paymentMethod, amount: total, expiresAt } },
         },

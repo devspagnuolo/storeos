@@ -452,3 +452,21 @@ export async function deletePromotionAction(form: FormData) {
   await adminFetch(`/promotions/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
   revalidatePath('/admin/promocoes');
 }
+
+export async function saveVariantsAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = encodeURIComponent(String(form.get('productId')));
+  let variants: unknown;
+  try {
+    variants = JSON.parse(String(form.get('variants') ?? '[]'));
+  } catch {
+    return { error: 'Não foi possível ler as variações. Recarregue a página.' };
+  }
+  try {
+    await adminFetch(`/catalog/products/${id}/variants`, { method: 'PUT', body: { variants } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath(`/admin/produtos/${id}`);
+  return { ok: 'Variações salvas.' };
+}

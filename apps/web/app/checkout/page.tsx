@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Header } from '../../components/header';
 import { PixPayment } from '../../components/pix-payment';
 import { ShippingOptions } from '../../components/shipping-options';
-import { cartSubtotalCents, useCart } from '../../lib/cart';
+import { cartSubtotalCents, lineKey, useCart } from '../../lib/cart';
 import { CheckoutForm, CheckoutResult, PromotionPreview, previewCoupon, previewPromotions, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
 import { formatCep, lookupCep, onlyDigits, quoteShipping, rememberCep, ShippingQuote } from '../../lib/shipping';
@@ -36,7 +36,7 @@ export default function CheckoutPage() {
   const [coupon, setCoupon] = useState<{ code: string; discount: number }>();
   const [couponError, setCouponError] = useState<string>();
   const formRef = useRef<HTMLFormElement>(null);
-  const itemsKey = items.map(i => `${i.productId}:${i.quantity}`).join(',');
+  const itemsKey = items.map(i => `${lineKey(i)}:${i.quantity}`).join(',');
 
   useEffect(() => {
     setHydrated(true);
@@ -161,7 +161,7 @@ export default function CheckoutPage() {
               </fieldset>
             </div>
             <aside className="card h-fit p-6">
-              <ul className="divide-y text-sm">{items.map(i => <li key={i.productId} className="flex justify-between py-2"><span>{i.quantity}× {i.name}</span><span>{formatPrice((Number(i.price) * 100 * i.quantity) / 100)}</span></li>)}</ul>
+              <ul className="divide-y text-sm">{items.map(i => <li key={lineKey(i)} className="flex justify-between py-2"><span>{i.quantity}× {i.name}{i.variantLabel && <span className="text-slate-500"> ({i.variantLabel})</span>}</span><span>{formatPrice((Number(i.price) * 100 * i.quantity) / 100)}</span></li>)}</ul>
               <div className="mt-4 flex justify-between border-t pt-4 text-sm"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div>
               {promo?.applied.map(p => <div key={p.id} className="mt-2 flex justify-between text-sm text-emerald-700"><span>{p.name}</span><span>− {formatPrice(p.amount)}</span></div>)}
               <div className="mt-2 flex justify-between text-sm"><span>Frete</span><span>{!quote?.required ? (quote ? 'A combinar' : '—') : !chosen ? '—' : chosen.free ? 'Grátis' : formatPrice(chosen.price)}</span></div>

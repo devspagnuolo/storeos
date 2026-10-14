@@ -6,7 +6,7 @@ import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { OrderLifecycleService } from './order-lifecycle.service';
 import { OrdersService } from './orders.service';
-export class OrderItemDto { @IsString() productId!: string; @IsInt() @Min(1) @Max(999) quantity!: number; }
+export class OrderItemDto { @IsString() productId!: string; @IsOptional() @IsString() variantId?: string; @IsInt() @Min(1) @Max(999) quantity!: number; }
 class CreateOrderDto { @IsString() customerId!: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => OrderItemDto) items!: OrderItemDto[]; }
 class ListOrdersQuery { @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number; @IsOptional() @IsString() status?: string; }
 class InvoiceDto { @IsString() @MaxLength(60) invoiceNumber!: string; @IsOptional() @IsString() @MaxLength(60) invoiceKey?: string; }

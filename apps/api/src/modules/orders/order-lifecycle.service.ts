@@ -2,6 +2,7 @@ import { ConflictException, Injectable, Logger, NotFoundException } from '@nestj
 import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { earnForOrder, reverseForOrder } from '../loyalty/ledger';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
+import { inventoryOf } from './order-lines';
 
 type Tx = Prisma.TransactionClient;
 export type OrderRef = { storeId: string; number: string } | { orderId: string };
@@ -36,7 +37,7 @@ export class OrderLifecycleService {
       for (const item of order.items) {
         if (!item.productId) continue;
         await tx.$executeRaw`UPDATE "Inventory" SET "quantity" = "quantity" - ${item.quantity}, "reserved" = GREATEST("reserved" - ${item.quantity}, 0), "updatedAt" = NOW()
-          WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND "variantId" IS NULL`;
+          WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND ${inventoryOf(item.variantId)}`;
       }
       await tx.payment.updateMany({ where: { orderId: order.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } }, data: { status: PaymentStatus.PAID, paidAt: new Date() } });
       await earnForOrder(tx, order);
@@ -60,7 +61,7 @@ export class OrderLifecycleService {
         for (const item of order.items) {
           if (!item.productId) continue;
           await tx.$executeRaw`UPDATE "Inventory" SET "reserved" = GREATEST("reserved" - ${item.quantity}, 0), "updatedAt" = NOW()
-            WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND "variantId" IS NULL`;
+            WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND ${inventoryOf(item.variantId)}`;
         }
       }
       // Pedido cancelado devolve o uso do cupom.
@@ -100,7 +101,7 @@ export class OrderLifecycleService {
         for (const item of order.items) {
           if (!item.productId) continue;
           await tx.$executeRaw`UPDATE "Inventory" SET "quantity" = "quantity" + ${item.quantity}, "updatedAt" = NOW()
-            WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND "variantId" IS NULL`;
+            WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND ${inventoryOf(item.variantId)}`;
         }
       }
       if (step.reverseLoyalty) await reverseForOrder(tx, order);
