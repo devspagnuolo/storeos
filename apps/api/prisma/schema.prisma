@@ -784,6 +784,9 @@ model BlingConnection {
   lastError       String?
   automaticInvoiceEnabled Boolean @default(false)
   automaticInvoiceEnabledAt DateTime?
+  stockSyncEnabled Boolean @default(false)
+  stockSyncedAt   DateTime?
+  stockSyncError  String?
   updatedAt       DateTime @updatedAt
   store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   invoices        BlingInvoice[]

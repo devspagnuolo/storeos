@@ -8,6 +8,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { BlingAuthService } from './bling-auth.service';
 import { BlingImportService } from './bling-import.service';
 import { BlingInvoicesService } from './bling-invoices.service';
+import { BlingStockService } from './bling-stock.service';
 import { BlingOrdersService } from './bling-orders.service';
 import { BlingWebhookPayload, BlingWebhookService } from './bling-webhook.service';
 import { BlingClient } from './bling.client';
@@ -17,7 +18,7 @@ const webOrigin = () => (process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localh
 @ApiTags('Bling')
 @Controller('bling')
 export class BlingController {
-  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService, private readonly invoices: BlingInvoicesService, private readonly webhooks: BlingWebhookService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService, private readonly invoices: BlingInvoicesService, private readonly webhooks: BlingWebhookService, private readonly stock: BlingStockService) {}
 
   @Get('status') @RequirePermissions(Permissions.SETTINGS_WRITE)
   async status(@CurrentStore() storeId: string) {
@@ -30,6 +31,7 @@ export class BlingController {
       companyLinked: Boolean(connection?.companyId),
       connected: Boolean(connection), connectedAt: connection?.connectedAt ?? null, lastError: connection?.lastError ?? null,
       import: latestImport, orders: sync.counts, automaticInvoiceEnabled: connection?.automaticInvoiceEnabled ?? false, invoices,
+      stockSync: { enabled: connection?.stockSyncEnabled ?? false, syncedAt: connection?.stockSyncedAt ?? null, error: connection?.stockSyncError ?? null },
     };
   }
 
@@ -75,6 +77,18 @@ export class BlingController {
 
   @Get('orders/:number/invoice') @RequirePermissions(Permissions.ORDERS_READ)
   findInvoice(@CurrentStore() storeId: string, @Param('number') number: string) { return this.invoices.findForOrder(storeId, number); }
+
+  @Get('reconciliation') @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
+  reconciliation(@CurrentStore() storeId: string) { return this.stock.report(storeId); }
+
+  @Post('stock-sync') @HttpCode(200) @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
+  syncStock(@CurrentStore() storeId: string) { return this.stock.sync(storeId); }
+
+  @Post('stock-settings') @HttpCode(200) @RequirePermissions(Permissions.SETTINGS_WRITE)
+  stockSettings(@CurrentStore() storeId: string, @Body('enabled') enabled: unknown) {
+    if (typeof enabled !== 'boolean') throw new BadRequestException('Informe enabled como true ou false');
+    return this.stock.setEnabled(storeId, enabled);
+  }
 
   @Post('invoice-settings/automatic') @HttpCode(200) @RequirePermissions(Permissions.SETTINGS_WRITE)
   setAutomaticInvoice(@CurrentStore() storeId: string, @Body('enabled') enabled: unknown) {

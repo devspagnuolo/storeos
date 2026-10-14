@@ -667,3 +667,28 @@ export async function removeDomainAction(form: FormData) {
   await adminFetch(`/store/domains/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
   revalidatePath('/admin/dominios');
 }
+
+export async function reconcileBlingAction(): Promise<{ report?: import('../../lib/admin/types').BlingReconciliation; error?: string }> {
+  try {
+    return { report: await adminFetch('/bling/reconciliation') };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function syncBlingStockAction(): Promise<FormState> {
+  try {
+    const result = await adminFetch<{ applied: number; skippedCount: number }>('/bling/stock-sync', { method: 'POST', body: {} });
+    revalidatePath('/admin/bling');
+    return { ok: `${result.applied} saldos atualizados com o Bling${result.skippedCount ? `; ${result.skippedCount} mantidos (pedido não enviado ou saldo reservado)` : ''}.` };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function setBlingStockSyncAction(form: FormData) {
+  await adminFetch('/bling/stock-settings', { method: 'POST', body: { enabled: form.get('enabled') === 'true' } });
+  revalidatePath('/admin/bling');
+}

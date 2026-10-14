@@ -1,4 +1,5 @@
 import { BlingImport } from '../../../../components/admin/bling-import';
+import { BlingStockPanel } from '../../../../components/admin/bling-stock-panel';
 import { formatDateTime } from '../../../../lib/admin/labels';
 import { adminFetch } from '../../../../lib/admin/session';
 import type { BlingStatus, BlingSyncRow } from '../../../../lib/admin/types';
@@ -63,6 +64,12 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
             <h2 className="text-lg font-bold">Importar produtos</h2>
             <p className="mb-4 mt-1 text-sm text-slate-500">Importação sob demanda do catálogo ativo do Bling para a loja: variações, preço, estoque, imagens e categorias. O SKU faz a reconciliação. Esta versão não sincroniza alterações do catálogo em tempo real; importe novamente após mudanças no ERP.</p>
             <BlingImport initial={status.import} />
+          </section>
+
+          <section className="card mt-6 p-6">
+            <h2 className="text-lg font-bold">Conferência e estoque</h2>
+            <p className="mb-4 mt-1 text-sm text-slate-500">O Bling é a fonte do estoque. Compare produtos, preços e saldos com a loja e copie os saldos do Bling (manual ou a cada 10 minutos). Saldos de produtos com pedido pago ainda não enviado ao Bling, e abaixo do reservado, são preservados.</p>
+            <BlingStockPanel enabled={status.stockSync.enabled} syncedAt={status.stockSync.syncedAt} error={status.stockSync.error} />
           </section>
 
           <section className="card mt-6 p-6">
