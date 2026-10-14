@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'node:crypto';
@@ -41,8 +41,10 @@ export class AuthService {
     const revoked = await this.prisma.refreshToken.updateMany({ where: { id: stored.id, revokedAt: null, expiresAt: { gt: new Date() } }, data: { revokedAt: new Date() } });
     const withinGrace = stored.revokedAt && Date.now() - stored.revokedAt.getTime() < REUSE_GRACE_MS && stored.expiresAt > new Date();
     if (!revoked.count && !withinGrace) {
-      // Expira junto para que a janela de tolerância não reabra as sessões revogadas.
-      if (stored.revokedAt) await this.prisma.refreshToken.updateMany({ where: { userId: stored.userId, revokedAt: null }, data: { revokedAt: new Date(), expiresAt: new Date() } });
+      // Só um token trocado por rotação (ainda dentro da validade) indica roubo. Tokens encerrados por logout
+      // ou troca de senha já nascem expirados e apenas são recusados. Expira junto para que a janela de
+      // tolerância não reabra as sessões revogadas.
+      if (stored.revokedAt && stored.expiresAt > new Date()) await this.prisma.refreshToken.updateMany({ where: { userId: stored.userId, revokedAt: null }, data: { revokedAt: new Date(), expiresAt: new Date() } });
       throw new UnauthorizedException('Sessão expirada');
     }
     const user = await this.loadUser({ id: stored.userId });
@@ -52,5 +54,19 @@ export class AuthService {
 
   async logout(refreshToken: string) {
     await this.prisma.refreshToken.updateMany({ where: { tokenHash: hashToken(refreshToken) }, data: { revokedAt: new Date(), expiresAt: new Date() } });
+  }
+
+  /** Troca a senha, encerra todas as sessões abertas e devolve uma nova sessão para quem trocou. */
+  async changePassword(userId: string, input: { currentPassword: string; newPassword: string }) {
+    const user = await this.loadUser({ id: userId });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Sessão inválida');
+    if (!(await argon2.verify(user.passwordHash, input.currentPassword))) throw new BadRequestException('Senha atual incorreta');
+    if (input.currentPassword === input.newPassword) throw new BadRequestException('A nova senha precisa ser diferente da atual');
+    const passwordHash = await argon2.hash(input.newPassword, { type: argon2.argon2id });
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date(), expiresAt: new Date() } }),
+    ]);
+    return this.issue(user);
   }
 }

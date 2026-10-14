@@ -4,7 +4,7 @@ import { logoutAction } from '../actions';
 
 export const metadata: Metadata = { title: 'Painel | STOREOS', robots: { index: false } };
 
-const nav = [['/admin', 'Visão geral'], ['/admin/pedidos', 'Pedidos'], ['/admin/produtos', 'Produtos'], ['/admin/frete', 'Frete']];
+const nav = [['/admin', 'Visão geral'], ['/admin/pedidos', 'Pedidos'], ['/admin/produtos', 'Produtos'], ['/admin/frete', 'Frete'], ['/admin/configuracoes', 'Configurações']];
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
   return (
