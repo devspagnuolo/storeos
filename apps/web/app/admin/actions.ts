@@ -529,3 +529,52 @@ export async function importProductsAction(_: ImportState, form: FormData): Prom
   if (!dryRun) { revalidatePath('/admin/produtos'); revalidatePath('/', 'layout'); }
   return { report: body };
 }
+
+export async function saveBannerAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = form.get('id') ? String(form.get('id')) : undefined;
+  const text = (name: string) => String(form.get(name) ?? '').trim();
+  const date = (name: string) => (text(name) ? new Date(text(name)).toISOString() : null);
+  const body = {
+    imageUrl: text('imageUrl'), mobileImageUrl: text('mobileImageUrl') || null, title: text('title') || null, subtitle: text('subtitle') || null,
+    ctaLabel: text('ctaLabel') || null, linkUrl: text('linkUrl') || null, startsAt: date('startsAt'), endsAt: date('endsAt'),
+    ...(id ? { position: Number(text('position')) || 0 } : {}),
+  };
+  try {
+    await adminFetch(id ? `/engagement/admin/banners/${encodeURIComponent(id)}` : '/engagement/admin/banners', { method: id ? 'PATCH' : 'POST', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/banners');
+  revalidatePath('/', 'layout');
+  return { ok: id ? 'Banner salvo.' : 'Banner criado.' };
+}
+
+export async function toggleBannerAction(form: FormData) {
+  await adminFetch(`/engagement/admin/banners/${encodeURIComponent(String(form.get('id')))}`, { method: 'PATCH', body: { active: form.get('active') === 'true' } });
+  revalidatePath('/admin/banners');
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteBannerAction(form: FormData) {
+  await adminFetch(`/engagement/admin/banners/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/banners');
+  revalidatePath('/', 'layout');
+}
+
+export async function saveWhatsappAction(_: FormState, form: FormData): Promise<FormState> {
+  const number = String(form.get('number') ?? '').trim();
+  try {
+    await adminFetch('/engagement/admin/whatsapp', { method: 'PUT', body: { number: number || null, message: String(form.get('message') ?? '').trim() || null } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/', 'layout');
+  return { ok: number ? 'WhatsApp salvo. O botão já aparece na loja.' : 'Botão de WhatsApp removido da loja.' };
+}
+
+export async function unsubscribeAction(form: FormData) {
+  await adminFetch(`/engagement/admin/newsletter/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/newsletter');
+}

@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { Header } from '../components/header';
 import { ProductCard } from '../components/product-card';
-import { getProducts, getStore } from '../lib/api';
+import { BannerCarousel } from '../components/banner-carousel';
+import { getBanners, getProducts, getStore } from '../lib/api';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const [{ items: products }, store] = await Promise.all([getProducts({ pageSize: 8 }), getStore()]);
+  const [{ items: products }, store, banners] = await Promise.all([getProducts({ pageSize: 8 }), getStore(), getBanners()]);
   const theme = store.themeConfig ?? {};
   const accent = theme.accentColor ?? '#5B3DF5';
   const title = theme.heroTitle ?? 'Sua marca merece uma experiência memorável.';
@@ -18,7 +19,8 @@ export default async function Home() {
       <Header />
       {theme.announcementText && <div className="px-4 py-2 text-center text-sm font-medium text-white" style={{ backgroundColor: accent }}>{theme.announcementText}</div>}
       <main>
-        <section className="bg-ink text-white">
+        {banners.length > 0 && <BannerCarousel slides={banners} />}
+        {banners.length === 0 && <section className="bg-ink text-white">
           <div className="shell grid min-h-[440px] items-center gap-10 py-16 md:grid-cols-2 md:py-20">
             <div>
               <p className="mb-4 text-sm font-semibold uppercase tracking-[.2em]" style={{ color: accent }}>Sua loja</p>
@@ -32,7 +34,7 @@ export default async function Home() {
                 : <div className="h-full rounded-2xl border border-white/30 bg-white/10 backdrop-blur" />}
             </div>
           </div>
-        </section>
+        </section>}
         <section className="shell py-16">
           <div className="mb-8 flex items-end justify-between">
             <div>

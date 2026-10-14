@@ -54,6 +54,8 @@ model Store {
   logoUrl                String?                 @db.Text
   faviconUrl             String?                 @db.Text
   themeConfig            Json                    @default("{}")
+  whatsappNumber         String?
+  whatsappMessage        String?
   draftThemeConfig       Json?
   storefrontVersion      Int                     @default(0)
   storefrontPublishedAt  DateTime?
@@ -72,6 +74,8 @@ model Store {
   collections            Collection[]
   pages                  Page[]
   menus                  Menu[]
+  banners                Banner[]
+  subscribers            NewsletterSubscriber[]
   emailLogs              EmailLog[]
   promotions             Promotion[]
   stockMovements         StockMovement[]
@@ -596,6 +600,40 @@ model LoyaltyEntry {
 }
 
 /// Página institucional editável pelo lojista (Sobre, Trocas e devoluções, Privacidade…).
+model Banner {
+  id             String    @id @default(uuid())
+  storeId        String
+  imageUrl       String
+  mobileImageUrl String?
+  title          String?
+  subtitle       String?
+  ctaLabel       String?
+  linkUrl        String?
+  position       Int       @default(0)
+  active         Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, active, position])
+}
+
+model NewsletterSubscriber {
+  id             String    @id @default(uuid())
+  storeId        String
+  email          String
+  name           String?
+  source         String    @default("site")
+  createdAt      DateTime  @default(now())
+  unsubscribedAt DateTime?
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, email])
+  @@index([storeId, createdAt])
+}
+
 model Menu {
   id        String   @id @default(uuid())
   storeId   String
