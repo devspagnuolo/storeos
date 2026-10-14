@@ -30,3 +30,13 @@ export type CustomerProfile = {
   orders: { id: string; number: string; status: string; total: string; couponCode: string | null; createdAt: string }[];
   stats: { paidOrders: number; ltv: string; averageTicket: string; firstPurchaseAt: string | null; lastPurchaseAt: string | null; segment: Segment };
 };
+
+export type SalesReport = {
+  from: string; to: string;
+  totals: { revenue: string; orders: number; averageTicket: string; discount: string; shipping: string; buyers: number; newCustomers: number };
+  series: { day: string; revenue: string; orders: number }[];
+  topProducts: { sku: string; name: string; quantity: number; revenue: string }[];
+  funnel: { stage: string; count: number }[];
+  cancelled: number; returned: number;
+  coupons: { code: string; uses: number; discount: string }[];
+};
