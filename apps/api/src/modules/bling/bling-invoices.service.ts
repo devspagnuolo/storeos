@@ -44,7 +44,7 @@ export class BlingInvoicesService {
   async setAutomatic(storeId: string, enabled: boolean) {
     const connection = await this.prisma.blingConnection.findUnique({ where: { storeId } });
     if (!connection) throw new ServiceUnavailableException('Conecte o Bling antes de alterar a emissão fiscal');
-    await this.prisma.blingConnection.update({ where: { storeId }, data: { automaticInvoiceEnabled: enabled } });
+    await this.prisma.blingConnection.update({ where: { storeId }, data: { automaticInvoiceEnabled: enabled, automaticInvoiceEnabledAt: enabled ? new Date() : null } });
     return { automaticInvoiceEnabled: enabled };
   }
 
@@ -97,10 +97,10 @@ export class BlingInvoicesService {
   }
 
   private async enqueueAutomatic() {
-    const connections = await this.prisma.blingConnection.findMany({ where: { automaticInvoiceEnabled: true }, select: { id: true, storeId: true } });
+    const connections = await this.prisma.blingConnection.findMany({ where: { automaticInvoiceEnabled: true }, select: { id: true, storeId: true, automaticInvoiceEnabledAt: true } });
     for (const connection of connections) {
       const orders = await this.prisma.order.findMany({
-        where: { storeId: connection.storeId, payments: { some: { status: 'PAID' } }, blingSync: { status: 'SENT', blingOrderId: { not: null } }, blingInvoice: null },
+        where: { storeId: connection.storeId, createdAt: { gte: connection.automaticInvoiceEnabledAt ?? new Date() }, payments: { some: { status: 'PAID' } }, blingSync: { status: 'SENT', blingOrderId: { not: null } }, blingInvoice: null },
         select: { id: true }, orderBy: { createdAt: 'asc' }, take: 25,
       });
       if (orders.length) await this.prisma.blingInvoice.createMany({
