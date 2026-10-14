@@ -16,7 +16,8 @@ export class AnalyticsService {
     const tz = 'America/Sao_Paulo';
     const [daily, totals, top, funnel, coupons, newCustomers] = await Promise.all([
       this.prisma.$queryRaw<{ day: string; revenue: Prisma.Decimal; orders: bigint }[]>`
-        SELECT to_char(("createdAt" AT TIME ZONE ${tz})::date, 'YYYY-MM-DD') AS day, SUM("total") AS revenue, COUNT(*) AS orders
+        -- createdAt é timestamp sem fuso (UTC): converte para UTC antes de ir ao horário de Brasília.
+        SELECT to_char((("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date, 'YYYY-MM-DD') AS day, SUM("total") AS revenue, COUNT(*) AS orders
         FROM "Order" WHERE "storeId" = ${storeId} AND "createdAt" >= ${start} AND "createdAt" < ${end} AND "status" IN (${paidList})
         GROUP BY 1 ORDER BY 1`,
       this.prisma.$queryRaw<{ revenue: Prisma.Decimal | null; orders: bigint; discount: Prisma.Decimal | null; shipping: Prisma.Decimal | null; customers: bigint }[]>`
