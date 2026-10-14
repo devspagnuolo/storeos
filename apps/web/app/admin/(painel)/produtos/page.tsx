@@ -16,7 +16,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   const href = (n: number) => `/admin/produtos?${new URLSearchParams({ ...(q && { q }), page: String(n) })}`;
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-bold">Produtos</h1><Link href="/admin/produtos/novo" className="button">Novo produto</Link></div>
+      <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-bold">Produtos</h1><div className="flex flex-wrap gap-2"><Link href="/painel/produtos/importar" className="rounded border px-4 py-2 text-sm font-medium">Importar / exportar</Link><Link href="/admin/produtos/novo" className="button">Novo produto</Link></div></div>
       <form className="mt-6 flex max-w-md gap-2"><input name="q" defaultValue={q} placeholder="Buscar por nome ou SKU" className="input !mt-0" /><button className="button-ghost">Buscar</button></form>
       <div className="card mt-6 overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
