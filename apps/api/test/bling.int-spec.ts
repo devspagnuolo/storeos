@@ -174,7 +174,12 @@ describe('pedidos do site no Bling', () => {
     const signature = 'sha256=' + createHmac('sha256', 'test-secret').update(body).digest('hex');
     const response = await api('/bling/webhook', { method: 'POST', body: event, headers: { 'x-bling-signature-256': signature } });
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ received: true, ignored: false });
+    expect(response.body).toMatchObject({ received: true, ignored: false, queued: true, duplicate: false });
+    const duplicate = await api('/bling/webhook', { method: 'POST', body: event, headers: { 'x-bling-signature-256': signature } });
+    expect(duplicate.body).toMatchObject({ queued: false, duplicate: true });
+    expect(await prisma.blingWebhookEvent.count({ where: { eventId: 'evt-bl-1' } })).toBe(1);
+    await app.get(BlingWebhookService).processDue();
+    expect(await prisma.blingWebhookEvent.findUniqueOrThrow({ where: { eventId: 'evt-bl-1' } })).toMatchObject({ status: 'PROCESSED', attempts: 0 });
     expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({
       blingOrderNumber: sent.blingOrderNumber,
       blingSituationId: '42',
