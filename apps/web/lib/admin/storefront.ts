@@ -11,6 +11,8 @@ export type StoreSetup = {
   storeName: string;
   completed: number;
   total: number;
-  steps: { id: string; title: string; description: string; href: string; complete: boolean }[];
+  ready: boolean;
+  pendingRequired: string[];
+  steps: { id: string; title: string; description: string; href: string; complete: boolean; level: 'required' | 'recommended' }[];
   payment: { paymentConfigured: boolean; webhookConfigured: boolean; callbackConfigured: boolean; confirmedPayments: number };
 };
