@@ -46,6 +46,16 @@ export class MercadoPagoClient {
     return response.json() as Promise<T>;
   }
 
+  /** Consulta barata para validar a credencial. Não cria nada. */
+  async ping(): Promise<'ok' | 'unauthorized' | 'error'> {
+    try {
+      await this.request('/users/me');
+      return 'ok';
+    } catch (error) {
+      return /falhou com (401|403)/.test((error as Error).message) ? 'unauthorized' : 'error';
+    }
+  }
+
   get publicKey() {
     return process.env.MERCADOPAGO_PUBLIC_KEY || process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY || undefined;
   }

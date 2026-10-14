@@ -692,3 +692,12 @@ export async function setBlingStockSyncAction(form: FormData) {
   await adminFetch('/bling/stock-settings', { method: 'POST', body: { enabled: form.get('enabled') === 'true' } });
   revalidatePath('/admin/bling');
 }
+
+export async function shippingTestAction(zip: string): Promise<{ result?: import('../../lib/admin/types').ShippingTestResult; error?: string }> {
+  try {
+    return { result: await adminFetch('/diagnostics/shipping-test', { method: 'POST', body: { zip } }) };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
