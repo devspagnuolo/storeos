@@ -15,8 +15,8 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
   const sync = status.connected ? await adminFetch<{ items: BlingSyncRow[] }>('/bling/orders').catch(() => ({ items: [] as BlingSyncRow[] })) : { items: [] as BlingSyncRow[] };
   return (
     <>
-      <h1 className="text-3xl font-bold">Bling (ERP)</h1>
-      <p className="mt-1 max-w-2xl text-sm text-slate-500">O Bling é o sistema principal da operação. Os pedidos do site — inclusive aguardando pagamento — são registrados lá com o número STOREOS; situação e número do ERP retornam para este painel.</p>
+      <h1 className="text-3xl font-bold">Bling — canal de e-commerce</h1>
+      <p className="mt-1 max-w-2xl text-sm text-slate-500">A STOREOS é o canal de vendas; o Bling continua sendo o ERP principal. Cada pedido mantém seu número STOREOS e recebe, separadamente, o número e o ID do Bling.</p>
       {params.conectado && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Bling conectado com sucesso.</p>}
       {params.erro && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">Não foi possível concluir a conexão. Tente de novo pelo botão abaixo.</p>}
 
@@ -24,7 +24,7 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
         <h2 className="text-lg font-bold">Conexão</h2>
         {!status.appConfigured && (
           <div className="mt-3 space-y-2 text-sm text-slate-600">
-            <p>Antes de conectar, crie um aplicativo no Bling (Preferências → Integrações → Cadastro de aplicativos) e cadastre na API as variáveis <code>BLING_CLIENT_ID</code> e <code>BLING_CLIENT_SECRET</code>.</p>
+            <p>Antes de conectar, crie um app privado na Central de Extensões → Área do Integrador. Escolha a categoria E-commerce se disponível (categoria é classificação comercial; não altera permissões nem a API). O Bling continua sendo o ERP. Conceda somente os escopos necessários: dados básicos da empresa, leitura de produtos/categorias/estoque, leitura e criação de contatos e pedidos de venda; escopos de NF-e somente se for usar emissão. Alterar escopos revoga autorizações existentes, então será preciso reconectar. Cadastre no Render as variáveis <code>BLING_CLIENT_ID</code> e <code>BLING_CLIENT_SECRET</code>.</p>
             <p>No cadastro do aplicativo, informe como <b>link de redirecionamento</b>: <code className="break-all rounded bg-slate-100 px-1">{status.callbackUrl ?? 'https://SUA-API/api/v1/bling/callback (defina API_PUBLIC_URL)'}</code></p>
           </div>
         )}
@@ -51,16 +51,17 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
               <code className="mt-1 block break-all text-sm">{status.webhookUrl ?? 'Defina API_PUBLIC_URL no serviço API do Render'}</code>
             </div>
             <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-slate-600">
-              <li>Na aba Webhooks do aplicativo, adicione o servidor com alias STOREOS.</li>
-              <li>Ative o recurso Pedido de venda, ações criado e atualizado, versão 1.</li>
-              <li>Salve a configuração; atualizações de situação do ERP aparecerão nos detalhes do pedido.</li>
+              <li>Na aba Webhooks do app Bling, adicione este endpoint com alias STOREOS.</li>
+              <li>Ative somente Pedido de Venda → criado e atualizado → versão 1. Esses são os eventos tratados atualmente.</li>
+              <li>O endpoint valida X-Bling-Signature-256, registra eventId de forma idempotente e responde antes do processamento em fila.</li>
+              <li>Produtos e estoque são importados sob demanda pelo botão abaixo; não ative webhooks desses recursos ainda. A situação do Bling aparece separada e não altera automaticamente o status local.</li>
             </ol>
             {!status.companyLinked && <p role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">A empresa ainda não foi vinculada para roteamento dos webhooks. Inclua a permissão de leitura de dados da empresa no app Bling e reconecte.</p>}
           </section>
 
           <section className="card mt-6 p-6">
             <h2 className="text-lg font-bold">Importar produtos</h2>
-            <p className="mb-4 mt-1 text-sm text-slate-500">Traz os produtos ativos do Bling com variações, preços, estoque, imagens e categorias. Produtos com o mesmo código (SKU) são atualizados; os novos são criados. Pode repetir quando quiser.</p>
+            <p className="mb-4 mt-1 text-sm text-slate-500">Importação sob demanda do catálogo ativo do Bling para a loja: variações, preço, estoque, imagens e categorias. O SKU faz a reconciliação. Esta versão não sincroniza alterações do catálogo em tempo real; importe novamente após mudanças no ERP.</p>
             <BlingImport initial={status.import} />
           </section>
 
