@@ -22,7 +22,8 @@ export async function startApp(customize: (builder: TestingModuleBuilder) => Tes
       headers: { 'content-type': 'application/json', ...(init.token && { authorization: `Bearer ${init.token}` }), ...init.headers },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
-    return { status: response.status, body: await response.json() };
+    const text = await response.text();
+    return { status: response.status, body: text ? JSON.parse(text) : undefined };
   };
   return { app, api };
 }

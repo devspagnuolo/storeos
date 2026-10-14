@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Header } from '../../components/header';
+import { ShippingCalculator } from '../../components/shipping-calculator';
 import { cartSubtotalCents, useCart } from '../../lib/cart';
 import { formatPrice } from '../../lib/format';
 
@@ -35,7 +36,7 @@ export default function CartPage() {
             </ul>
             <aside className="card h-fit p-6">
               <div className="flex justify-between"><span>Subtotal</span><b>{formatPrice(subtotal)}</b></div>
-              <div className="mt-2 flex justify-between text-sm text-slate-500"><span>Frete</span><span>Calculado no envio</span></div>
+              <ShippingCalculator items={items} />
               <Link href="/checkout" className="button mt-6 w-full">Finalizar compra</Link>
             </aside>
           </div>

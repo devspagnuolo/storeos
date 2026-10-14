@@ -60,6 +60,13 @@ async function main() {
     if (!inventory) await prisma.inventory.create({ data: { storeId: store.id, productId: product.id, quantity: stock } });
   }
 
+  if (!(await prisma.shippingRule.count({ where: { storeId: store.id } }))) {
+    await prisma.shippingRule.createMany({ data: [
+      { storeId: store.id, name: 'Expresso Sudeste', states: ['ES', 'MG', 'RJ', 'SP'], price: '19.90', freeAbove: '299.00', minDays: 1, maxDays: 3, position: 0 },
+      { storeId: store.id, name: 'Econômico', states: [], price: '29.90', freeAbove: '499.00', minDays: 5, maxDays: 12, position: 1 },
+    ] });
+  }
+
   console.log(`Loja demo pronta: ${products.length} produtos, ${categories.length} categorias, admin ${user.email}`);
 }
 

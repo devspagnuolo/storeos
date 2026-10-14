@@ -28,7 +28,7 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
           <section className="card overflow-hidden">
             <h2 className="p-5 font-bold">Itens</h2>
             <table className="w-full text-sm"><tbody className="divide-y">{order.items.map(item => <tr key={item.id}><td className="px-5 py-3">{item.name}<p className="text-xs text-slate-400">SKU {item.sku}</p></td><td className="px-5 py-3 text-right">{item.quantity} × {formatPrice(item.unitPrice)}</td><td className="px-5 py-3 text-right font-semibold">{formatPrice(item.total)}</td></tr>)}</tbody></table>
-            <div className="space-y-1 border-t p-5 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{formatPrice(order.subtotal)}</span></div><div className="flex justify-between"><span>Frete</span><span>{formatPrice(order.shipping)}</span></div><div className="flex justify-between text-base font-bold"><span>Total</span><span>{formatPrice(order.total)}</span></div></div>
+            <div className="space-y-1 border-t p-5 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{formatPrice(order.subtotal)}</span></div><div className="flex justify-between"><span>Frete{order.shippingMethod && ` (${order.shippingMethod})`}</span><span>{formatPrice(order.shipping)}</span></div><div className="flex justify-between text-base font-bold"><span>Total</span><span>{formatPrice(order.total)}</span></div></div>
           </section>
           <section className="card p-5">
             <h2 className="font-bold">Histórico</h2>

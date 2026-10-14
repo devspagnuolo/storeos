@@ -5,17 +5,18 @@ export type CheckoutForm = {
   name: string; email: string;
   zipCode: string; street: string; number: string; complement?: string; district?: string; city: string; state: string;
   paymentMethod: 'PIX' | 'BOLETO';
+  shippingRuleId?: string;
 };
 
 export type CheckoutResult = {
-  number: string; status: string; total: string; currency: string;
+  number: string; status: string; subtotal: string; shipping: string; shippingMethod: string | null; total: string; currency: string;
   items: { sku: string; name: string; quantity: number; total: string }[];
   payment: { method: string; status: string; expiresAt?: string; instructions: { message: string; pixCode?: string; qrCodeBase64?: string; ticketUrl?: string } };
 };
 
 /** Envia o pedido direto do navegador para a API; o rate limit da API considera o IP de cada cliente. */
 export async function submitCheckout(form: CheckoutForm, items: CartItem[]): Promise<CheckoutResult> {
-  const { name, email, paymentMethod, ...address } = form;
+  const { name, email, paymentMethod, shippingRuleId, ...address } = form;
   const response = await fetch(`${apiUrl}/checkout`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -25,6 +26,7 @@ export async function submitCheckout(form: CheckoutForm, items: CartItem[]): Pro
       shippingAddress: { ...address, state: address.state.toUpperCase(), complement: address.complement || undefined, district: address.district || undefined },
       items: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
       paymentMethod,
+      shippingRuleId,
     }),
   });
   const body = await response.json().catch(() => ({}));
