@@ -42,6 +42,31 @@ export async function orderTransitionAction(_: FormState, form: FormData): Promi
   return { ok: action === 'cancel' ? 'Pedido cancelado e estoque devolvido.' : 'Pagamento confirmado e estoque baixado.' };
 }
 
+const fulfillmentSteps = ['pick', 'invoice', 'ship', 'deliver', 'return'] as const;
+const fulfillmentDone: Record<(typeof fulfillmentSteps)[number], string> = { pick: 'Separação iniciada.', invoice: 'Nota fiscal registrada.', ship: 'Envio registrado.', deliver: 'Entrega confirmada.', return: 'Devolução registrada e estoque reposto.' };
+
+export async function orderFulfillmentAction(_: FormState, form: FormData): Promise<FormState> {
+  const number = String(form.get('number'));
+  const step = fulfillmentSteps.find(item => item === form.get('step'));
+  if (!step) return { error: 'Etapa inválida.' };
+  const text = (name: string) => String(form.get(name) ?? '').trim() || undefined;
+  const bodies = {
+    pick: {},
+    invoice: { invoiceNumber: text('invoiceNumber'), invoiceKey: text('invoiceKey') },
+    ship: { carrier: text('carrier'), trackingCode: text('trackingCode'), trackingUrl: text('trackingUrl') },
+    deliver: {},
+    return: { reason: text('reason') },
+  };
+  try {
+    await adminFetch(`/orders/${encodeURIComponent(number)}/${step}`, { method: 'POST', body: bodies[step] });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin', 'layout');
+  return { ok: fulfillmentDone[step] };
+}
+
 export async function saveProductAction(_: FormState, form: FormData): Promise<FormState> {
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const text = (key: string) => String(form.get(key) ?? '').trim();

@@ -6,6 +6,7 @@ export type OrderDetail = Omit<OrderRow, 'payments' | '_count'> & {
   items: { id: string; sku: string; name: string; quantity: number; unitPrice: string; total: string }[];
   payments: { id: string; method: string; status: string; provider: string; transactionId: string | null; amount: string; expiresAt: string | null; paidAt: string | null }[];
   timeline: { id: string; status: string; message: string | null; createdAt: string }[];
+  fulfillment: { invoiceNumber: string | null; invoiceKey: string | null; carrier: string | null; trackingCode: string | null; trackingUrl: string | null; shippedAt: string | null; deliveredAt: string | null; returnReason: string | null } | null;
 };
 export type Summary = { days: number; revenue: string; paidOrders: number; averageTicket: string; orders: number; awaitingPayment: number; paymentRate: number; lowStockProducts: number };
 export type AdminProduct = { id: string; name: string; slug: string; sku: string; price: string; status: string; description: string | null; stock: number; reserved: number; images: { url: string }[]; categoryIds?: string[]; updatedAt: string };

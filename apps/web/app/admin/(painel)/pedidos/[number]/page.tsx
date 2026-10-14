@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { OrderActions } from '../../../../../components/admin/order-actions';
+import { OrderFulfillment } from '../../../../../components/admin/order-fulfillment';
 import { StatusBadge } from '../../../../../components/admin/status-badge';
 import { formatDateTime, orderStatusLabel, paymentMethodLabel } from '../../../../../lib/admin/labels';
 import { adminFetch, ApiError } from '../../../../../lib/admin/session';
@@ -37,6 +38,7 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
         </div>
         <aside className="space-y-6">
           <OrderActions number={order.number} status={order.status} />
+          <OrderFulfillment number={order.number} status={order.status} fulfillment={order.fulfillment} />
           <section className="card p-5 text-sm">
             <h2 className="font-bold">Cliente</h2>
             <p className="mt-2">{order.customer?.name}</p><p className="text-slate-500">{order.customer?.email}</p>
