@@ -19,6 +19,7 @@ export default async function AdminHome() {
     <>
       <p className="text-sm font-semibold text-brand">ÚLTIMOS {summary.days} DIAS</p>
       <h1 className="mt-1 text-3xl font-bold">Visão geral</h1>
+      <Link href="/painel/primeiros-passos" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-100 bg-violet-50 p-5"><span><strong className="block text-slate-900">Prepare sua loja para vender</strong><span className="mt-1 block text-sm text-slate-600">Confira o catálogo, a vitrine, as entregas e o recebimento.</span></span><span className="text-sm font-semibold text-brand">Continuar configuração →</span></Link>
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map(([label, value, hint]) => <div className="card p-5" key={label}><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p>{hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}</div>)}
       </div>

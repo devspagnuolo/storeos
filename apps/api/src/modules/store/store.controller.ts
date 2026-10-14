@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { IsObject, IsOptional, IsString, IsUrl, Length, MaxLength } from 'class-validator';
@@ -7,7 +7,7 @@ import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { StoreAssetsService } from './store-assets.service';
-import { sanitizeStorefrontConfig } from './storefront-config';
+import { StorefrontService } from './storefront.service';
 
 class UpdateStoreDto {
   @IsOptional() @IsString() @Length(2, 80) name?: string;
@@ -29,7 +29,7 @@ const acceptedImageTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/x-ic
 @ApiTags('Store')
 @Controller('store')
 export class StoreController {
-  constructor(private readonly prisma: PrismaService, private readonly assets: StoreAssetsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly assets: StoreAssetsService, private readonly storefront: StorefrontService) {}
 
   @Get('public/:slug')
   async publicInfo(@Param('slug') slug: string) {
@@ -49,7 +49,7 @@ export class StoreController {
 
   @Patch()
   @RequirePermissions(Permissions.SETTINGS_WRITE)
-  async update(@CurrentStore() storeId: string, @Body() dto: UpdateStoreDto) {
+  async update(@CurrentStore() storeId: string, @Body() dto: UpdateStoreDto, @Req() req: { user: { sub: string } }) {
     const data: Prisma.StoreUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.logoUrl !== undefined) {
@@ -57,11 +57,7 @@ export class StoreController {
       data.faviconUrl = dto.logoUrl;
     }
     if (dto.themeConfig !== undefined) {
-      const store = await this.prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { themeConfig: true } });
-      const current = store.themeConfig && typeof store.themeConfig === 'object' && !Array.isArray(store.themeConfig)
-        ? store.themeConfig as Record<string, unknown>
-        : {};
-      data.themeConfig = { ...current, ...sanitizeStorefrontConfig(dto.themeConfig) } as Prisma.InputJsonValue;
+      await this.storefront.legacyPublish(storeId, dto.themeConfig, req.user.sub);
     }
     return view(await this.prisma.store.update({ where: { id: storeId }, data }));
   }

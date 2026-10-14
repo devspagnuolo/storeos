@@ -54,6 +54,10 @@ model Store {
   logoUrl       String?        @db.Text
   faviconUrl    String?        @db.Text
   themeConfig   Json           @default("{}")
+  draftThemeConfig Json?
+  storefrontVersion Int        @default(0)
+  storefrontPublishedAt DateTime?
+  storefrontPublications StorefrontPublication[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   users         User[]
@@ -355,4 +359,18 @@ model ShippingRule {
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, active, position])
+}
+
+/// Immutable published snapshots; restoring creates a draft first.
+model StorefrontPublication {
+  id        String   @id @default(uuid())
+  storeId   String
+  version   Int
+  config    Json
+  actorId   String?
+  createdAt DateTime @default(now())
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, version])
+  @@index([storeId, createdAt])
 }
