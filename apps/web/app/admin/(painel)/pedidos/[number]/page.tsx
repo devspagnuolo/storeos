@@ -7,6 +7,7 @@ import { formatDateTime, orderStatusLabel, paymentMethodLabel } from '../../../.
 import { adminFetch, ApiError } from '../../../../../lib/admin/session';
 import type { OrderDetail } from '../../../../../lib/admin/types';
 import { formatPrice } from '../../../../../lib/format';
+import { requestBlingInvoiceAction } from '../../../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   });
-  const address = order.shippingAddress;
+  const address = order.shippingAddress;\n  const invoice = await adminFetch<{ status: string; invoiceNumber: string | null; series: string | null; accessKey: string | null; rejectionReason: string | null; authorizedAt: string | null; issuedAt: string | null }>(`/bling/orders/${encodeURIComponent(number)}/invoice`).catch(() => null);
   return (
     <>
       <Link href="/admin/pedidos" className="text-sm text-slate-500">← Pedidos</Link>
@@ -45,6 +46,20 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
             <p className="mt-1 text-slate-600">Pedido Bling <strong>{order.blingSync?.blingOrderNumber ? '#' + order.blingSync.blingOrderNumber : order.blingSync?.status === 'FAILED' ? 'com erro no envio' : order.blingSync ? 'na fila de envio' : 'ainda não sincronizado'}</strong></p>
             {order.blingSync?.blingSituationName && <p className="mt-2 text-slate-500">Situação no Bling: {order.blingSync.blingSituationName}</p>}
             {!order.blingSync?.blingSituationName && order.blingSync?.blingSituationId && <p className="mt-2 text-slate-500">Situação Bling ID {order.blingSync.blingSituationId}</p>}
+          </section>
+          <section className="card p-5 text-sm">
+            <h2 className="font-bold">Nota fiscal · Bling</h2>
+            {query.nfSolicitada && <p role="status" className="mt-2 rounded bg-emerald-50 p-2 text-emerald-800">Solicitação colocada na fila. Acompanhe o status abaixo.</p>}
+            {query.nfErro && <p role="alert" className="mt-2 rounded bg-red-50 p-2 text-red-700">{query.nfErro}</p>}
+            {invoice ? <>
+              <p className="mt-3">Status: <strong>{({ QUEUED: 'Na fila', PROCESSING: 'Processando', GENERATED: 'Gerada; aguardando retorno da SEFAZ', AUTHORIZED: 'Autorizada', REJECTED: 'Rejeitada', FAILED: 'Com erro' } as Record<string, string>)[invoice.status] ?? invoice.status}</strong></p>
+              {invoice.invoiceNumber && <p className="mt-1 text-slate-600">NF-e {invoice.invoiceNumber}{invoice.series ? ` · série ${invoice.series}` : ''}</p>}
+              {invoice.accessKey && <p className="mt-1 break-all text-xs text-slate-500">Chave: {invoice.accessKey}</p>}
+              {invoice.rejectionReason && <p className="mt-2 text-red-700">{invoice.rejectionReason}</p>}
+              {invoice.authorizedAt && <p className="mt-2 text-xs text-slate-500">Autorizada em {formatDateTime(invoice.authorizedAt)}</p>}
+            </> : <p className="mt-2 text-slate-500">Ainda não há solicitação de NF-e para este pedido.</p>}
+            {(!invoice || ['FAILED', 'REJECTED'].includes(invoice.status)) && <form action={requestBlingInvoiceAction} className="mt-4"><input type="hidden" name="number" value={order.number} /><button className="button w-full">Solicitar NF-e no Bling</button></form>}
+            <p className="mt-3 text-xs text-slate-500">Disponível após o pagamento confirmado e o pedido registrado no Bling. O ERP aplica a configuração fiscal da loja.</p>
           </section>
           <section className="card p-5 text-sm">
             <h2 className="font-bold">Cliente</h2>
