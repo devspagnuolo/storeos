@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
   // Sem settings.write o usuário ainda pode trocar a própria senha.
-  const store = await adminFetch<{ slug: string; name: string }>('/store').catch(error => {
+  const store = await adminFetch<{ slug: string; name: string; logoUrl: string | null }>('/store').catch(error => {
     if (error instanceof ApiError && error.status === 403) return null;
     throw error;
   });
