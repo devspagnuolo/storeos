@@ -4,6 +4,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { generateOrderNumber, mergeItems, priceOrderLines, RequestedItem } from '../orders/order-lines';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
 import { ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
+import { CouponsService } from '../promotions/coupons.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { money } from '../../shared/money/money';
 
@@ -15,13 +16,14 @@ export type CheckoutInput = {
   items: RequestedItem[];
   paymentMethod: PaymentMethod;
   shippingRuleId?: string;
+  couponCode?: string;
 };
 
 @Injectable()
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
 
-  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService) {}
+  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService) {}
 
   async checkout(input: CheckoutInput) {
     if (input.paymentMethod === PaymentMethod.CREDIT_CARD) throw new BadRequestException('Cartão de crédito ainda não está disponível');
@@ -47,7 +49,6 @@ export class CheckoutService {
         shipping = chosen.price;
         shippingMethod = chosen.name;
       }
-      const total = subtotal.plus(shipping);
       for (const item of items) {
         // Reserva atômica: só incrementa se ainda houver saldo livre, evitando venda acima do estoque.
         const reserved = await tx.$executeRaw`UPDATE "Inventory" SET "reserved" = "reserved" + ${item.quantity}, "updatedAt" = NOW()
@@ -62,10 +63,18 @@ export class CheckoutService {
         create: { storeId: store.id, email, name: input.customer.name },
         update: { name: input.customer.name },
       });
+      let discount = money(0);
+      let couponId: string | undefined;
+      if (input.couponCode?.trim()) {
+        const redeemed = await this.coupons.redeem(tx, { storeId: store.id, code: input.couponCode, subtotal, shipping, customerId: customer.id });
+        discount = redeemed.discount;
+        couponId = redeemed.coupon.id;
+      }
+      const total = subtotal.minus(discount).plus(shipping);
       const number = generateOrderNumber();
       const created = await tx.order.create({
         data: {
-          storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, shipping, total, shippingMethod,
+          storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, shipping, total, shippingMethod, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : null,
           shippingAddress: input.shippingAddress as Prisma.InputJsonObject,
           items: { create: lines },
           timeline: { create: [{ status: OrderStatus.NEW, message: 'Pedido criado no checkout' }, { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento' }] },
@@ -73,6 +82,7 @@ export class CheckoutService {
         },
         include: { payments: true, items: true },
       });
+      if (couponId) await tx.couponRedemption.create({ data: { couponId, orderId: created.id, customerId: customer.id, amount: discount } });
       await tx.outboxEvent.create({ data: { storeId: store.id, aggregateType: 'Order', aggregateId: created.id, eventName: 'orders.order-created.v1', payload: { orderNumber: number, customerId: customer.id, total: total.toString(), currency: created.currency } } });
       await tx.outboxEvent.create({ data: { storeId: store.id, aggregateType: 'Order', aggregateId: created.id, eventName: 'inventory.reserved.v1', payload: { orderNumber: number, items } as unknown as Prisma.InputJsonObject } });
       return created;
@@ -95,6 +105,8 @@ export class CheckoutService {
       number: order.number,
       status: order.status,
       subtotal: order.subtotal.toFixed(2),
+      discount: order.discount.toFixed(2),
+      couponCode: order.couponCode,
       shipping: order.shipping.toFixed(2),
       shippingMethod: order.shippingMethod,
       total: order.total.toFixed(2),

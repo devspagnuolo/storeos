@@ -114,6 +114,29 @@ export async function revokeSessionAction(form: FormData) {
   revalidatePath('/admin/seguranca');
 }
 
+export async function createCouponAction(_: FormState, form: FormData): Promise<FormState> {
+  const num = (name: string) => { const raw = String(form.get(name) ?? '').trim().replace(',', '.'); return raw ? Number(raw) : undefined; };
+  const date = (name: string) => { const raw = String(form.get(name) ?? ''); return raw ? new Date(raw).toISOString() : undefined; };
+  const type = String(form.get('type'));
+  try {
+    await adminFetch('/coupons', { method: 'POST', body: {
+      code: String(form.get('code') ?? '').trim(), type, value: type === 'FREE_SHIPPING' ? undefined : num('value'),
+      minSubtotal: num('minSubtotal'), maxUses: num('maxUses'), oncePerCustomer: form.get('oncePerCustomer') === 'on',
+      startsAt: date('startsAt'), endsAt: date('endsAt'),
+    } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/cupons');
+  return { ok: 'Cupom criado.' };
+}
+
+export async function toggleCouponAction(form: FormData) {
+  await adminFetch(`/coupons/${encodeURIComponent(String(form.get('id')))}`, { method: 'PATCH', body: { active: form.get('active') === 'true' } });
+  revalidatePath('/admin/cupons');
+}
+
 export async function saveProductAction(_: FormState, form: FormData): Promise<FormState> {
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const text = (key: string) => String(form.get(key) ?? '').trim();

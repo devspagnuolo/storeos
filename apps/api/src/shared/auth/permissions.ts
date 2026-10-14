@@ -11,6 +11,7 @@ export const Permissions = {
   ORDERS_WRITE: 'orders.write',
   SETTINGS_WRITE: 'settings.write',
   AUDIT_READ: 'audit.read',
+  MARKETING_WRITE: 'marketing.write',
 } as const;
 
 @Injectable()

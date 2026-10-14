@@ -61,6 +61,12 @@ export class OrderLifecycleService {
             WHERE "storeId" = ${order.storeId} AND "productId" = ${item.productId} AND "variantId" IS NULL`;
         }
       }
+      // Pedido cancelado devolve o uso do cupom.
+      const redemption = await tx.couponRedemption.findUnique({ where: { orderId: order.id } });
+      if (redemption) {
+        await tx.$executeRaw`UPDATE "Coupon" SET "usedCount" = GREATEST("usedCount" - 1, 0), "updatedAt" = NOW() WHERE "id" = ${redemption.couponId}`;
+        await tx.couponRedemption.delete({ where: { id: redemption.id } });
+      }
       await tx.payment.updateMany({ where: { orderId: order.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } }, data: { status: source.paymentStatus ?? PaymentStatus.CANCELLED } });
       await tx.orderTimeline.create({ data: { orderId: order.id, status: OrderStatus.CANCELLED, message: source.message ?? 'Pedido cancelado', actorId: source.actorId } });
       await tx.outboxEvent.create({ data: { storeId: order.storeId, aggregateType: 'Order', aggregateId: order.id, eventName: 'orders.order-cancelled.v1', payload: { orderNumber: order.number } } });
