@@ -343,58 +343,31 @@ export async function saveStoreAction(_: FormState, form: FormData): Promise<For
   return { ok: 'Identidade visual salva. A logo também foi definida como favicon.' };
 }
 
-export async function saveStorefrontAction(_: FormState, form: FormData): Promise<FormState> {
-  const version = Number(form.get('version'));
-  const publish = form.get('intent') === 'publish';
-  if (!Number.isInteger(version) || version < 0) return { error: 'Recarregue a página para obter a versão atual.' };
-  const text = (key: string) => String(form.get(key) ?? '').trim();
-  const heroFile = form.get('heroImage');
-  let heroImageUrl: string | null = text('heroImageUrl') || null;
+export type StorefrontSaveResult = { version?: number; error?: string; conflict?: boolean };
 
-  if (heroFile instanceof File && heroFile.size > 0) {
-    if (heroFile.size > 5_000_000) return { error: 'A imagem principal precisa ter até 5 MB.' };
-    const token = (await cookies()).get(ACCESS_COOKIE)?.value;
-    if (!token) return { error: 'Sua sessão expirou. Entre novamente para continuar.' };
-    const uploadForm = new FormData();
-    uploadForm.set('file', heroFile, heroFile.name);
-    const response = await fetch(`${serverApiUrl}/store/hero`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}` },
-      body: uploadForm,
-    }).catch(() => undefined);
-    if (!response) return { error: 'Não foi possível conectar ao serviço de imagens.' };
-    const result = await response.json().catch(() => undefined);
-    if (!response.ok) {
-      const message = Array.isArray(result?.message) ? result.message.join('; ') : result?.message;
-      return { error: message || 'Não foi possível enviar a imagem principal.' };
-    }
-    heroImageUrl = result.heroImageUrl;
-  }
-
-  const themeConfig = {
-    announcementText: text('announcementText'),
-    heroTitle: text('heroTitle'),
-    heroDescription: text('heroDescription'),
-    heroCta: text('heroCta'),
-    heroImageUrl,
-    accentColor: text('accentColor'),
-  };
-  if (themeConfig.heroTitle.length < 2 || themeConfig.heroTitle.length > 120) return { error: 'O título precisa ter entre 2 e 120 caracteres.' };
-  if (themeConfig.heroDescription.length > 300 || themeConfig.announcementText.length > 100) return { error: 'Revise o limite de caracteres dos textos.' };
-  if (!/^#[0-9a-fA-F]{6}$/.test(themeConfig.accentColor)) return { error: 'Escolha uma cor válida para a loja.' };
-
+/** Salva o rascunho (sem alterar a loja publicada) ou publica. Devolve a nova versão para o editor seguir salvando sem recarregar. */
+export async function saveStorefrontConfigAction(version: number, config: unknown, publish: boolean): Promise<StorefrontSaveResult> {
+  if (!Number.isInteger(version) || version < 0) return { error: 'Recarregue a página para obter a versão atual.', conflict: true };
   try {
-    await adminFetch(publish ? '/store/storefront/publish' : '/store/storefront/draft', {
-      method: publish ? 'POST' : 'PATCH', body: { version, config: themeConfig },
+    const result = await adminFetch<{ version: number }>(publish ? '/store/storefront/publish' : '/store/storefront/draft', {
+      method: publish ? 'POST' : 'PATCH', body: { version, config },
     });
+    if (publish) revalidatePath('/', 'layout');
+    return { version: result.version };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message, conflict: error.status === 409 };
+    throw error;
+  }
+}
+
+export async function getPublicationConfigAction(id: string): Promise<{ config?: unknown; error?: string }> {
+  try {
+    const result = await adminFetch<{ config: unknown }>(`/store/storefront/publications/${encodeURIComponent(id)}`);
+    return { config: result.config };
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     throw error;
   }
-  if (publish) revalidatePath('/', 'layout');
-  revalidatePath('/admin/site');
-  revalidatePath('/painel/site');
-  redirect('/painel/site?salvo=' + (publish ? 'publicado' : 'rascunho'));
 }
 
 export async function restoreStorefrontAction(_: FormState, form: FormData): Promise<FormState> {

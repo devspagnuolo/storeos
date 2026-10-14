@@ -41,7 +41,14 @@ export const getProduct = (slug: string) => get<ProductDetail | null>(`/catalog/
 export type PageLink = { slug: string; title: string; showInFooter: boolean };
 export type ContentPage = { slug: string; title: string; body: string; seoDescription: string | null; updatedAt: string };
 
-export type StorefrontConfig = { announcementText?: string; heroTitle?: string; heroDescription?: string; heroCta?: string; heroImageUrl?: string | null; accentColor?: string };
+export type SectionType = 'banners' | 'hero' | 'image' | 'carousel' | 'text' | 'categories' | 'products' | 'benefits' | 'testimonials' | 'newsletter' | 'video';
+/** Valores de seção já validados pela API (texto, número, listas); a tela trata cada campo conforme o catálogo. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Json = any;
+export type SectionProps = Record<string, Json>;
+export type HomeSection = { id: string; type: SectionType; hidden: boolean; props: SectionProps };
+export type StorefrontDesign = { preset?: string; font?: string; buttonRadius?: string; containerWidth?: string; spacing?: string; logoUrl?: string | null; faviconUrl?: string | null; backgroundColor?: string; textColor?: string };
+export type StorefrontConfig = { announcementText?: string; heroTitle?: string; heroDescription?: string; heroCta?: string; heroImageUrl?: string | null; accentColor?: string; design?: StorefrontDesign; home?: { sections: HomeSection[] } };
 export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig; whatsappNumber?: string | null; whatsappMessage?: string | null };
 
 export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent(storeSlug)}`, { slug: storeSlug, name: 'Loja', logoUrl: null, faviconUrl: null, themeConfig: {} });
