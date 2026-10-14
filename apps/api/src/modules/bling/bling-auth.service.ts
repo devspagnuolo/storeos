@@ -40,6 +40,16 @@ export class BlingAuthService {
     if (!storeId) throw new BadRequestException('Autorização expirada ou inválida. Comece a conexão de novo pelo painel.');
     const tokens = await this.client.token({ grant_type: 'authorization_code', code });
     await this.save(storeId, tokens);
+    try {
+      const company = await this.client.request<{ data?: { id?: number | string } }>(tokens.access_token, '/empresas/me');
+      if (company.data?.id === undefined || company.data?.id === null) throw new Error('ID da empresa ausente');
+      await this.prisma.blingConnection.update({ where: { storeId }, data: { companyId: String(company.data.id), lastError: null } });
+    } catch {
+      await this.prisma.blingConnection.update({
+        where: { storeId },
+        data: { companyId: null, lastError: 'Conexão ativa. Para habilitar os webhooks, conceda leitura de dados da empresa no aplicativo Bling e reconecte.' },
+      });
+    }
     return storeId;
   }
 

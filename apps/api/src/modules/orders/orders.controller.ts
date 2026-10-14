@@ -8,7 +8,7 @@ import { OrderLifecycleService } from './order-lifecycle.service';
 import { OrdersService } from './orders.service';
 export class OrderItemDto { @IsString() productId!: string; @IsOptional() @IsString() variantId?: string; @IsInt() @Min(1) @Max(999) quantity!: number; }
 class CreateOrderDto { @IsString() customerId!: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => OrderItemDto) items!: OrderItemDto[]; }
-class ListOrdersQuery { @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number; @IsOptional() @IsString() status?: string; }
+class ListOrdersQuery { @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number; @IsOptional() @IsString() status?: string; @IsOptional() @IsString() @MaxLength(120) q?: string; }
 class InvoiceDto { @IsString() @MaxLength(60) invoiceNumber!: string; @IsOptional() @IsString() @MaxLength(60) invoiceKey?: string; }
 class ShipDto { @IsString() @MaxLength(80) carrier!: string; @IsString() @MaxLength(80) trackingCode!: string; @IsOptional() @IsString() @MaxLength(500) trackingUrl?: string; }
 class ReturnDto { @IsString() @MaxLength(280) reason!: string; @IsOptional() @IsBoolean() restock?: boolean; }

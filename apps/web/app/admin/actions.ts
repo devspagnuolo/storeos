@@ -602,3 +602,30 @@ export async function resendBlingOrderAction(form: FormData) {
   await adminFetch(`/bling/orders/${encodeURIComponent(String(form.get('number')))}/send`, { method: 'POST', body: {} });
   revalidatePath('/admin/bling');
 }
+
+export async function requestBlingInvoiceAction(form: FormData) {
+  const number = String(form.get('number') ?? '');
+  try {
+    await adminFetch(`/bling/orders/${encodeURIComponent(number)}/invoice`, { method: 'POST', body: {} });
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : 'Não foi possível solicitar a nota fiscal.';
+    redirect(`/admin/pedidos/${encodeURIComponent(number)}?nfErro=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/admin/pedidos/${encodeURIComponent(number)}`);
+  revalidatePath('/admin/bling');
+  redirect(`/admin/pedidos/${encodeURIComponent(number)}?nfSolicitada=1`);
+}
+
+export async function setAutomaticBlingInvoiceAction(form: FormData) {
+  const enabled = form.get('enabled') === 'true';
+  const confirmed = form.get('fiscalConfirmed') === 'on';
+  if (enabled && !confirmed) redirect('/admin/bling?fiscalConfirmacao=1');
+  try {
+    await adminFetch('/bling/invoice-settings/automatic', { method: 'POST', body: { enabled } });
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : 'Não foi possível salvar a configuração fiscal.';
+    redirect(`/admin/bling?fiscalErro=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/admin/bling');
+  redirect('/admin/bling?fiscalSalvo=1');
+}

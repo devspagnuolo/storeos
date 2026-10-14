@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, ProductStatus } from '@prisma/client';
+import { OrderStatus, Prisma, ProductStatus } from '@prisma/client';
 import { money } from '../../shared/money/money';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { generateOrderNumber, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from './order-lines';
@@ -22,18 +22,27 @@ export class OrdersService {
     });
   }
 
-  async list(storeId: string, { page = 1, pageSize = 20, status }: { page?: number; pageSize?: number; status?: string } = {}) {
+  async list(storeId: string, { page = 1, pageSize = 20, status, q }: { page?: number; pageSize?: number; status?: string; q?: string } = {}) {
     if (status && !(status in OrderStatus)) throw new BadRequestException('Status inválido');
-    const where = { storeId, ...(status && { status: status as OrderStatus }) };
+    const search = q?.trim().slice(0, 120);
+    const where: Prisma.OrderWhereInput = {
+      storeId,
+      ...(status && { status: status as OrderStatus }),
+      ...(search && { OR: [
+        { number: { contains: search, mode: 'insensitive' } },
+        { customer: { is: { name: { contains: search, mode: 'insensitive' } } } },
+        { customer: { is: { email: { contains: search, mode: 'insensitive' } } } },
+      ] }),
+    };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.order.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, include: { customer: { select: { name: true, email: true } }, payments: { select: { method: true, status: true, provider: true } }, _count: { select: { items: true } } } }),
+      this.prisma.order.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, include: { customer: { select: { name: true, email: true } }, payments: { select: { method: true, status: true, provider: true } }, blingSync: { select: { status: true, blingOrderId: true, blingOrderNumber: true, blingSituationId: true, blingSituationName: true } }, _count: { select: { items: true } } } }),
       this.prisma.order.count({ where }),
     ]);
     return { items, total, page, pageSize };
   }
 
   async byNumber(storeId: string, number: string) {
-    const order = await this.prisma.order.findUnique({ where: { storeId_number: { storeId, number } }, include: { items: true, payments: true, customer: true, fulfillment: true, timeline: { orderBy: { createdAt: 'asc' } } } });
+    const order = await this.prisma.order.findUnique({ where: { storeId_number: { storeId, number } }, include: { items: true, payments: true, customer: true, fulfillment: true, timeline: { orderBy: { createdAt: 'asc' } }, blingSync: { select: { status: true, blingOrderId: true, blingOrderNumber: true, blingSituationName: true } } } });
     if (!order) throw new NotFoundException('Pedido não encontrado');
     return order;
   }

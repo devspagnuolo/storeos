@@ -77,6 +77,7 @@ model Store {
   banners                Banner[]
   mediaAssets            MediaAsset[]
   blingConnection        BlingConnection?
+  blingInvoices          BlingInvoice[]
   blingOrderSyncs        BlingOrderSync[]
   blingImports           BlingImport[]
   subscribers            NewsletterSubscriber[]
@@ -353,6 +354,7 @@ model Order {
   redemption        CouponRedemption?
   loyaltyEntries    LoyaltyEntry[]
   blingSync         BlingOrderSync?
+  blingInvoice      BlingInvoice?
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -742,6 +744,7 @@ model MediaAsset {
 
 enum BlingSyncStatus {
   PENDING
+  PROCESSING
   SENT
   FAILED
 }
@@ -752,17 +755,39 @@ enum BlingImportStatus {
   FAILED
 }
 
+enum BlingInvoiceStatus {
+  QUEUED
+  PROCESSING
+  GENERATED
+  AUTHORIZED
+  REJECTED
+  FAILED
+}
+
+enum BlingWebhookStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
 /// Conta do Bling conectada por OAuth; os tokens ficam cifrados (AES-256-GCM).
 model BlingConnection {
   id              String   @id @default(uuid())
   storeId         String   @unique
+  companyId       String?
   accessTokenEnc  String
   refreshTokenEnc String
   expiresAt       DateTime
   connectedAt     DateTime @default(now())
   lastError       String?
+  automaticInvoiceEnabled Boolean @default(false)
+  automaticInvoiceEnabledAt DateTime?
   updatedAt       DateTime @updatedAt
   store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  invoices        BlingInvoice[]
+
+  @@index([companyId])
 }
 
 /// Um pedido do site enviado (ou a enviar) ao Bling; `numeroLoja` no Bling é o número do pedido daqui.
@@ -772,6 +797,9 @@ model BlingOrderSync {
   orderId       String          @unique
   status        BlingSyncStatus @default(PENDING)
   blingOrderId  String?
+  blingOrderNumber String?
+  blingSituationId String?
+  blingSituationName String?
   attempts      Int             @default(0)
   lastError     String?
   nextAttemptAt DateTime        @default(now())
@@ -782,6 +810,59 @@ model BlingOrderSync {
   order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([storeId, status])
+  @@index([storeId, blingOrderId])
+}
+
+/// Caixa de entrada idempotente dos webhooks autenticados do Bling.
+model BlingWebhookEvent {
+  id            String             @id @default(uuid())
+  eventId       String             @unique
+  companyId     String
+  event         String
+  version       String             @default("v1")
+  remoteId      String
+  orderNumber   String?
+  payload       Json
+  status        BlingWebhookStatus @default(PENDING)
+  attempts      Int                @default(0)
+  lastError     String?
+  nextAttemptAt DateTime           @default(now())
+  receivedAt    DateTime           @default(now())
+  processedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([status, nextAttemptAt, receivedAt])
+  @@index([companyId, receivedAt])
+}
+
+/// Nota fiscal originada do pedido de venda Bling; número do pedido da loja permanece como chave de idempotência.
+model BlingInvoice {
+  id              String             @id @default(uuid())
+  storeId         String
+  orderId         String             @unique
+  connectionId    String
+  status          BlingInvoiceStatus @default(QUEUED)
+  blingInvoiceId  String?            @unique
+  invoiceNumber   String?
+  series          String?
+  accessKey       String?
+  danfeUrl        String?            @db.Text
+  xmlUrl          String?            @db.Text
+  rejectionReason String?            @db.Text
+  attempts        Int                @default(0)
+  nextAttemptAt   DateTime           @default(now())
+  issuedAt        DateTime?
+  submittedAt     DateTime?
+  authorizedAt    DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  store           Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order           Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  connection      BlingConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status, nextAttemptAt])
+  @@index([storeId, invoiceNumber])
 }
 
 /// Importação de produtos do Bling: roda em segundo plano e o painel acompanha o andamento.
