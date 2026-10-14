@@ -46,7 +46,7 @@ export function StorefrontEditor({ config, version }: { config: StorefrontConfig
         <button type="button" className="justify-self-start text-sm font-medium text-slate-500 underline" onClick={() => { setFile(null); setImageUrl(''); if (fileInput.current) fileInput.current.value = ''; }}>Remover imagem do rascunho</button>
       </section>
       <section className="card grid gap-5 p-6">
-        <label className="flex items-center gap-3 text-sm font-medium">Cor de destaque<input aria-label="Cor de destaque" name="accentColor" type="color" value={accent} onChange={e => setAccent(e.currentTarget.value)} className="h-11 w-16 rounded-lg border border-slate-200 bg-white p-1" /></label>
+        <label className="flex items-center gap-3 text-sm font-medium">Cor de destaque<input aria-label="Cor de destaque" name="accentColor" type="color" value={accent} onChange={e => setAccent(e.currentTarget.value)} className="h-11 w-16 rounded-lg border border-slate-200 bg-surface p-1" /></label>
         <div className="flex flex-wrap gap-3">
           <button name="intent" value="draft" className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold hover:bg-slate-50">{pending ? 'Salvando…' : 'Salvar rascunho'}</button>
           <button name="intent" value="publish" className="button" onClick={e => { if (!window.confirm('Publicar este visual para todos os clientes? A versão anterior ficará no histórico.')) e.preventDefault(); }}>Publicar alterações</button>
@@ -55,12 +55,12 @@ export function StorefrontEditor({ config, version }: { config: StorefrontConfig
       </section>
     </fieldset>
     <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 className="text-sm font-semibold text-slate-500">Prévia do banner</h2><div role="group" aria-label="Tamanho da prévia" className="flex rounded-lg border bg-white p-1"><button type="button" aria-pressed={!mobile} className={'rounded px-3 py-1 text-xs ' + (!mobile ? 'bg-violet-50 text-brand' : '')} onClick={() => setMobile(false)}>Computador</button><button type="button" aria-pressed={mobile} className={'rounded px-3 py-1 text-xs ' + (mobile ? 'bg-violet-50 text-brand' : '')} onClick={() => setMobile(true)}>Celular</button></div></div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 className="text-sm font-semibold text-slate-500">Prévia do banner</h2><div role="group" aria-label="Tamanho da prévia" className="flex rounded-lg border bg-surface p-1"><button type="button" aria-pressed={!mobile} className={'rounded px-3 py-1 text-xs ' + (!mobile ? 'bg-violet-50 text-brand' : '')} onClick={() => setMobile(false)}>Computador</button><button type="button" aria-pressed={mobile} className={'rounded px-3 py-1 text-xs ' + (mobile ? 'bg-violet-50 text-brand' : '')} onClick={() => setMobile(true)}>Celular</button></div></div>
       <div className={'mx-auto overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 shadow-sm ' + (mobile ? 'max-w-[375px]' : '')}>
         {announcement && <div className="break-words px-4 py-2 text-center text-xs font-medium text-white" style={{ backgroundColor: accent }}>{announcement}</div>}
         <div className={'grid min-h-[390px] items-center gap-6 p-6 ' + (mobile ? 'grid-cols-1' : 'grid-cols-2')}>
           <div className="min-w-0 break-words"><p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: accent }}>Sua loja</p><h3 className="text-2xl font-black leading-tight text-white">{title}</h3><p className="mt-4 text-sm text-slate-300">{description}</p><span className="mt-6 inline-flex rounded-xl px-4 py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: accent }}>{cta}</span></div>
-          <div className="aspect-[4/3] overflow-hidden rounded-2xl p-2" style={{ backgroundColor: accent }}>{imagePreview ? <img src={imagePreview} alt="Prévia do banner" className="h-full w-full rounded-xl object-cover" /> : <div className="flex h-full items-center justify-center rounded-xl bg-white/10 p-4 text-center text-xs text-white">Escolha uma imagem</div>}</div>
+          <div className="aspect-[4/3] overflow-hidden rounded-2xl p-2" style={{ backgroundColor: accent }}>{imagePreview ? <img src={imagePreview} alt="Prévia do banner" className="h-full w-full rounded-xl object-cover" /> : <div className="flex h-full items-center justify-center rounded-xl bg-surface/10 p-4 text-center text-xs text-white">Escolha uma imagem</div>}</div>
         </div>
       </div>
       <p className="mt-3 text-xs text-slate-500">Prévia do conteúdo principal. Salvar rascunho mantém a loja publicada como está.</p>
