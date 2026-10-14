@@ -1,4 +1,5 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { createHmac } from 'node:crypto';
 import { resolveJwtSecret } from '../src/shared/auth/jwt-secret';
 import { encryptSecret } from '../src/shared/auth/totp';
 import { makeState } from '../src/modules/bling/bling-auth.service';
@@ -27,14 +28,16 @@ class FakeBling {
     const method = init.method ?? 'GET';
     this.calls.push({ method, path, body: init.body });
     const url = new URL(path, 'https://x.test');
+    if (url.pathname === '/empresas/me') return { data: { id: 777 } };
+    if (url.pathname.startsWith('/situacoes/')) return { data: { id: 42, nome: 'Em aberto' } };
     if (url.pathname === '/categorias/produtos') return { data: [{ id: 1, descricao: 'Blusas' }, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }] };
     if (url.pathname === '/produtos' && url.searchParams.has('criterio')) return { data: Object.values(this.products).map(p => ({ id: (p as { id: number }).id })) };
     if (url.pathname === '/produtos' && url.searchParams.has('codigos[]')) return { data: [{ id: 555, codigo: 'VASO-1' }] };
     if (url.pathname.startsWith('/produtos/')) return { data: this.products[Number(url.pathname.split('/')[2])] };
-    if (url.pathname === '/pedidos/vendas' && method === 'GET') { const id = this.salesOrders.get(url.searchParams.get('numerosLojas[]')!); return { data: id ? [{ id }] : [] }; }
+    if (url.pathname === '/pedidos/vendas' && method === 'GET') { const id = this.salesOrders.get(url.searchParams.get('numerosLojas[]')!); return { data: id ? [{ id, numero: id + 100 }] : [] }; }
     if (url.pathname === '/pedidos/vendas' && method === 'POST') {
       if (this.failOrders) throw new Error('Bling 400: contato inválido');
-      const id = this.nextId++; this.salesOrders.set((init.body as { numeroLoja: string }).numeroLoja, id); return { data: { id } };
+      const id = this.nextId++; this.salesOrders.set((init.body as { numeroLoja: string }).numeroLoja, id); return { data: { id, numero: id + 100 } };
     }
     if (url.pathname === '/contatos' && method === 'GET') return { data: [] };
     if (url.pathname === '/contatos' && method === 'POST') return { data: { id: 321 } };
@@ -49,13 +52,14 @@ let baseUrl: string;
 
 beforeAll(async () => {
   process.env.WEB_ORIGIN = 'https://painel.test';
+  process.env.BLING_CLIENT_SECRET = 'test-secret';
   ({ app, api } = await startApp(builder => builder.overrideProvider(BlingClient).useValue(bling)));
   baseUrl = (await app.getUrl()).replace('[::1]', 'localhost');
 });
-afterAll(async () => { delete process.env.WEB_ORIGIN; await cleanup(app); });
+afterAll(async () => { delete process.env.WEB_ORIGIN; delete process.env.BLING_CLIENT_SECRET; await cleanup(app); });
 beforeEach(() => { bling.calls = []; bling.failOrders = false; });
 
-const connect = (storeId: string) => prisma.blingConnection.create({ data: { storeId, accessTokenEnc: encryptSecret('acc', resolveJwtSecret()), refreshTokenEnc: encryptSecret('ref', resolveJwtSecret()), expiresAt: new Date(Date.now() + 3_600_000) } });
+const connect = (storeId: string) => prisma.blingConnection.create({ data: { storeId, companyId: '777', accessTokenEnc: encryptSecret('acc', resolveJwtSecret()), refreshTokenEnc: encryptSecret('ref', resolveJwtSecret()), expiresAt: new Date(Date.now() + 3_600_000) } });
 const waitFor = async <T>(read: () => Promise<T>, done: (value: T) => boolean) => { for (let i = 0; i < 60; i++) { const value = await read(); if (done(value)) return value; await new Promise(r => setTimeout(r, 100)); } throw new Error('tempo esgotado'); };
 
 describe('conexão com o Bling', () => {
@@ -70,6 +74,7 @@ describe('conexão com o Bling', () => {
     expect(ok.headers.get('location')).toBe('https://painel.test/admin/bling?conectado=1');
     const saved = await prisma.blingConnection.findUniqueOrThrow({ where: { storeId: store.id } });
     expect(saved.accessTokenEnc).not.toContain('acc-authorization_code');
+    expect(saved.companyId).toBe('777');
     expect((await api('/bling/status', { token })).body).toMatchObject({ appConfigured: true, connected: true });
 
     const bad = await fetch(`${baseUrl}/api/v1/bling/callback?code=abc&state=${encodeURIComponent(makeState(store.id, Date.now() - 3_600_000))}`, { redirect: 'manual' });
@@ -117,21 +122,20 @@ describe('importação de produtos do Bling', () => {
 });
 
 describe('pedidos do site no Bling', () => {
-  it('o pedido pago vai ao Bling com contato (CPF), itens, frete e número da loja', async () => {
+  it('envia ao Bling pedidos pendentes e anteriores à conexão, preservando os dois números', async () => {
     const { store, product } = await createStore(5);
-    await connect(store.id);
     const checkout = await api('/checkout', { method: 'POST', body: { ...checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }], 'BOLETO'), cpf: '529.982.247-25' } });
     expect(checkout.status).toBe(201);
     const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
+    await connect(store.id);
     const orders = app.get(BlingOrdersService);
 
-    await orders.processDue();
-    expect(await prisma.blingOrderSync.count({ where: { orderId: order.id } })).toBe(0); // ainda não está pago
-
-    await app.get(OrderLifecycleService).markPaid({ orderId: order.id });
     expect(await orders.processDue()).toBe(1);
     const sync = await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } });
-    expect(sync).toMatchObject({ status: 'SENT', blingOrderId: '9000', attempts: 0 });
+    expect(sync).toMatchObject({ status: 'SENT', blingOrderId: '9000', blingOrderNumber: '9100', attempts: 0 });
+
+    await app.get(OrderLifecycleService).markPaid({ orderId: order.id });
+    expect(await orders.processDue()).toBe(0);
     const contact = bling.calls.find(c => c.method === 'POST' && c.path === '/contatos')!.body;
     expect(contact).toMatchObject({ nome: 'Maria Silva', numeroDocumento: '52998224725', email: 'maria@example.com' });
     expect(bling.calls.find(c => c.path.startsWith('/contatos?') && c.method === 'GET')!.path).toContain('numeroDocumento=52998224725');
@@ -143,6 +147,36 @@ describe('pedidos do site no Bling', () => {
     bling.calls = [];
     expect(await orders.processDue()).toBe(0);
     expect(bling.calls).toHaveLength(0);
+  });
+
+
+  it('autentica o webhook e devolve situação do Bling ao pedido STOREOS', async () => {
+    const { store, product } = await createStore(5);
+    await connect(store.id);
+    const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }], 'PIX') });
+    const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
+    await app.get(BlingOrdersService).processDue();
+
+    const sent = await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } });
+    const event = {
+      eventId: 'evt-bl-1',
+      event: 'order.updated',
+      companyId: 777,
+      data: { id: Number(sent.blingOrderId), numero: sent.blingOrderNumber, situacao: { id: 42, valor: 1 } },
+    };
+    const body = JSON.stringify(event);
+    const signature = 'sha256=' + createHmac('sha256', 'test-secret').update(body).digest('hex');
+    const response = await api('/bling/webhook', { method: 'POST', body: event, headers: { 'x-bling-signature-256': signature } });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ received: true, ignored: false });
+    expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({
+      blingOrderNumber: sent.blingOrderNumber,
+      blingSituationId: '42',
+      blingSituationName: 'Em aberto',
+    });
+
+    const invalid = await api('/bling/webhook', { method: 'POST', body: event, headers: { 'x-bling-signature-256': 'sha256=00' } });
+    expect(invalid.status).toBe(401);
   });
 
   it('falha fica registrada com espera, e o reenvio manual conclui sem duplicar', async () => {
@@ -182,6 +216,7 @@ describe('pedidos do site no Bling', () => {
     bling.salesOrders.set(checkout.body.number, 777);
     await app.get(BlingOrdersService).processDue();
     expect((await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).blingOrderId).toBe('777');
+    expect((await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).blingOrderNumber).toBe('877');
     expect(bling.calls.some(c => c.method === 'POST' && c.path === '/pedidos/vendas')).toBe(false);
   });
 });
