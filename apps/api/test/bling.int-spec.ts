@@ -5,6 +5,7 @@ import { encryptSecret } from '../src/shared/auth/totp';
 import { makeState } from '../src/modules/bling/bling-auth.service';
 import { BlingOrdersService } from '../src/modules/bling/bling-orders.service';
 import { BlingInvoicesService } from '../src/modules/bling/bling-invoices.service';
+import { BlingWebhookService } from '../src/modules/bling/bling-webhook.service';
 import { BlingClient } from '../src/modules/bling/bling.client';
 import { OrderLifecycleService } from '../src/modules/orders/order-lifecycle.service';
 import { checkoutBody, cleanup, createStore, login, prisma, startApp } from './helpers';
