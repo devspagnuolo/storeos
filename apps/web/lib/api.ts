@@ -30,6 +30,6 @@ export const getCategories = () => get<Category[]>(`/catalog/categories?store=${
 
 export const getProduct = (slug: string) => get<ProductDetail | null>(`/catalog/products/${encodeURIComponent(slug)}?store=${encodeURIComponent(storeSlug)}`, null);
 
-export type StoreInfo = { slug: string; name: string };
+export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null };
 
-export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent(storeSlug)}`, { slug: storeSlug, name: 'Loja' });
+export const getStore = () => get<StoreInfo>(`/store/public/${encodeURIComponent(storeSlug)}`, { slug: storeSlug, name: 'Loja', logoUrl: null, faviconUrl: null });
