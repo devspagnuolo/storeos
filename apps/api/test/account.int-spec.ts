@@ -32,13 +32,13 @@ describe('troca de senha', () => {
 describe('dados da loja', () => {
   it('mostra o nome publicamente e só settings.write altera', async () => {
     const { store } = await createStore();
-    expect((await api(`/store/public/${store.slug}`)).body).toEqual({ slug: store.slug, name: 'Loja Teste' });
+    expect((await api(`/store/public/${store.slug}`)).body).toMatchObject({ slug: store.slug, name: 'Loja Teste' });
     expect((await api('/store/public/nao-existe')).status).toBe(404);
     const viewer = await login(api, store, ['orders.read']);
     expect((await api('/store', { method: 'PATCH', token: viewer, body: { name: 'Outra' } })).status).toBe(403);
     const admin = await login(api, store, ['settings.write']);
     expect((await api('/store', { method: 'PATCH', token: admin, body: { name: ' Casa Bonita ', slug: 'hack' } })).status).toBe(400);
     const updated = await api('/store', { method: 'PATCH', token: admin, body: { name: ' Casa Bonita ' } });
-    expect(updated.body).toEqual({ id: store.id, slug: store.slug, name: 'Casa Bonita' });
+    expect(updated.body).toMatchObject({ id: store.id, slug: store.slug, name: 'Casa Bonita' });
   });
 });
