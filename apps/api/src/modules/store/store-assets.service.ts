@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 const hmac = (key: Buffer | string, value: string) => createHmac('sha256', key).update(value).digest();
 
@@ -38,7 +38,7 @@ export class StoreAssetsService {
       ['X-Amz-SignedHeaders', 'content-type;host'],
     ].map(([key, value]) => encodeURIComponent(key) + '=' + encodeURIComponent(value)).join('&');
     const canonicalRequest = ['PUT', uri, query, 'content-type:' + file.mimetype + '\nhost:' + host + '\n', 'content-type;host', 'UNSIGNED-PAYLOAD'].join('\n');
-    const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, createHmac('sha256', '').update(canonicalRequest).digest('hex')].join('\n');
+    const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, createHash('sha256').update(canonicalRequest).digest('hex')].join('\n');
     const dateKey = hmac('AWS4' + secretKey, dateStamp);
     const regionKey = hmac(dateKey, 'auto');
     const serviceKey = hmac(regionKey, 's3');
