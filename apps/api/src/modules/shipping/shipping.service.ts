@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { Money, money } from '../../shared/money/money';
-import { mergeItems, priceOrderLines, RequestedItem } from '../orders/order-lines';
+import { mergeItems, priceOrderLines, productsForPricing, RequestedItem } from '../orders/order-lines';
 import { stateFromZip } from './cep';
 import { ShippingOption, shippingOptions } from './shipping-options';
 
@@ -22,7 +22,7 @@ export class ShippingService {
     if (!store) throw new NotFoundException('Loja não encontrada');
     const state = this.stateOrFail(zipCode);
     const merged = mergeItems(items);
-    const products = await this.prisma.product.findMany({ where: { storeId: store.id, id: { in: merged.map(i => i.productId) }, status: ProductStatus.ACTIVE } });
+    const products = await productsForPricing(this.prisma, store.id, merged);
     const { subtotal } = priceOrderLines(merged, products);
     const [required, options] = await Promise.all([this.hasActiveRules(this.prisma, store.id), this.optionsFor(this.prisma, store.id, state, subtotal)]);
     // required=false: a loja não configurou frete e o pedido segue sem custo de envio.

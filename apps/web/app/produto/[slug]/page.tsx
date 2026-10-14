@@ -37,7 +37,7 @@ export default async function ProductPage({ params }: Props) {
             <p className="mt-4 text-3xl font-black">{formatPrice(product.price)}</p>
             <p className="mt-1 text-sm text-slate-500">ou no PIX, com confirmação rápida</p>
             {product.description && <p className="mt-6 leading-relaxed text-slate-700">{product.description}</p>}
-            <AddToCart product={{ id: product.id, slug: product.slug, name: product.name, price: product.price, image: image?.url }} available={product.available} />
+            <AddToCart product={{ id: product.id, slug: product.slug, name: product.name, price: product.price, image: image?.url }} available={product.available} variants={product.variants ?? []} />
             <p className="mt-8 text-xs text-slate-400">SKU {product.sku}</p>
           </div>
         </div>

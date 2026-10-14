@@ -214,6 +214,8 @@ model ProductVariant {
   sku        String
   price      Decimal?    @db.Decimal(14, 2)
   attributes Json
+  position   Int         @default(0)
+  active     Boolean     @default(true)
   product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
   inventory  Inventory[]
 
@@ -317,6 +319,7 @@ model OrderItem {
   id        String   @id @default(uuid())
   orderId   String
   productId String?
+  variantId String?
   sku       String
   name      String
   quantity  Int

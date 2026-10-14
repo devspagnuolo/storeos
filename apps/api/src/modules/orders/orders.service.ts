@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OrderStatus, ProductStatus } from '@prisma/client';
 import { money } from '../../shared/money/money';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
-import { generateOrderNumber, mergeItems, priceOrderLines, RequestedItem } from './order-lines';
+import { generateOrderNumber, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from './order-lines';
 
 @Injectable()
 export class OrdersService {
@@ -13,10 +13,10 @@ export class OrdersService {
     return this.prisma.$transaction(async tx => {
       const customer = await tx.customer.findFirst({ where: { id: dto.customerId, storeId } });
       if (!customer) throw new BadRequestException('Cliente não encontrado nesta loja');
-      const products = await tx.product.findMany({ where: { storeId, id: { in: items.map(i => i.productId) }, status: ProductStatus.ACTIVE } });
+      const products = await productsForPricing(tx, storeId, items);
       const { lines, subtotal } = priceOrderLines(items, products);
       const number = generateOrderNumber();
-      const order = await tx.order.create({ data: { storeId, customerId: customer.id, number, subtotal, total: subtotal, items: { create: lines }, timeline: { create: { status: 'NEW', message: 'Pedido criado' } } } });
+      const order = await tx.order.create({ data: { storeId, customerId: customer.id, number, subtotal, total: subtotal, items: { create: persistLines(lines) }, timeline: { create: { status: 'NEW', message: 'Pedido criado' } } } });
       await tx.outboxEvent.create({ data: { storeId, aggregateType: 'Order', aggregateId: order.id, eventName: 'orders.order-created.v1', payload: { orderNumber: number, total: subtotal.toString() } } });
       return order;
     });
@@ -45,7 +45,7 @@ export class OrdersService {
     const [paid, byStatus, lowStock] = await this.prisma.$transaction([
       this.prisma.order.aggregate({ where: { storeId, createdAt: { gte: since }, status: { in: paidStatuses } }, _sum: { total: true }, _count: true }),
       this.prisma.order.groupBy({ by: ['status'], where: { storeId, createdAt: { gte: since } }, _count: { _all: true }, orderBy: { status: 'asc' } }),
-      this.prisma.inventory.count({ where: { storeId, variantId: null, quantity: { lte: 3 }, product: { status: ProductStatus.ACTIVE } } }),
+      this.prisma.inventory.count({ where: { storeId, quantity: { lte: 3 }, product: { status: ProductStatus.ACTIVE } } }),
     ]);
     const revenue = paid._sum.total ?? money(0);
     const counts = Object.fromEntries(byStatus.map(row => [row.status, (row._count as { _all: number })._all]));

@@ -9,7 +9,8 @@ export type OrderDetail = Omit<OrderRow, 'payments' | '_count'> & {
   fulfillment: { invoiceNumber: string | null; invoiceKey: string | null; carrier: string | null; trackingCode: string | null; trackingUrl: string | null; shippedAt: string | null; deliveredAt: string | null; returnReason: string | null } | null;
 };
 export type Summary = { days: number; revenue: string; paidOrders: number; averageTicket: string; orders: number; awaitingPayment: number; paymentRate: number; lowStockProducts: number };
-export type AdminProduct = { id: string; name: string; slug: string; sku: string; price: string; status: string; description: string | null; stock: number; reserved: number; images: { url: string }[]; categoryIds?: string[]; brandId?: string | null; seoTitle?: string | null; seoDescription?: string | null; updatedAt: string };
+export type AdminVariant = { id: string; sku: string; price: string | null; attributes: { name: string; value: string }[]; stock: number; reserved: number; active: boolean };
+export type AdminProduct = { variants?: AdminVariant[]; id: string; name: string; slug: string; sku: string; price: string; status: string; description: string | null; stock: number; reserved: number; images: { url: string }[]; categoryIds?: string[]; brandId?: string | null; seoTitle?: string | null; seoDescription?: string | null; updatedAt: string };
 export type AdminProductPage = { items: AdminProduct[]; total: number; page: number; pageSize: number };
 
 export type ShippingRule = { id: string; name: string; states: string[]; price: string; freeAbove: string | null; minDays: number; maxDays: number; active: boolean; position: number };
