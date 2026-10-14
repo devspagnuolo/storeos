@@ -12,3 +12,6 @@ export type AdminProduct = { id: string; name: string; slug: string; sku: string
 export type AdminProductPage = { items: AdminProduct[]; total: number; page: number; pageSize: number };
 
 export type ShippingRule = { id: string; name: string; states: string[]; price: string; freeAbove: string | null; minDays: number; maxDays: number; active: boolean; position: number };
+
+export type AuditRow = { id: string; action: string; entity: string | null; entityId: string | null; outcome: 'SUCCESS' | 'DENIED' | 'FAILURE'; statusCode: number | null; ip: string | null; userAgent: string | null; createdAt: string; metadata: Record<string, unknown> | null; actor: { id: string; name: string; email: string } | null };
+export type AuditPage = { items: AuditRow[]; total: number; page: number; pageSize: number };

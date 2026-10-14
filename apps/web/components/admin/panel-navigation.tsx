@@ -10,6 +10,7 @@ const icons = {
   palette: 'M12 3a9 9 0 1 0 0 18c1.1 0 1.5-.8 1.2-1.6-.5-1.2.3-2.4 1.6-2.4H17a4 4 0 0 0 4-4c0-5-4-10-9-10zM7.5 11.5h.01M10 7.5h.01M15 8h.01',
   truck: 'M2 6h11v10H2zM13 9h4l4 4v3h-8M6.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
   card: 'M3 6h18v12H3zM3 10h18M7 15h3',
+  shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
 } as const;
 type Icon = keyof typeof icons;
@@ -19,7 +20,7 @@ const groups: { label: string; items: [href: string, label: string, icon: Icon][
   { label: 'Vendas', items: [['/painel/pedidos', 'Pedidos', 'orders']] },
   { label: 'Catálogo', items: [['/painel/produtos', 'Produtos', 'products']] },
   { label: 'Loja', items: [['/painel/site', 'Personalizar loja', 'palette'], ['/painel/frete', 'Entregas', 'truck'], ['/painel/pagamentos', 'Pagamentos', 'card']] },
-  { label: 'Sistema', items: [['/painel/configuracoes', 'Configurações', 'gear']] },
+  { label: 'Sistema', items: [['/painel/configuracoes', 'Configurações', 'gear'], ['/painel/auditoria', 'Auditoria', 'shield']] },
 ];
 
 export function PanelNavigation({ onNavigate }: { onNavigate?: () => void }) {
