@@ -154,3 +154,21 @@ describe('editor visual: seções e tema', () => {
     expect((await api('/store/storefront/publications/' + other.id)).status).toBe(401);
   });
 });
+
+describe('prontidão para divulgar', () => {
+  it('separa o que é obrigatório do recomendado e libera políticas publicadas', async () => {
+    const { store } = await createStore(1);
+    const token = await login(api, store, ['settings.write']);
+    const before = (await api('/store/setup', { token })).body;
+    expect(before.ready).toBe(false);
+    expect(before.pendingRequired).toEqual(expect.arrayContaining(['policies', 'payment']));
+    expect(before.steps.find((s: { id: string }) => s.id === 'erp')).toMatchObject({ level: 'recommended', complete: false });
+    await prisma.page.createMany({ data: [
+      { storeId: store.id, slug: 'trocas-e-devolucoes', title: 'Trocas', body: 'x', published: true },
+      { storeId: store.id, slug: 'privacidade', title: 'Privacidade', body: 'x', published: false },
+    ] });
+    expect((await api('/store/setup', { token })).body.pendingRequired).toContain('policies');
+    await prisma.page.updateMany({ where: { storeId: store.id, slug: 'privacidade' }, data: { published: true } });
+    expect((await api('/store/setup', { token })).body.pendingRequired).not.toContain('policies');
+  });
+});

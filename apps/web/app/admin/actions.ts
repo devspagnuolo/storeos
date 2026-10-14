@@ -629,3 +629,41 @@ export async function setAutomaticBlingInvoiceAction(form: FormData) {
   revalidatePath('/admin/bling');
   redirect('/admin/bling?fiscalSalvo=1');
 }
+
+export async function addDomainAction(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    await adminFetch('/store/domains', { method: 'POST', body: { hostname: String(form.get('hostname') ?? '') } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/dominios');
+  return { ok: 'Domínio cadastrado. Crie os registros abaixo no seu provedor de DNS e clique em Verificar.' };
+}
+
+export async function verifyDomainAction(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    const result = await adminFetch<{ status: string; lastError: string | null }>(`/store/domains/${encodeURIComponent(String(form.get('id')))}/verify`, { method: 'POST', body: {} });
+    revalidatePath('/admin/dominios');
+    return result.status === 'ACTIVE' ? { ok: 'Domínio ativo: DNS e HTTPS validados.' } : { error: result.lastError ?? 'Ainda não foi possível validar.' };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function primaryDomainAction(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    await adminFetch(`/store/domains/${encodeURIComponent(String(form.get('id')))}/primary`, { method: 'POST', body: {} });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/dominios');
+  return { ok: 'Domínio principal atualizado.' };
+}
+
+export async function removeDomainAction(form: FormData) {
+  await adminFetch(`/store/domains/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/dominios');
+}
