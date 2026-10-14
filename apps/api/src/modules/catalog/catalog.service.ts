@@ -2,9 +2,11 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
-export type ProductQuery = { category?: string; q?: string; page?: number; pageSize?: number };
-export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string };
+export type ProductQuery = { category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number };
+export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; brandId?: string | null; seoTitle?: string; seoDescription?: string };
 export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string };
+export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
+export type CollectionInput = { name?: string; slug?: string; description?: string; active?: boolean; position?: number; skus?: string[] };
 export type CreateCategoryInput = { name: string; slug: string; description?: string; position?: number };
 
 const isUniqueViolation = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -28,6 +30,8 @@ export class CatalogService {
       storeId,
       status: ProductStatus.ACTIVE,
       ...(query.category && { categories: { some: { category: { slug: query.category } } } }),
+      ...(query.brand && { brand: { slug: query.brand } }),
+      ...(query.collection && { collections: { some: { collection: { slug: query.collection, active: true } } } }),
       ...(q && { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { sku: { equals: q, mode: 'insensitive' } }] }),
     };
     const [items, total] = await this.prisma.$transaction([
@@ -41,7 +45,7 @@ export class CatalogService {
     const storeId = await this.storeId(storeSlug);
     const product = storeId && await this.prisma.product.findFirst({
       where: { storeId, slug, status: ProductStatus.ACTIVE },
-      include: { images: { orderBy: { position: 'asc' } }, variants: true, inventory: true, categories: { include: { category: { select: { name: true, slug: true } } } } },
+      include: { brand: { select: { name: true, slug: true } }, images: { orderBy: { position: 'asc' } }, variants: true, inventory: true, categories: { include: { category: { select: { name: true, slug: true } } } } },
     });
     if (!product) throw new NotFoundException('Produto não encontrado');
     const { inventory, categories, ...rest } = product;
@@ -64,6 +68,71 @@ export class CatalogService {
     }
   }
 
+  private async assertBrand(storeId: string, brandId?: string | null) {
+    if (brandId && !await this.prisma.brand.count({ where: { storeId, id: brandId } })) throw new BadRequestException('Marca inválida');
+  }
+
+  brands(storeSlug: string) {
+    return this.storeId(storeSlug).then(storeId => storeId ? this.prisma.brand.findMany({ where: { storeId }, orderBy: { name: 'asc' }, select: { id: true, name: true, slug: true, logoUrl: true } }) : []);
+  }
+
+  async createBrand(storeId: string, dto: CreateBrandInput) {
+    try {
+      return await this.prisma.brand.create({ data: { ...dto, storeId } });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ConflictException('Já existe uma marca com essa URL nesta loja');
+      throw error;
+    }
+  }
+
+  async collections(storeSlug: string) {
+    const storeId = await this.storeId(storeSlug);
+    if (!storeId) return [];
+    return this.prisma.collection.findMany({ where: { storeId, active: true }, orderBy: [{ position: 'asc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, description: true } });
+  }
+
+  async adminCollections(storeId: string) {
+    const rows = await this.prisma.collection.findMany({ where: { storeId }, orderBy: [{ position: 'asc' }, { name: 'asc' }], include: { products: { include: { product: { select: { sku: true } } }, orderBy: { position: 'asc' } } } });
+    return rows.map(({ products, ...c }) => ({ ...c, skus: products.map(p => p.product.sku) }));
+  }
+
+  /** SKUs desconhecidos são recusados em vez de ignorados, para o lojista perceber um erro de digitação. */
+  private async productsBySkus(storeId: string, skus: string[]) {
+    const unique = [...new Set(skus.map(sku => sku.trim()).filter(Boolean))];
+    const found = await this.prisma.product.findMany({ where: { storeId, sku: { in: unique } }, select: { id: true, sku: true } });
+    const missing = unique.filter(sku => !found.some(p => p.sku === sku));
+    if (missing.length) throw new BadRequestException(`SKU não encontrado: ${missing.slice(0, 5).join(', ')}`);
+    return unique.map(sku => found.find(p => p.sku === sku)!.id);
+  }
+
+  async createCollection(storeId: string, { skus = [], ...dto }: CollectionInput & { name: string; slug: string }) {
+    const productIds = await this.productsBySkus(storeId, skus);
+    try {
+      return await this.prisma.collection.create({ data: { ...dto, storeId, products: { create: productIds.map((productId, position) => ({ productId, position })) } } });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ConflictException('Já existe uma coleção com essa URL nesta loja');
+      throw error;
+    }
+  }
+
+  async updateCollection(storeId: string, id: string, { skus, ...dto }: CollectionInput) {
+    if (!await this.prisma.collection.count({ where: { id, storeId } })) throw new NotFoundException('Coleção não encontrada');
+    const productIds = skus && await this.productsBySkus(storeId, skus);
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const updated = await tx.collection.update({ where: { id }, data: dto });
+        if (productIds) {
+          await tx.collectionProduct.deleteMany({ where: { collectionId: id } });
+          await tx.collectionProduct.createMany({ data: productIds.map((productId, position) => ({ collectionId: id, productId, position })) });
+        }
+        return updated;
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ConflictException('Já existe uma coleção com essa URL nesta loja');
+      throw error;
+    }
+  }
+
   private async assertCategories(storeId: string, categoryIds: string[]) {
     const unique = [...new Set(categoryIds)];
     const count = unique.length ? await this.prisma.category.count({ where: { storeId, id: { in: unique } } }) : 0;
@@ -73,6 +142,7 @@ export class CatalogService {
 
   async create(storeId: string, { categoryIds = [], stock = 0, imageUrl, status = ProductStatus.DRAFT, ...dto }: CreateProductInput) {
     const categories = await this.assertCategories(storeId, categoryIds);
+    await this.assertBrand(storeId, dto.brandId);
     try {
       return await this.prisma.$transaction(async tx => {
         const product = await tx.product.create({ data: { ...dto, storeId, status, categories: { create: categories.map(categoryId => ({ categoryId })) }, ...(imageUrl && { images: { create: { url: imageUrl, alt: dto.name } } }) } });
@@ -91,6 +161,7 @@ export class CatalogService {
     const existing = await this.prisma.product.findFirst({ where: { id, storeId }, include: { inventory: true } });
     if (!existing) throw new NotFoundException('Produto não encontrado');
     const categories = categoryIds && await this.assertCategories(storeId, categoryIds);
+    await this.assertBrand(storeId, dto.brandId);
     const inventory = existing.inventory.find(i => !i.variantId);
     if (stock !== undefined && inventory && stock < inventory.reserved) throw new BadRequestException(`O estoque não pode ficar abaixo das ${inventory.reserved} unidades reservadas em pedidos pendentes`);
     try {

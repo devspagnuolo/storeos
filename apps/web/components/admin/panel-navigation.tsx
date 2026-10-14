@@ -19,7 +19,7 @@ type Icon = keyof typeof icons;
 const groups: { label: string; items: [href: string, label: string, icon: Icon][] }[] = [
   { label: 'Hoje', items: [['/painel', 'Visão geral', 'home'], ['/painel/primeiros-passos', 'Primeiros passos', 'flag']] },
   { label: 'Vendas', items: [['/painel/pedidos', 'Pedidos', 'orders']] },
-  { label: 'Catálogo', items: [['/painel/produtos', 'Produtos', 'products']] },
+  { label: 'Catálogo', items: [['/painel/produtos', 'Produtos', 'products'], ['/painel/colecoes', 'Coleções e marcas', 'tag']] },
   { label: 'Loja', items: [['/painel/cupons', 'Cupons', 'tag'], ['/painel/site', 'Personalizar loja', 'palette'], ['/painel/frete', 'Entregas', 'truck'], ['/painel/pagamentos', 'Pagamentos', 'card']] },
   { label: 'Sistema', items: [['/painel/configuracoes', 'Configurações', 'gear'], ['/painel/seguranca', 'Segurança', 'shield'], ['/painel/auditoria', 'Auditoria', 'shield']] },
 ];
