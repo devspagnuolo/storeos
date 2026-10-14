@@ -51,7 +51,7 @@ export class StoreController {
     limits: { fileSize: 1_000_000 },
     fileFilter: (_request, file, callback) => callback(null, ['image/png', 'image/jpeg', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'].includes(file.mimetype)),
   }))
-  async uploadLogo(@CurrentStore() storeId: string, @UploadedFile() file?: Express.Multer.File) {
+  async uploadLogo(@CurrentStore() storeId: string, @UploadedFile() file?: { buffer: Buffer; mimetype: string }) {
     if (!file) throw new BadRequestException('Selecione um arquivo PNG, JPG, WebP ou ICO de até 1 MB.');
     return this.assets.uploadLogo(storeId, file);
   }
