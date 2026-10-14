@@ -40,6 +40,13 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
           <OrderActions number={order.number} status={order.status} />
           <OrderFulfillment number={order.number} status={order.status} fulfillment={order.fulfillment} />
           <section className="card p-5 text-sm">
+            <h2 className="font-bold">ERP Bling</h2>
+            <p className="mt-3 text-slate-600">Pedido STOREOS <strong>#{order.number}</strong></p>
+            <p className="mt-1 text-slate-600">Pedido Bling <strong>{order.blingSync?.blingOrderNumber ? '#' + order.blingSync.blingOrderNumber : order.blingSync?.status === 'FAILED' ? 'com erro no envio' : order.blingSync ? 'na fila de envio' : 'ainda não sincronizado'}</strong></p>
+            {order.blingSync?.blingSituationName && <p className="mt-2 text-slate-500">Situação no Bling: {order.blingSync.blingSituationName}</p>}
+            {!order.blingSync?.blingSituationName && order.blingSync?.blingSituationId && <p className="mt-2 text-slate-500">Situação Bling ID {order.blingSync.blingSituationId}</p>}
+          </section>
+          <section className="card p-5 text-sm">
             <h2 className="font-bold">Cliente</h2>
             <p className="mt-2">{order.customer?.name}</p><p className="text-slate-500">{order.customer?.email}</p>
             {address && <><h3 className="mt-4 font-semibold">Entrega</h3><p className="text-slate-600">{address.street}, {address.number}{address.complement && ` – ${address.complement}`}<br />{address.district && `${address.district}, `}{address.city}/{address.state}<br />CEP {address.zipCode}</p></>}

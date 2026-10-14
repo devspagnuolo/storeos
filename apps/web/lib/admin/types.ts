@@ -1,4 +1,4 @@
-export type OrderRow = { id: string; number: string; status: string; total: string; createdAt: string; customer: { name: string; email: string } | null; payments: { method: string; status: string; provider: string }[]; _count: { items: number } };
+export type OrderRow = { id: string; number: string; status: string; total: string; createdAt: string; customer: { name: string; email: string } | null; payments: { method: string; status: string; provider: string }[]; blingSync: { status: string; blingOrderId: string | null; blingOrderNumber: string | null; blingSituationName: string | null } | null; _count: { items: number } };
 export type OrderPage = { items: OrderRow[]; total: number; page: number; pageSize: number };
 export type OrderDetail = Omit<OrderRow, 'payments' | '_count'> & {
   subtotal: string; shipping: string; discount: string; shippingMethod: string | null;
@@ -69,5 +69,5 @@ export type Subscriber = { id: string; email: string; name: string | null; sourc
 export type SubscriberPage = { items: Subscriber[]; total: number; page: number; pageSize: number };
 
 export type BlingImportJob = { id: string; status: 'RUNNING' | 'DONE' | 'FAILED'; total: number; processed: number; created: number; updated: number; failed: number; errors: { message: string }[]; startedAt: string; finishedAt: string | null };
-export type BlingStatus = { appConfigured: boolean; callbackUrl: string | null; connected: boolean; connectedAt: string | null; lastError: string | null; import: BlingImportJob | null; orders: Partial<Record<'PENDING' | 'SENT' | 'FAILED', number>> };
-export type BlingSyncRow = { id: string; orderNumber: string; total: string; orderStatus: string; status: 'PENDING' | 'SENT' | 'FAILED'; blingOrderId: string | null; attempts: number; lastError: string | null; nextAttemptAt: string; sentAt: string | null };
+export type BlingStatus = { appConfigured: boolean; callbackUrl: string | null; webhookUrl: string | null; companyLinked: boolean; connected: boolean; connectedAt: string | null; lastError: string | null; import: BlingImportJob | null; orders: Partial<Record<'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED', number>> };
+export type BlingSyncRow = { id: string; orderNumber: string; total: string; orderStatus: string; status: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED'; blingOrderId: string | null; blingOrderNumber: string | null; blingSituationId: string | null; blingSituationName: string | null; attempts: number; lastError: string | null; nextAttemptAt: string; sentAt: string | null };

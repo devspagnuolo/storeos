@@ -742,6 +742,7 @@ model MediaAsset {
 
 enum BlingSyncStatus {
   PENDING
+  PROCESSING
   SENT
   FAILED
 }
@@ -756,6 +757,7 @@ enum BlingImportStatus {
 model BlingConnection {
   id              String   @id @default(uuid())
   storeId         String   @unique
+  companyId       String?
   accessTokenEnc  String
   refreshTokenEnc String
   expiresAt       DateTime
@@ -763,6 +765,8 @@ model BlingConnection {
   lastError       String?
   updatedAt       DateTime @updatedAt
   store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 /// Um pedido do site enviado (ou a enviar) ao Bling; `numeroLoja` no Bling é o número do pedido daqui.
@@ -772,6 +776,9 @@ model BlingOrderSync {
   orderId       String          @unique
   status        BlingSyncStatus @default(PENDING)
   blingOrderId  String?
+  blingOrderNumber String?
+  blingSituationId String?
+  blingSituationName String?
   attempts      Int             @default(0)
   lastError     String?
   nextAttemptAt DateTime        @default(now())
@@ -782,6 +789,7 @@ model BlingOrderSync {
   order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([storeId, status])
+  @@index([storeId, blingOrderId])
 }
 
 /// Importação de produtos do Bling: roda em segundo plano e o painel acompanha o andamento.

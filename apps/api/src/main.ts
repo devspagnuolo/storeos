@@ -5,7 +5,7 @@ import { AppModule } from './app.module';
 import { configureApp } from './configure-app';
 
 async function bootstrap() {
-  const app = configureApp(await NestFactory.create<NestExpressApplication>(AppModule));
+  const app = configureApp(await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true }));
   // Encerra com SIGTERM (deploys do Render): termina requisições em curso e fecha o banco.
   app.enableShutdownHooks();
   // A documentação da API só fica pública quando pedido explicitamente.
