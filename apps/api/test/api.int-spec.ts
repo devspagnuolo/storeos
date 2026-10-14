@@ -87,3 +87,12 @@ describe('administração', () => {
     expect(result.status).toBe(400);
   });
 });
+
+describe('saúde', () => {
+  it('liveness e readiness respondem, e o readiness confirma o banco', async () => {
+    expect((await api('/health')).status).toBe(200);
+    const ready = await api('/ready');
+    expect(ready.status).toBe(200);
+    expect(ready.body).toMatchObject({ status: 'ok', database: 'up' });
+  });
+});

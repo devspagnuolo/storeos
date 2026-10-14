@@ -102,6 +102,7 @@ model UserRole {
   role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
+  @@index([roleId])
 }
 
 model RolePermission {
@@ -111,6 +112,7 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
+  @@index([permissionId])
 }
 
 model RefreshToken {
@@ -148,6 +150,7 @@ model Product {
   @@unique([storeId, slug])
   @@unique([storeId, sku])
   @@index([storeId, status])
+  @@index([storeId, createdAt])
 }
 
 model Category {
@@ -195,6 +198,8 @@ model ProductImage {
   alt       String?
   position  Int     @default(0)
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, position])
 }
 
 model Inventory {
@@ -210,6 +215,7 @@ model Inventory {
   variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, productId, variantId])
+  @@index([productId])
 }
 
 model Customer {
@@ -236,6 +242,8 @@ model Address {
   state      String
   country    String   @default("BR")
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 model Order {
@@ -261,6 +269,7 @@ model Order {
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
+  @@index([customerId])
 }
 
 model OrderItem {
@@ -274,6 +283,9 @@ model OrderItem {
   total     Decimal  @db.Decimal(14, 2)
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model Payment {
@@ -304,6 +316,8 @@ model OrderTimeline {
   actorId   String?
   createdAt DateTime    @default(now())
   order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
 }
 
 model OutboxEvent {

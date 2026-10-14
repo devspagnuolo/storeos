@@ -45,6 +45,9 @@ services:
       # URL pública desta API, usada como notification_url do webhook de pagamento.
       - key: API_PUBLIC_URL
         sync: false
+      # Documentação Swagger em /api/docs só aparece com SWAGGER_ENABLED=true.
+      - key: SWAGGER_ENABLED
+        value: "false"
 
   - type: web
     name: storeos-nexo-web
@@ -68,6 +71,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_URL
+        sync: false
+      # Endereço público da vitrine, usado em sitemap.xml e robots.txt.
+      - key: NEXT_PUBLIC_SITE_URL
         sync: false
 
   - type: keyvalue

@@ -132,8 +132,7 @@ export default function CheckoutPage() {
               </fieldset>
               <fieldset className="sm:col-span-2">
                 <legend className="mb-2 font-bold">Pagamento</legend>
-                <label className="mr-6"><input type="radio" name="paymentMethod" value="PIX" defaultChecked /> PIX</label>
-                <label><input type="radio" name="paymentMethod" value="BOLETO" /> Boleto</label>
+                <label><input type="radio" name="paymentMethod" value="PIX" defaultChecked /> PIX</label>
               </fieldset>
             </div>
             <aside className="card h-fit p-6">
