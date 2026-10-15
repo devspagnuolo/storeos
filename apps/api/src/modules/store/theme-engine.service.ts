@@ -186,10 +186,6 @@ export class ThemeEngineService {
         where: { id_storeId: { id: installationId, storeId } },
         data: { status: 'ACTIVE' },
       });
-      await tx.themeDraft.update({
-        where: { id: current.draft.id },
-        data: { status: 'PUBLISHED' },
-      });
       return publication;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
