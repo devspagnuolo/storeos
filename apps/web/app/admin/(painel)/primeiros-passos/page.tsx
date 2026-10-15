@@ -17,6 +17,7 @@ export default async function SetupPage() {
       <p className="text-sm font-semibold uppercase tracking-wider text-brand">Primeiros passos</p>
       <h1 className="mt-2 text-3xl font-bold">Vamos preparar {setup.storeName} para vender</h1>
       <p className="mt-3 max-w-2xl text-slate-600">Siga as etapas no seu ritmo. O progresso é atualizado automaticamente quando você configura sua loja.</p>
+      {!setup.open && <p className="mt-4 rounded-xl border border-violet-100 bg-violet-50 p-4 text-sm">Prefere ir direto ao ponto? O <Link className="font-semibold text-brand underline" href="/painel/criar-minha-loja">assistente de criação da loja</Link> leva você da marca ao tema, dos produtos à publicação.</p>}
       <LaunchCard open={setup.open} blockers={setup.launchBlockers} />
       <BusinessProfileForm profile={profile} />
       <section role="status" className={'mt-6 rounded-xl p-4 text-sm font-medium ' + (setup.ready ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800')}>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { installThemeAction } from '../../../actions';
+import { ReadyThemeGallery, type ReadyThemeCard } from '../../../../../components/admin/ready-themes';
 import { adminFetch } from '../../../../../lib/admin/session';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,8 @@ type ThemeRelease = {
 type ThemeInstallation = { id: string; releaseId: string; status: string; installedAt: string; release: ThemeRelease; drafts: { revision: number; updatedAt: string }[] };
 
 export default async function ThemesPage({ searchParams }: { searchParams: Promise<{ instalado?: string; erro?: string }> }) {
-  const [library, installations, params] = await Promise.all([
+  const [ready, library, installations, params] = await Promise.all([
+    adminFetch<ReadyThemeCard[]>('/store/storefront/themes'),
     adminFetch<ThemeRelease[]>('/themes/library'),
     adminFetch<ThemeInstallation[]>('/themes/installations'),
     searchParams,
@@ -31,13 +33,19 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
     {params.instalado && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema instalado como rascunho. Sua loja publicada permaneceu inalterada.</p>}
     {params.erro && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{params.erro}</p>}
 
-    <section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
-      <h2 className="font-bold">Sobre a instalação de temas</h2>
+    <section className="mt-8">
+      <h2 className="text-xl font-bold">Temas prontos</h2>
+      <p className="mt-1 max-w-3xl text-sm text-slate-600">Escolha um ponto de partida completo: cores, tipografia e as seções da página inicial, de categoria e de produto. Depois é só trocar textos, imagens e produtos no editor.</p>
+      <div className="mt-4"><ReadyThemeGallery themes={ready} confirmReplace /></div>
+    </section>
+
+    <section className="mt-12 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
+      <h2 className="font-bold">Temas avançados (beta)</h2>
       <p className="mt-1">Instalar cria um rascunho e não muda o site. Ao publicar um tema desta biblioteca, ele passa a desenhar a <strong>página inicial</strong> e o editor “Personalizar loja atual” deixa de controlar essa página. Para ajustar a loja que os clientes veem hoje, use “Personalizar loja atual”.</p>
     </section>
 
     <section className="mt-10">
-      <div className="mb-4 flex items-end justify-between gap-4"><div><h2 className="text-xl font-bold">Biblioteca STOREOS</h2><p className="mt-1 text-sm text-slate-500">Temas oficiais publicados e compatíveis com o runtime da plataforma.</p></div><span className="text-sm text-slate-500">{library.length} {library.length === 1 ? 'tema' : 'temas'}</span></div>
+      <div className="mb-4 flex items-end justify-between gap-4"><div><h2 className="text-xl font-bold">Biblioteca avançada STOREOS</h2><p className="mt-1 text-sm text-slate-500">Temas oficiais publicados e compatíveis com o runtime da plataforma.</p></div><span className="text-sm text-slate-500">{library.length} {library.length === 1 ? 'tema' : 'temas'}</span></div>
       {library.length ? <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {library.map(theme => {
           const installed = installedReleaseIds.has(theme.id);

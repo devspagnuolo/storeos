@@ -8,6 +8,7 @@ export const ENV_VARS: EnvVar[] = [
   { name: 'WEB_ORIGIN', group: 'Servidor', importance: 'required', description: 'Endereço(s) da loja liberados para falar com a API (CORS).' },
   { name: 'API_PUBLIC_URL', group: 'Servidor', importance: 'recommended', description: 'Endereço público da API, usado nos retornos do Bling e do Mercado Pago.' },
   { name: 'PUBLIC_SITE_URL', group: 'Servidor', importance: 'recommended', description: 'Endereço público da loja, usado nos links dos e-mails (a menos que haja domínio próprio ativo).' },
+  { name: 'STORE_BASE_DOMAIN', group: 'Domínio próprio', importance: 'optional', description: 'Domínio-base das lojas sem domínio próprio (ex.: lojas.suamarca.com.br → vivi.lojas.suamarca.com.br). Exige DNS curinga (*.domínio) apontando para a loja; defina o mesmo valor na API e na loja.' },
   { name: 'STOREOS_CNAME_TARGET', group: 'Domínio próprio', importance: 'optional', description: 'Destino do CNAME que o cliente aponta para a plataforma.' },
   { name: 'STOREOS_EDGE_IPS', group: 'Domínio próprio', importance: 'optional', description: 'IPs para domínio raiz (registro A), separados por vírgula.' },
   { name: 'INTEGRATIONS_KEY', group: 'Servidor', importance: 'optional', description: 'Chave que protege tokens de integrações; sem ela usa o segredo do login.' },

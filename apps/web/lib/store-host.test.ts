@@ -1,23 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { platformSlug } from './store-host';
 
-vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
-const { isDefaultHost, normalizeHost } = await import('./store-host');
-
-describe('domínio da requisição', () => {
-  it('normaliza host com porta, lista e maiúsculas', () => {
-    expect(normalizeHost('Loja.Com.BR:443')).toBe('loja.com.br');
-    expect(normalizeHost('a.com, b.com')).toBe('a.com');
-    expect(normalizeHost(null)).toBe('');
+describe('subdomínio da plataforma', () => {
+  it('extrai o slug só do domínio-base configurado', () => {
+    expect(platformSlug('vivi.lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBe('vivi');
+    expect(platformSlug('vivi-moda.lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBe('vivi-moda');
   });
-
-  it('serve a loja padrão em localhost, no domínio técnico do Render e no endereço oficial', () => {
-    expect(isDefaultHost('localhost')).toBe(true);
-    expect(isDefaultHost('storeos-web.onrender.com')).toBe(true);
-    expect(isDefaultHost('', 'https://x.com')).toBe(true);
-    expect(isDefaultHost('x.com', 'https://x.com')).toBe(true);
-  });
-
-  it('consulta a API para qualquer outro domínio', () => {
-    expect(isDefaultHost('outra-loja.com.br', 'https://x.com')).toBe(false);
+  it('rejeita domínio de fora, níveis extras, rótulos inválidos e recurso desligado', () => {
+    expect(platformSlug('vivi.outro.com.br', 'lojas.exemplo.com.br')).toBeNull();
+    expect(platformSlug('a.b.lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBeNull();
+    expect(platformSlug('-vivi.lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBeNull();
+    expect(platformSlug('lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBeNull();
+    expect(platformSlug('vivi.lojas.exemplo.com.br', '')).toBeNull();
   });
 });

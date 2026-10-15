@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
-import { sanitizeStorefrontConfig } from './storefront-config';
+import { sanitizeStorefrontConfig, type StorefrontConfig } from './storefront-config';
+import { READY_THEMES, buildThemeConfig, findReadyTheme } from './storefront-themes';
 
 @Injectable()
 export class StorefrontService {
@@ -59,6 +60,25 @@ export class StorefrontService {
     const publication = await this.prisma.storefrontPublication.findFirst({ where: { id, storeId }, select: { id: true, version: true, config: true, createdAt: true } });
     if (!publication) throw new NotFoundException('Publicação não encontrada nesta loja.');
     return publication;
+  }
+
+  listThemes() {
+    return READY_THEMES.map(theme => ({
+      key: theme.key, name: theme.name, tagline: theme.tagline, segments: theme.segments,
+      accentColor: theme.config.accentColor, backgroundColor: theme.config.design?.backgroundColor ?? '#FFFFFF', textColor: theme.config.design?.textColor ?? '#111827',
+      font: theme.config.design?.font ?? 'sans', buttonRadius: theme.config.design?.buttonRadius ?? 'md',
+      sections: theme.config.home?.sections.map(section => section.type) ?? [],
+    }));
+  }
+
+  /** Grava o tema escolhido no rascunho (nunca publica) e mantém logo/favicon da loja. */
+  async applyTheme(storeId: string, key: string, actorId: string) {
+    const theme = findReadyTheme(key);
+    if (!theme) throw new NotFoundException('Tema não encontrado.');
+    const store = await this.prisma.store.findUniqueOrThrow({ where: { id: storeId } });
+    const current = (store.draftThemeConfig ?? store.themeConfig ?? null) as StorefrontConfig | null;
+    const config = buildThemeConfig(theme, store.name, current);
+    return this.save(storeId, store.storefrontVersion, config, false, actorId);
   }
 
   async legacyPublish(storeId: string, input: unknown, actorId: string) {
