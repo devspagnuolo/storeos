@@ -356,6 +356,7 @@ model Order {
   loyaltyEntries    LoyaltyEntry[]
   blingSync         BlingOrderSync?
   blingInvoice      BlingInvoice?
+  refunds           Refund[]
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -502,6 +503,38 @@ model Fulfillment {
   order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([storeId, trackingCode])
+}
+
+enum RefundMode {
+  GATEWAY
+  MANUAL
+}
+
+enum RefundStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/// Reembolso de um pedido pago. GATEWAY devolve pelo gateway (Mercado Pago); MANUAL registra um estorno feito fora do sistema.
+model Refund {
+  id              String       @id @default(uuid())
+  storeId         String
+  orderId         String
+  paymentId       String
+  amount          Decimal      @db.Decimal(14, 2)
+  reason          String
+  mode            RefundMode
+  status          RefundStatus @default(PENDING)
+  gatewayRefundId String?
+  error           String?
+  actorId         String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([storeId, createdAt(sort: Desc)])
 }
 
 enum CouponType {

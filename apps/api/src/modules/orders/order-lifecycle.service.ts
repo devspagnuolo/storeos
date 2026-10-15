@@ -132,6 +132,19 @@ export class OrderLifecycleService {
     return this.advance(ref, { from: [OrderStatus.INVOICED], to: OrderStatus.SHIPPED, event: 'orders.order-shipped.v1', message: `Enviado por ${data.carrier} (${trackingCode})`, actorId: by.actorId, fulfillment: { carrier: data.carrier, trackingCode, trackingUrl, shippedAt: new Date() }, payload: { carrier: data.carrier, trackingCode, ...(trackingUrl && { trackingUrl }) } });
   }
 
+  /**
+   * Reembolso total de pedido pago. Se os itens ainda não saíram (pago, separação ou faturado) eles voltam ao estoque;
+   * depois de enviados, a devolução física é registrada à parte em "devolução".
+   */
+  async markRefunded(ref: OrderRef, data: { message: string }, by: { actorId?: string } = {}) {
+    const current = await this.prisma.order.findFirst({ where: 'orderId' in ref ? { id: ref.orderId } : { storeId: ref.storeId, number: ref.number }, select: { status: true } });
+    const notShipped: OrderStatus[] = [OrderStatus.PAID, OrderStatus.PICKING, OrderStatus.INVOICED];
+    return this.advance(ref, {
+      from: [OrderStatus.PAID, OrderStatus.PICKING, OrderStatus.INVOICED, OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.RETURNED], to: OrderStatus.REFUNDED,
+      event: 'orders.order-refunded.v1', message: data.message, actorId: by.actorId, fulfillment: {}, restock: Boolean(current && notShipped.includes(current.status)), reverseLoyalty: true,
+    });
+  }
+
   /** Expedido → entregue. */
   markDelivered(ref: OrderRef, by: { actorId?: string } = {}) {
     return this.advance(ref, { from: [OrderStatus.SHIPPED], to: OrderStatus.DELIVERED, event: 'orders.order-delivered.v1', message: 'Pedido entregue', actorId: by.actorId, fulfillment: { deliveredAt: new Date() } });

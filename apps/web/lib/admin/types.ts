@@ -86,3 +86,5 @@ export type BlingReconciliation = {
 export type DiagnosticCheck = { id: string; area: string; title: string; status: 'ok' | 'warn' | 'fail' | 'off' | 'manual'; detail: string; hint?: string };
 export type Diagnostics = { checkedAt: string; summary: { fail: number; warn: number; ok: number }; checks: DiagnosticCheck[] };
 export type ShippingTestResult = { product: string; elapsedMs: number; required: boolean; options: { id: string; name: string; price: string; minDays: number; maxDays: number; free: boolean }[] };
+
+export type OrderRefunds = { paid: string | null; remaining: string; gatewayAvailable: boolean; refunds: { id: string; amount: string; reason: string; mode: 'GATEWAY' | 'MANUAL'; status: 'PENDING' | 'DONE' | 'FAILED'; error: string | null; createdAt: string }[] };

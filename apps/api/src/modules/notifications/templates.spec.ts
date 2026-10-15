@@ -14,4 +14,8 @@ describe('buildOrderMail', () => {
     expect(mail.html).not.toContain('<img');
     expect(mail.html).toContain('Loja &lt;Azul&gt;');
   });
+
+  it('avisa o cliente do reembolso', () => {
+    expect(buildOrderMail('orders.order-refunded.v1', { ...data, total: '99.80' })).toMatchObject({ template: 'order-refunded', subject: 'Reembolso do pedido SO-1' });
+  });
 });

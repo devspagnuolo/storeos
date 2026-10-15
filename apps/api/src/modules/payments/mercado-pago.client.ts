@@ -88,6 +88,11 @@ export class MercadoPagoClient {
     });
   }
 
+  /** Reembolso (total se `amount` não vier). A chave de idempotência impede devolver duas vezes se a chamada for repetida. */
+  refund(paymentId: string, amount: number | undefined, idempotencyKey: string) {
+    return this.request<{ id: number; status?: string }>(`/v1/payments/${encodeURIComponent(paymentId)}/refunds`, { method: 'POST', idempotencyKey, body: JSON.stringify(amount === undefined ? {} : { amount }) });
+  }
+
   getPayment(id: string) {
     return this.request<MercadoPagoPayment>(`/v1/payments/${encodeURIComponent(id)}`);
   }

@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { OrderActions } from '../../../../../components/admin/order-actions';
 import { OrderFulfillment } from '../../../../../components/admin/order-fulfillment';
+import { OrderRefund } from '../../../../../components/admin/order-refund';
 import { StatusBadge } from '../../../../../components/admin/status-badge';
 import { formatDateTime, orderStatusLabel, paymentMethodLabel } from '../../../../../lib/admin/labels';
 import { adminFetch, ApiError } from '../../../../../lib/admin/session';
-import type { OrderDetail } from '../../../../../lib/admin/types';
+import type { OrderDetail, OrderRefunds } from '../../../../../lib/admin/types';
 import { formatPrice } from '../../../../../lib/format';
 import { requestBlingInvoiceAction } from '../../../actions';
 
@@ -21,6 +22,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   });
   const address = order.shippingAddress;
   const invoice = await adminFetch<{ status: string; invoiceNumber: string | null; series: string | null; accessKey: string | null; rejectionReason: string | null; authorizedAt: string | null; issuedAt: string | null }>(`/bling/orders/${encodeURIComponent(number)}/invoice`).catch(() => null);
+  const refunds = order.payments.some(payment => payment.status === 'PAID' || payment.status === 'REFUNDED') ? await adminFetch<OrderRefunds>(`/orders/${encodeURIComponent(number)}/refunds`).catch(() => null) : null;
   return (
     <>
       <Link href="/admin/pedidos" className="text-sm text-slate-500">← Pedidos</Link>
@@ -41,6 +43,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
         <aside className="space-y-6">
           <OrderActions number={order.number} status={order.status} />
           <OrderFulfillment number={order.number} status={order.status} fulfillment={order.fulfillment} />
+          {refunds && <OrderRefund number={order.number} data={refunds} />}
           <section className="card p-5 text-sm">
             <h2 className="font-bold">ERP Bling</h2>
             <p className="mt-3 text-slate-600">Pedido STOREOS <strong>#{order.number}</strong></p>
