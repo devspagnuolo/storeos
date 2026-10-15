@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { adminFetch } from '../../../../lib/admin/session';
 import type { StoreSetup } from '../../../../lib/admin/storefront';
+import { BusinessProfileForm, LaunchCard } from './setup-forms';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SetupPage() {
-  const setup = await adminFetch<StoreSetup>('/store/setup');
+  const [setup, profile] = await Promise.all([adminFetch<StoreSetup>('/store/setup'), adminFetch<Record<string, string | undefined>>('/onboarding/profile')]);
   const progress = Math.round(setup.completed / setup.total * 100);
   const groups = [
     { level: 'required' as const, title: 'Obrigatório para divulgar', note: 'Sem estes itens a loja não deve ir ao ar.' },
@@ -16,6 +17,8 @@ export default async function SetupPage() {
       <p className="text-sm font-semibold uppercase tracking-wider text-brand">Primeiros passos</p>
       <h1 className="mt-2 text-3xl font-bold">Vamos preparar {setup.storeName} para vender</h1>
       <p className="mt-3 max-w-2xl text-slate-600">Siga as etapas no seu ritmo. O progresso é atualizado automaticamente quando você configura sua loja.</p>
+      <LaunchCard open={setup.open} blockers={setup.launchBlockers} />
+      <BusinessProfileForm profile={profile} />
       <section role="status" className={'mt-6 rounded-xl p-4 text-sm font-medium ' + (setup.ready ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800')}>
         {setup.ready ? 'Tudo que é obrigatório está pronto. Faça uma última compra de teste e pode divulgar.' : `Ainda faltam ${setup.pendingRequired.length} ${setup.pendingRequired.length === 1 ? 'item obrigatório' : 'itens obrigatórios'} antes de divulgar a loja.`}
       </section>

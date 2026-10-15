@@ -9,6 +9,8 @@ export type StorefrontState = {
 };
 export type StoreSetup = {
   storeName: string;
+  open: boolean;
+  launchBlockers: string[];
   completed: number;
   total: number;
   ready: boolean;

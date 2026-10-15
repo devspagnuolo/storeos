@@ -46,9 +46,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [{ name, logoUrl, whatsappNumber, whatsappMessage, themeConfig, slug, marketing }, categories, pages, main, footer] = await Promise.all([getPageBranding(), getCategories(), getPages(), getMenu('main'), getMenu('footer')]);
+  const [{ name, logoUrl, whatsappNumber, whatsappMessage, themeConfig, slug, marketing, open }, categories, pages, main, footer] = await Promise.all([getPageBranding(), getCategories(), getPages(), getMenu('main'), getMenu('footer')]);
   const menus = { main: main.configured ? main.items : defaultMenu(categories), footer: footer.configured ? footer.items : null };
   const design = themeConfig?.design;
+  // Loja nova fica "em construção" até o lojista publicar; prévia, painel e cadastro continuam acessíveis.
+  const path = (await headers()).get('x-pathname') ?? '/';
+  const closed = open === false && !['/previa', '/criar-loja', '/admin', '/painel'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+  if (closed) return <html lang="pt-BR"><head><meta name="robots" content="noindex" /></head><body style={themeStyle(themeConfig ?? {})}><main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">{(design?.logoUrl ?? logoUrl) && <img src={design?.logoUrl ?? logoUrl ?? ''} alt={name} className="mb-6 max-h-24 w-auto" />}<h1 className="text-3xl font-bold">{name}</h1><p className="mt-3 max-w-md text-slate-600">Estamos preparando tudo com carinho. Nossa loja abre em breve!</p></main></body></html>;
   const siteUrl = await resolveSiteUrl();
   // Dados estruturados da loja: o Google passa a mostrar nome, logo e caixa de busca do site nos resultados.
   const jsonLd = [

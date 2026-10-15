@@ -4,6 +4,7 @@ export type ReadinessFacts = {
   storefrontCustomized: boolean; shippingRules: number; carrierConfigured: boolean;
   paymentConfigured: boolean; webhookConfigured: boolean; callbackConfigured: boolean; cardConfigured: boolean; confirmedPayments: number;
   publishedPageSlugs: string[]; emailConfigured: boolean; blingConnected: boolean; activeDomains: number;
+  profileDone?: boolean;
 };
 
 export type ReadinessStep = { id: string; title: string; description: string; href: string; complete: boolean; level: 'required' | 'recommended' };
@@ -13,6 +14,7 @@ const hasPolicy = (slugs: string[], words: string[]) => slugs.some(slug => words
 /** Regras do guia de configuração: o que bloqueia divulgar a loja ("required") e o que só melhora a operação. */
 export function evaluateReadiness(f: ReadinessFacts) {
   const steps: ReadinessStep[] = [
+    { id: 'profile', level: 'required', title: 'Conte sobre o seu negócio', description: 'Segmento, momento do negócio e telefone de contato. Leva um minuto.', href: '/painel/primeiros-passos#dados', complete: f.profileDone ?? true },
     { id: 'identity', level: 'required', title: 'Apresente sua marca', description: 'Defina o nome e envie a logo da loja.', href: '/painel/configuracoes', complete: Boolean(f.storeName.trim() && f.hasLogo) },
     { id: 'catalog', level: 'required', title: 'Prepare o catálogo', description: f.activeProducts + ' produtos publicados; ' + f.stockedProducts + ' com estoque disponível.', href: '/painel/produtos', complete: f.stockedProducts > 0 },
     { id: 'catalog-quality', level: 'required', title: 'Confira fotos e preços', description: f.activeProducts === 0 ? 'Publique ao menos um produto.' : f.productsWithoutImage + ' sem foto e ' + f.productsWithoutPrice + ' sem preço entre os publicados.', href: '/painel/produtos', complete: f.activeProducts > 0 && f.productsWithoutImage === 0 && f.productsWithoutPrice === 0 },
@@ -28,8 +30,10 @@ export function evaluateReadiness(f: ReadinessFacts) {
     { id: 'contact', level: 'recommended', title: 'Canal de atendimento', description: f.whatsapp ? 'Botão de WhatsApp ativo.' : 'Informe o WhatsApp da loja.', href: '/painel/banners', complete: f.whatsapp },
   ];
   const required = steps.filter(step => step.level === 'required');
+  // Para abrir a loja basta o recebimento estar configurado; a compra de teste só é possível com a loja aberta.
+  const launchBlockers = required.filter(step => step.id === 'payment' ? !(f.paymentConfigured && f.webhookConfigured && f.callbackConfigured) : !step.complete).map(step => step.id);
   return {
-    steps, completed: steps.filter(step => step.complete).length, total: steps.length,
+    launchBlockers, steps, completed: steps.filter(step => step.complete).length, total: steps.length,
     ready: required.every(step => step.complete),
     pendingRequired: required.filter(step => !step.complete).map(step => step.id),
   };

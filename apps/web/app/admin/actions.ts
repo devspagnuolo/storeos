@@ -1062,3 +1062,27 @@ export async function deleteReviewAction(form: FormData) {
   revalidatePath('/admin/avaliacoes');
   revalidatePath('/produto/[slug]', 'page');
 }
+
+export async function saveBusinessProfileAction(_: FormState, form: FormData): Promise<FormState> {
+  const profile = { segment: String(form.get('segment') ?? ''), stage: String(form.get('stage') ?? ''), phone: String(form.get('phone') ?? ''), cnpj: String(form.get('cnpj') ?? ''), city: String(form.get('city') ?? '') };
+  try {
+    await adminFetch('/onboarding/profile', { method: 'PUT', body: { profile } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/primeiros-passos');
+  return { ok: 'Dados salvos.' };
+}
+
+export async function setStoreOpenAction(_: FormState, form: FormData): Promise<FormState> {
+  const open = form.get('open') === '1';
+  try {
+    await adminFetch(`/store/setup/${open ? 'open' : 'close'}`, { method: 'POST', body: {} });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin', 'layout');
+  return { ok: open ? 'Sua loja está no ar!' : 'A loja voltou para “em construção”.' };
+}
