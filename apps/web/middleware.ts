@@ -42,9 +42,15 @@ export async function middleware(request: NextRequest) {
 
   const root = pathname.split('/')[1] ?? '';
   if (root !== 'admin' && root !== 'painel') {
-    if (STORE_ROOTS.has(root) || (request.method !== 'GET' && request.method !== 'HEAD')) return NextResponse.next();
+    // O layout precisa do caminho para decidir se mostra a página "loja em construção".
+    const pass = () => {
+      const forwarded = new Headers(request.headers);
+      forwarded.set('x-pathname', pathname);
+      return NextResponse.next({ request: { headers: forwarded } });
+    };
+    if (STORE_ROOTS.has(root) || (request.method !== 'GET' && request.method !== 'HEAD')) return pass();
     const to = await findRedirect(request);
-    return to ? NextResponse.redirect(new URL(to, request.url), 301) : NextResponse.next();
+    return to ? NextResponse.redirect(new URL(to, request.url), 301) : pass();
   }
 
   // Mantém links antigos funcionando e direciona o navegador para a URL pública.

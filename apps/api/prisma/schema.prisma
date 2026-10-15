@@ -94,6 +94,8 @@ model Store {
   warehouses     Warehouse[]
   loyaltyConfig LoyaltyConfig?
   businessProfile Json?
+  /// Vitrine aberta ao público. Lojas criadas pelo cadastro começam fechadas até o lojista publicar.
+  storefrontOpen Boolean @default(true)
   productReviews ProductReview[]
   redirects Redirect[]
   automationRules AutomationRule[]

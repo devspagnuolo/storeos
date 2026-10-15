@@ -26,6 +26,12 @@ describe('prontidão da loja', () => {
     expect(result.ready).toBe(false);
     expect(result.pendingRequired).toContain(id);
   });
+  it('pede o perfil do negócio e separa o que bloqueia a abertura da loja', () => {
+    expect(evaluateReadiness({ ...base, profileDone: false }).pendingRequired).toContain('profile');
+    // Sem compra de teste a loja ainda pode abrir; é a abertura que permite fazê-la.
+    expect(evaluateReadiness({ ...base, confirmedPayments: 0 }).launchBlockers).toEqual([]);
+    expect(evaluateReadiness({ ...base, confirmedPayments: 0, webhookConfigured: false }).launchBlockers).toEqual(['payment']);
+  });
   it('itens recomendados pendentes não bloqueiam', () => {
     const result = evaluateReadiness({ ...base, blingConnected: false, emailConfigured: false, whatsapp: false });
     expect(result.ready).toBe(true);

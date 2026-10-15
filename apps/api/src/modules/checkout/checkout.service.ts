@@ -56,6 +56,7 @@ export class CheckoutService {
     }
     const store = await this.prisma.store.findUnique({ where: { slug: input.storeSlug } });
     if (!store) throw new NotFoundException('Loja não encontrada');
+    if (!store.storefrontOpen) throw new BadRequestException({ message: 'Esta loja ainda não abriu para vendas.', code: 'STORE_CLOSED' });
     const items = mergeItems(input.items);
     const email = input.customer.email.trim().toLowerCase();
     const expiresAt = paymentDeadline(input.paymentMethod);

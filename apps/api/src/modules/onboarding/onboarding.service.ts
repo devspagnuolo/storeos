@@ -42,7 +42,7 @@ export class OnboardingService {
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
     try {
       await this.prisma.$transaction(async tx => {
-        const store = await tx.store.create({ data: { slug, name: input.storeName.trim() } });
+        const store = await tx.store.create({ data: { slug, name: input.storeName.trim(), storefrontOpen: false } });
         const user = await tx.user.create({ data: { storeId: store.id, email, name: input.ownerName.trim(), passwordHash, verificationHash: hash, verificationExpiresAt: expiresAt } });
         await tx.userRole.create({ data: { userId: user.id, roleId: owner.id } });
       });

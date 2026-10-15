@@ -1,6 +1,6 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { MAIL_PROVIDER } from '../src/modules/notifications/mail-provider';
-import { cleanup, prisma, startApp } from './helpers';
+import { checkoutBody, cleanup, createStore, login, prisma, startApp } from './helpers';
 
 let app: NestExpressApplication;
 let api: Awaited<ReturnType<typeof startApp>>['api'];
@@ -62,5 +62,34 @@ describe('criação de loja', () => {
     await prisma.user.updateMany({ where: { email: input.email.toLowerCase() }, data: { verificationExpiresAt: new Date(Date.now() - 1000) } });
     const token = sent[sent.length - 1].text.match(/token=([\w-]+)/)?.[1];
     expect((await api('/onboarding/verify', { method: 'POST', body: { token } })).status).toBe(400);
+  });
+
+  it('loja nova nasce fechada, não vende, e só abre quando o essencial está pronto', async () => {
+    const { store, product } = await createStore(5);
+    await prisma.store.update({ where: { id: store.id }, data: { storefrontOpen: false } });
+    const admin = await login(api, store, ['settings.write']);
+    expect((await api(`/store/public/${store.slug}`)).body.open).toBe(false);
+    const blocked = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }]) });
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.code).toBe('STORE_CLOSED');
+
+    const early = await api('/store/setup/open', { method: 'POST', token: admin, body: {} });
+    expect(early.status).toBe(400);
+    expect(early.body.code).toBe('LAUNCH_BLOCKED');
+    expect(early.body.blockers).toEqual(expect.arrayContaining(['profile', 'identity', 'appearance', 'shipping', 'policies']));
+
+    Object.assign(process.env, { MERCADOPAGO_ACCESS_TOKEN: 't', MERCADOPAGO_WEBHOOK_SECRET: 's', API_PUBLIC_URL: 'https://api.example.com' });
+    await prisma.store.update({ where: { id: store.id }, data: { logoUrl: 'https://img.example.com/l.png', themeConfig: { heroTitle: 'Olá' } } });
+    await prisma.productImage.create({ data: { productId: product.id, url: 'https://img.example.com/p.png' } });
+    await prisma.shippingRule.create({ data: { storeId: store.id, name: 'Brasil', states: ['SP'], price: '10', minDays: 2, maxDays: 5 } });
+    await prisma.page.createMany({ data: [{ storeId: store.id, slug: 'trocas-e-devolucoes', title: 'Trocas', body: 'x', published: true }, { storeId: store.id, slug: 'politica-de-privacidade', title: 'Privacidade', body: 'x', published: true }] });
+    expect((await api('/onboarding/profile', { method: 'PUT', token: admin, body: { profile: { segment: 'moda' } } })).status).toBe(200);
+
+    expect((await api('/store/setup/open', { method: 'POST', token: admin, body: {} })).status).toBe(200);
+    expect((await api(`/store/public/${store.slug}`)).body.open).toBe(true);
+    const sold = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }]) });
+    expect(sold.body.code).not.toBe('STORE_CLOSED');
+    expect((await api('/store/setup/close', { method: 'POST', token: admin, body: {} })).body.open).toBe(false);
+    for (const k of ['MERCADOPAGO_ACCESS_TOKEN', 'MERCADOPAGO_WEBHOOK_SECRET', 'API_PUBLIC_URL']) delete process.env[k];
   });
 });
