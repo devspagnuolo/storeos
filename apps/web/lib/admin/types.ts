@@ -132,3 +132,16 @@ export type WarehouseTransferRow = { id: string; fromWarehouse: string; toWareho
 
 export type BlingCatalogItem = { id: number; sku: string | null; name: string; price: number; stock: number; hasVariations: boolean; imageUrl: string | null; inStore: boolean };
 export type BlingCatalogPage = { items: BlingCatalogItem[]; page: number; pageSize: number; hasMore: boolean };
+
+export type AutomationAction =
+  | { type: 'ADD_TAG' | 'REMOVE_TAG'; tag: string }
+  | { type: 'ADD_POINTS'; points: number }
+  | { type: 'CREATE_COUPON'; couponType: 'PERCENT' | 'FIXED'; value: number; validDays: number; prefix: string; minSubtotal?: number }
+  | { type: 'SEND_EMAIL'; subject: string; body: string; requireOptIn: boolean };
+export type AutomationConditions = { minTotal?: number; maxTotal?: number; firstPurchaseOnly?: boolean; paymentMethod?: 'PIX' | 'BOLETO' | 'CREDIT_CARD' };
+export type AutomationRule = {
+  id: string; name: string; active: boolean; trigger: string; triggerLabel: string; conditions: AutomationConditions; delayMinutes: number;
+  actions: AutomationAction[]; summary: string[]; runs: Record<'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' | 'SKIPPED', number>;
+};
+export type AutomationPreset = { key: string; title: string; description: string };
+export type AutomationRunRow = { id: string; rule: string; status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' | 'SKIPPED'; runAt: string; finishedAt: string | null; attempts: number; result: string | null; customer: { name: string; email: string } | null; orderNumber: string | null };

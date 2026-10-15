@@ -23,6 +23,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 import { SeoModule } from './modules/seo/seo.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
+import { AutomationsModule } from './modules/automations/automations.module';
 import { StoreModule } from './modules/store/store.module';
 import { HealthController } from './modules/health.controller';
 import { StoreBootstrapService } from './shared/access/store-bootstrap.service';
@@ -45,6 +46,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     AbandonedCartsModule,
     EngagementModule,
     MarketingModule,
+    AutomationsModule,
     SeoModule,
     MediaModule,
     BlingModule,
