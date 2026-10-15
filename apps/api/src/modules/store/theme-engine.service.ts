@@ -29,9 +29,21 @@ function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): Them
   for (const [pageType, template] of Object.entries(typed.templates)) {
     template.sections.forEach((section, index) => {
       const definition = manifest.sections.find(item => item.type === section.type);
-      if (definition) validateAt(definition.settingsSchema, section.settings, `$.templates.${pageType}.sections[${index}].settings`, `${releaseKey}:${section.type}`);
+      if (definition) {
+        validateAt(definition.settingsSchema, section.settings, `$.templates.${pageType}.sections[${index}].settings`, `${releaseKey}:${section.type}`);
+        const blockDefinitions = new Map((definition.blockDefinitions ?? []).map(block => [block.type, block]));
+        section.blocks.forEach((block, blockIndex) => {
+          const blockDefinition = blockDefinitions.get(block.type);
+          if (blockDefinition) validateAt(
+            blockDefinition.settingsSchema,
+            block.settings,
+            `$.templates.${pageType}.sections[${index}].blocks[${blockIndex}].settings`,
+            `${releaseKey}:${section.type}:${block.type}`,
+          );
+        });
+      }
     });
-    for (const definition of manifest.sections.filter(item => item.required && item.allowedPageTypes.includes(pageType as never))) {
+    for (const definition of manifest.sections.filter(item => item.required && item.allowedPageTypes.some(type => type === pageType))) {
       const requiredSection = template.sections.find(section => section.type === definition.type && section.enabled);
       if (!requiredSection) {
         issues.push({
