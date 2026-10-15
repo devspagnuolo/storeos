@@ -6,7 +6,7 @@ import { CardPayment, CardPaymentHandle } from '../../components/card-payment';
 import { PixPayment } from '../../components/pix-payment';
 import { ShippingOptions } from '../../components/shipping-options';
 import { cartSubtotalCents, lineKey, useCart } from '../../lib/cart';
-import { CheckoutForm, CheckoutResult, PromotionPreview, previewCoupon, previewPromotions, submitCheckout } from '../../lib/checkout';
+import { CheckoutForm, CheckoutResult, PromotionPreview, captureCart, previewCoupon, previewPromotions, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
 import { formatCpf, getPaymentConfig, isValidCpf, PaymentConfig } from '../../lib/payment';
 import { useStoreBrand } from '../../components/store-name';
@@ -44,6 +44,10 @@ export default function CheckoutPage() {
   const [payConfig, setPayConfig] = useState<PaymentConfig>();
   const cardRef = useRef<CardPaymentHandle>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const rememberCart = () => {
+    const form = formRef.current;
+    if (form) void captureCart(slug, String(new FormData(form).get('email') ?? ''), String(new FormData(form).get('name') ?? ''), items);
+  };
   const itemsKey = items.map(i => `${lineKey(i)}:${i.quantity}`).join(',');
 
   useEffect(() => {
@@ -167,7 +171,8 @@ export default function CheckoutPage() {
                 <label key={f.name} className={`text-sm font-medium ${f.className ?? ''}`}>{f.label}
                   {f.name === 'zipCode'
                     ? <input name="zipCode" required pattern={f.pattern} inputMode="numeric" autoComplete={f.autoComplete} value={cep} onChange={e => void onCepChange(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />
-                    : <input name={f.name} required={f.required} pattern={f.pattern} type={f.type ?? 'text'} autoComplete={f.autoComplete} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />}
+                    : <input name={f.name} required={f.required} pattern={f.pattern} type={f.type ?? 'text'} autoComplete={f.autoComplete} onBlur={f.name === 'email' ? rememberCart : undefined} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />}
+                  {f.name === 'email' && <span className="mt-1 block text-xs font-normal text-slate-500">Se você não concluir a compra, podemos enviar um lembrete com o seu carrinho.</span>}
                 </label>
               ))}
               <label className="text-sm font-medium sm:col-span-2">CPF (para a nota fiscal)

@@ -85,6 +85,7 @@ model Store {
   promotions             Promotion[]
   stockMovements         StockMovement[]
   domains                StoreDomain[]
+  abandonedCarts         AbandonedCart[]
 }
 
 model User {
@@ -947,4 +948,36 @@ model StoreDomain {
   store             Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
+}
+
+enum AbandonedCartStatus {
+  OPEN
+  REMINDED
+  RECOVERED
+  OPTED_OUT
+}
+
+/// Carrinho de quem informou o e-mail no checkout e não concluiu o pedido. Um por loja e e-mail.
+model AbandonedCart {
+  id               String              @id @default(uuid())
+  storeId          String
+  email            String
+  name             String?
+  /// Itens no formato do carrinho da vitrine, montados pelo servidor a partir do catálogo.
+  items            Json
+  itemCount        Int
+  subtotal         Decimal             @db.Decimal(14, 2)
+  /// Segredo do link de recuperação e de descadastro enviado por e-mail.
+  token            String              @unique @default(uuid())
+  status           AbandonedCartStatus @default(OPEN)
+  lastActivityAt   DateTime            @default(now())
+  remindedAt       DateTime?
+  recoveredAt      DateTime?
+  recoveredOrderId String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  store            Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, email])
+  @@index([storeId, status, lastActivityAt])
 }

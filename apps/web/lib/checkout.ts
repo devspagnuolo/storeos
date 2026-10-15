@@ -66,3 +66,11 @@ export async function previewPromotions(storeSlug: string, items: CartItem[]): P
   if (!response.ok) return { discount: '0.00', applied: [] };
   return response.json();
 }
+
+/** Guarda o carrinho de quem já informou o e-mail, para a loja poder lembrar se a compra não for concluída. Falhas são silenciosas. */
+export async function captureCart(storeSlug: string, email: string, name: string, items: CartItem[]): Promise<void> {
+  if (!items.length || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return;
+  try {
+    await fetch(`${apiUrl}/abandoned-carts/capture`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ storeSlug, email: email.trim(), name: name.trim() || undefined, items: toRequestItems(items) }), keepalive: true });
+  } catch { /* a captura nunca atrapalha a compra */ }
+}
