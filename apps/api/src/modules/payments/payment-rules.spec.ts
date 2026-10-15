@@ -1,4 +1,4 @@
-import { clampInstallments, declineMessage, installmentCount, isValidCardNumber, isValidCpf, maxAllowedInstallments, maxFreeInstallments, onlyDigits, redeDeclineMessage } from './payment-rules';
+import { clampInstallments, declineMessage, installmentCount, isValidCardNumber, isValidCpf, maxAllowedInstallments, maxFreeInstallments, maxFreeInstallmentsForAmount, minFreeInstallment, onlyDigits, redeDeclineMessage } from './payment-rules';
 
 describe('payment-rules', () => {
   it('valida CPF', () => {
@@ -24,6 +24,15 @@ describe('payment-rules', () => {
     expect(maxFreeInstallments('4', 6)).toBe(4);
     expect(maxFreeInstallments('9', 6)).toBe(6);
     expect(clampInstallments(10, maxAllowedInstallments('6'))).toBe(6);
+  });
+
+  it('calcula parcelas sem juros pelo piso por parcela', () => {
+    expect(minFreeInstallment('80')).toBe(80);
+    expect(minFreeInstallment()).toBe(80);
+    expect(maxFreeInstallmentsForAmount(300, 6, 80)).toBe(3);
+    expect(maxFreeInstallmentsForAmount(279.99, 6, 80)).toBe(3);
+    expect(maxFreeInstallmentsForAmount(80, 6, 80)).toBe(1);
+    expect(maxFreeInstallmentsForAmount(79.99, 6, 80)).toBe(1);
   });
 
   it('traduz a recusa do cartão sem vazar detalhe técnico', () => {

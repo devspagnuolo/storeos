@@ -1,23 +1,20 @@
 'use client';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { formatPrice } from '../lib/format';
-import { formatCardNumber, formatExpiry, installmentCount, loadMercadoPago, onlyDigits, parseExpiry, PaymentConfig } from '../lib/payment';
+import { formatCardNumber, formatExpiry, installmentCount, isEligibleFreeInstallment, loadMercadoPago, onlyDigits, parseExpiry, PaymentConfig } from '../lib/payment';
 
-/** Mercado Pago devolve um token; a Rede não tokeniza no navegador, então segue o cartão, só em trânsito e nunca gravado. */
 export type CardPayload = { installments: number; token?: string; paymentMethodId?: string; issuerId?: string; number?: string; holder?: string; expMonth?: number; expYear?: number; cvv?: string };
 export type CardPaymentHandle = { tokenize(cpf: string): Promise<CardPayload> };
 type Option = { installments: number; label: string };
 
 const input = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal';
 
-/**
- * Campos do cartão. Nenhum deles tem `name`, então nunca são enviados ao nosso servidor:
- * o MP.js troca os dados por um token e só o token segue no pedido.
- */
 export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<PaymentConfig['card']>; amount: number; cpf: string }>(function CardPayment({ config, amount, cpf }, ref) {
   const isRede = config.provider === 'rede';
   const publicKey = config.provider === 'mercadopago' ? config.publicKey : '';
   const maxInstallments = config.maxInstallments;
+  const maxFreeInstallments = config.maxFreeInstallments;
+  const minFreeInstallment = config.provider === 'mercadopago' ? config.minFreeInstallment : 0;
   const [number, setNumber] = useState('');
   const [holder, setHolder] = useState('');
   const [expiry, setExpiry] = useState('');
@@ -31,10 +28,8 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
 
   useEffect(() => { if (isRede) return; loadMercadoPago(publicKey).then(instance => { sdk.current = instance; }).catch(e => setSdkError((e as Error).message)); }, [publicKey, isRede]);
 
-  // Bandeira, emissor e parcelas dependem do BIN (primeiros dígitos) e do valor do pedido.
   const refreshInstallments = useCallback(async () => {
-    if (isRede) return;
-    if (!sdk.current || bin.length < 6) return;
+    if (isRede || !sdk.current || bin.length < 6) return;
     try {
       const methods = await sdk.current.getPaymentMethods({ bin: bin.slice(0, 6) });
       const found = methods.results[0];
@@ -44,7 +39,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
       const costs = (info?.payer_costs ?? []).filter(cost => {
         if (cost.installments > maxInstallments) return false;
         const interestFree = cost.total_amount <= amount + 0.005;
-        return !interestFree || cost.installments <= config.maxFreeInstallments;
+        return !interestFree || isEligibleFreeInstallment(cost.installments, cost.installment_amount, maxFreeInstallments, minFreeInstallment);
       });
       if (costs.length) {
         setOptions(costs.map(cost => ({ installments: cost.installments, label: `${cost.installments}x de ${formatPrice(cost.installment_amount)}${cost.total_amount > amount + 0.005 ? ` (total ${formatPrice(cost.total_amount)})` : ' sem juros'}` })));
@@ -53,7 +48,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
     } catch {
       // Sem as opções do gateway, o cliente ainda pode pagar à vista.
     }
-  }, [bin, amount, maxInstallments, isRede]);
+  }, [bin, amount, maxInstallments, maxFreeInstallments, minFreeInstallment, isRede]);
 
   useEffect(() => { void refreshInstallments(); }, [refreshInstallments]);
 
@@ -73,7 +68,6 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
     },
   }), [number, holder, expiry, cvv, installments, sdkError, cpf, refreshInstallments, isRede]);
 
-  // Rede: parcelas sem juros, calculadas aqui; o servidor aplica o mesmo limite.
   useEffect(() => {
     if (config.provider !== 'rede') return;
     const count = installmentCount(amount, config.maxInstallments, config.minInstallment);
@@ -101,7 +95,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
           {options.map(option => <option key={option.installments} value={option.installments}>{option.label}</option>)}
         </select>
       </label>
-      <p className="text-xs text-slate-500 sm:col-span-2">{isRede ? 'Pagamento processado pela Rede. Os dados do cartão são enviados com segurança e não ficam guardados.' : 'Pagamento processado pelo Mercado Pago. As opções e os juros são calculados pelo próprio Mercado Pago para este cartão; os dados não passam pelo nosso servidor.'}</p>
+      <p className="text-xs text-slate-500 sm:col-span-2">{isRede ? 'Pagamento processado pela Rede. Os dados do cartão são enviados com segurança e não ficam guardados.' : `Pagamento processado pelo Mercado Pago. O parcelamento sem juros exige parcela mínima de ${formatPrice(minFreeInstallment)} e respeita as opções disponíveis para este cartão.`}</p>
     </div>
   );
 });

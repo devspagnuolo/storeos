@@ -20,7 +20,6 @@ export function isValidCpf(value: string) {
 
 export const formatCardNumber = (value: string) => onlyDigits(value).slice(0, 19).replace(/(\d{4})(?=\d)/g, '$1 ');
 
-/** "1227" ou "12/27" viram mês e ano de 4 dígitos; devolve undefined se a data for inválida ou vencida. */
 export function parseExpiry(value: string, now = new Date()) {
   const d = onlyDigits(value);
   if (d.length !== 4) return undefined;
@@ -34,7 +33,7 @@ export function parseExpiry(value: string, now = new Date()) {
 export const formatExpiry = (value: string) => onlyDigits(value).slice(0, 4).replace(/^(\d{2})(\d)/, '$1/$2');
 
 export type PaymentConfig = {
-  card: { provider: 'mercadopago'; publicKey: string; maxInstallments: number; maxFreeInstallments: number } | { provider: 'rede'; maxInstallments: number; maxFreeInstallments: number; minInstallment: number } | null;
+  card: { provider: 'mercadopago'; publicKey: string; maxInstallments: number; maxFreeInstallments: number; minFreeInstallment: number } | { provider: 'rede'; maxInstallments: number; maxFreeInstallments: number; minInstallment: number } | null;
   boleto: boolean;
 };
 
@@ -55,7 +54,6 @@ type MercadoPagoSdk = {
 declare global { interface Window { MercadoPago?: new (publicKey: string, options?: { locale: string }) => MercadoPagoSdk } }
 
 let sdkLoading: Promise<void> | undefined;
-/** Carrega o MP.js uma vez. Os dados do cartão vão direto do navegador ao Mercado Pago; só o token chega ao nosso servidor. */
 export function loadMercadoPago(publicKey: string): Promise<MercadoPagoSdk> {
   sdkLoading ??= new Promise<void>((resolve, reject) => {
     if (window.MercadoPago) return resolve();
@@ -69,5 +67,11 @@ export function loadMercadoPago(publicKey: string): Promise<MercadoPagoSdk> {
   return sdkLoading.then(() => new window.MercadoPago!(publicKey, { locale: 'pt-BR' }));
 }
 
-/** Parcelas sem juros da Rede: não deixa a parcela ficar abaixo do mínimo da loja. */
+/** Parcelas sem juros: mantém 1x disponível e exige o piso mínimo nas parcelas múltiplas. */
 export const installmentCount = (total: number, max: number, minInstallment: number) => Math.max(1, Math.min(max, Math.floor(total / Math.max(minInstallment, 0.01))));
+
+/** Filtra a oferta real do Mercado Pago: nunca inventa quantidade/preço que o gateway não retornou. */
+export function isEligibleFreeInstallment(installments: number, installmentAmount: number, maxFree: number, minimum: number) {
+  if (installments <= 1) return true;
+  return installments <= maxFree && installmentAmount + 0.000001 >= minimum;
+}
