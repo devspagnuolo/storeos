@@ -1,6 +1,6 @@
 export const onlyDigits = (value: string) => value.replace(/\D/g, '');
 
-/** Valida os dígitos verificadores do CPF; sequências repetidas (111.111.111-11) não valem. */
+ /** Valida os dígitos verificadores do CPF; sequências repetidas (111.111.111-11) não valem. */
 export function isValidCpf(value: string) {
   const cpf = onlyDigits(value);
   if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
@@ -25,6 +25,19 @@ export function maxFreeInstallments(value: unknown = process.env.MERCADOPAGO_MAX
   const parsed = Number(value ?? 1);
   const configured = Number.isFinite(parsed) ? Math.max(1, Math.min(Math.trunc(parsed), MAX_INSTALLMENTS)) : 1;
   return Math.min(configured, maxAllowedInstallments(max));
+}
+
+/** Piso em reais por parcela sem juros. */
+export function minFreeInstallment(value: unknown = process.env.MERCADOPAGO_MIN_FREE_INSTALLMENT) {
+  const parsed = Number(value ?? 70);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 100_000) : 70;
+}
+
+/** Limite sem juros aplicável a um pedido, respeitando valor mínimo e limite de parcelas da loja. */
+export function maxFreeInstallmentsForAmount(amount: number, max = maxFreeInstallments(), minimum = minFreeInstallment()) {
+  if (!Number.isFinite(amount) || amount <= 0) return 1;
+  if (amount < minimum) return 1; // pagamento à vista continua disponível
+  return Math.max(1, Math.min(max, Math.floor((amount + 0.000001) / Math.max(minimum, 0.01))));
 }
 
 /** Parcelas pedidas pelo cliente: inteiro entre 1 e o máximo configurado para a loja. */
