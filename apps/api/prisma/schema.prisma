@@ -316,6 +316,7 @@ model Customer {
   store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   addresses      Address[]
   orders         Order[]
+  noteEntries    CustomerNote[]
 
   @@unique([storeId, email])
 }
@@ -1055,4 +1056,18 @@ model EmailCampaignRecipient {
 
   @@unique([campaignId, email])
   @@index([campaignId, status])
+}
+
+/// Anotação interna datada sobre o cliente (atendimento, combinados), com o autor.
+model CustomerNote {
+  id         String   @id @default(uuid())
+  storeId    String
+  customerId String
+  authorId   String?
+  authorName String
+  body       String
+  createdAt  DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, customerId, createdAt])
 }

@@ -27,12 +27,17 @@ export type AdminCollection = { id: string; name: string; slug: string; descript
 
 export type Segment = 'PROSPECT' | 'NEW' | 'RECURRING' | 'VIP' | 'AT_RISK';
 export type CustomerRow = { id: string; name: string; email: string; tags: string[]; marketingOptIn: boolean; createdAt: string; paidOrders: number; totalSpent: string; lastPaidAt: string | null; segment: Segment };
+export type CustomerTag = { tag: string; total: number };
 export type CustomerPage = { items: CustomerRow[]; total: number; page: number; pageSize: number; segments: Record<Segment, number> };
 export type CustomerProfile = {
   id: string; name: string; email: string; phone: string | null; notes: string | null; tags: string[]; marketingOptIn: boolean; createdAt: string;
   addresses: { id: string }[];
   orders: { id: string; number: string; status: string; total: string; couponCode: string | null; createdAt: string }[];
-  stats: { paidOrders: number; ltv: string; averageTicket: string; firstPurchaseAt: string | null; lastPurchaseAt: string | null; segment: Segment };
+  stats: { paidOrders: number; ltv: string; averageTicket: string; firstPurchaseAt: string | null; lastPurchaseAt: string | null; daysSinceLastPurchase: number | null; averageDaysBetweenOrders: number | null; segment: Segment };
+  noteEntries: { id: string; authorName: string; body: string; createdAt: string }[];
+  newsletter: { subscribed: boolean; since: string; unsubscribedAt: string | null } | null;
+  favoriteCategories: { name: string; quantity: number }[];
+  timeline: { at: string; kind: 'ORDER' | 'EMAIL' | 'CART' | 'LOYALTY' | 'COUPON' | 'NOTE' | 'SIGNUP'; title: string; detail?: string; ref?: string }[];
 };
 
 export type SalesReport = {

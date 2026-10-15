@@ -13,7 +13,6 @@ export function CustomerEditor({ customer }: { customer: CustomerProfile }) {
         <h2 className="font-bold">Relacionamento</h2>
         <label className="mt-3 block text-sm font-medium">Telefone<input name="phone" maxLength={30} defaultValue={customer.phone ?? ''} className="input" /></label>
         <label className="mt-3 block text-sm font-medium">Etiquetas <span className="font-normal text-slate-400">(separadas por vírgula)</span><input name="tags" defaultValue={customer.tags.join(', ')} className="input" /></label>
-        <label className="mt-3 block text-sm font-medium">Observações internas<textarea name="notes" rows={4} maxLength={2000} defaultValue={customer.notes ?? ''} className="input" /></label>
         <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" name="marketingOptIn" defaultChecked={customer.marketingOptIn} className="mt-1" /> Autorizou receber comunicações de marketing</label>
         {state.error && <p role="alert" className="mt-3 text-sm text-red-700">{state.error}</p>}
         {state.ok && <p className="mt-3 text-sm text-emerald-700">{state.ok}</p>}
