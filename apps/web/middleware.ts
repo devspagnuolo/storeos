@@ -11,8 +11,41 @@ const apiUrl =
  * Publica o painel em /painel, preservando /admin como rota interna compatível
  * com os links existentes na aplicação.
  */
+const storeSlug = process.env.NEXT_PUBLIC_STORE_SLUG ?? 'demo';
+/** Primeiros trechos que a própria loja usa: nunca consultam redirecionamentos. */
+const STORE_ROOTS = new Set(['', 'produto', 'categorias', 'colecoes', 'marcas', 'p', 'busca', 'carrinho', 'checkout', 'conta', 'acompanhar', 'descadastro', 'newsletter', 'recuperar', 'previa']);
+const redirectCache = new Map<string, { to: string | null; at: number }>();
+const CACHE_MS = 60_000;
+
+/** Endereço antigo cadastrado em /painel/redirecionamentos? Consulta a API e guarda a resposta por 1 minuto. */
+async function findRedirect(request: NextRequest): Promise<string | null> {
+  const host = (request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? '').split(',')[0].trim().split(':')[0].toLowerCase();
+  const key = `${host}${request.nextUrl.pathname}`;
+  const cached = redirectCache.get(key);
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.to;
+  let to: string | null = null;
+  try {
+    const query = new URLSearchParams({ store: storeSlug, host, path: request.nextUrl.pathname });
+    const response = await fetch(`${apiUrl}/redirects/resolve?${query}`, { signal: AbortSignal.timeout(1500) });
+    if (response.ok) to = ((await response.json()) as { to: string }).to;
+    else if (response.status !== 404) return null;
+  } catch {
+    return null;
+  }
+  if (redirectCache.size > 500) redirectCache.clear();
+  redirectCache.set(key, { to, at: Date.now() });
+  return to;
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+
+  const root = pathname.split('/')[1] ?? '';
+  if (root !== 'admin' && root !== 'painel') {
+    if (STORE_ROOTS.has(root) || (request.method !== 'GET' && request.method !== 'HEAD')) return NextResponse.next();
+    const to = await findRedirect(request);
+    return to ? NextResponse.redirect(new URL(to, request.url), 301) : NextResponse.next();
+  }
 
   // Mantém links antigos funcionando e direciona o navegador para a URL pública.
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
@@ -73,4 +106,7 @@ export async function middleware(request: NextRequest) {
   return next;
 }
 
-export const config = { matcher: ['/admin/:path*', '/painel/:path*'] };
+export const config = {
+  // Painel e qualquer endereço que não seja arquivo estático: o que não for da loja é conferido contra os redirecionamentos.
+  matcher: ['/admin/:path*', '/painel/:path*', '/((?!_next/|api/|.*\\..*).+)'],
+};

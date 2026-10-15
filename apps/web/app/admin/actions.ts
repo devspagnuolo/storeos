@@ -1001,3 +1001,46 @@ export async function resetLoyaltyConfigAction(): Promise<void> {
   await adminFetch('/loyalty/config', { method: 'DELETE' });
   revalidatePath('/admin/fidelidade');
 }
+
+export async function addRedirectAction(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    await adminFetch('/redirects', { method: 'POST', body: { from: String(form.get('from') ?? ''), to: String(form.get('to') ?? '') } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/redirecionamentos');
+  return { ok: 'Redirecionamento salvo. Já vale para quem acessar o endereço antigo.' };
+}
+
+export async function importRedirectsAction(_: FormState, form: FormData): Promise<FormState> {
+  const file = form.get('file');
+  if (!(file instanceof File) || !file.size) return { error: 'Escolha o arquivo CSV com duas colunas: endereço antigo e endereço novo.' };
+  if (file.size > 3_500_000) return { error: 'O arquivo passa de 3,5 MB. Divida a planilha em partes menores.' };
+  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+  if (!token) redirect('/admin/login');
+  const response = await fetch(`${serverApiUrl}/redirects/import`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'text/csv' }, body: await file.text(), cache: 'no-store' });
+  if (response.status === 401) redirect('/admin/login');
+  const body = await response.json().catch(() => undefined);
+  if (!response.ok) return { error: (Array.isArray(body?.message) ? body.message.join('; ') : body?.message) || 'Não foi possível ler a planilha.' };
+  revalidatePath('/admin/redirecionamentos');
+  const skipped = (body.skipped ?? []) as { line: number; error: string }[];
+  const detail = skipped.slice(0, 5).map(item => `linha ${item.line}: ${item.error}`).join('; ');
+  return { ok: `${body.created} redirecionamentos criados.${skipped.length ? ` ${skipped.length} linhas puladas (${detail}${skipped.length > 5 ? '…' : ''}).` : ''}` };
+}
+
+export async function generateNuvemshopRedirectsAction(): Promise<FormState> {
+  try {
+    const result = await adminFetch<{ created: number }>('/redirects/nuvemshop', { method: 'POST', body: {} });
+    revalidatePath('/admin/redirecionamentos');
+    return { ok: result.created ? `${result.created} redirecionamentos criados.` : 'Nada novo para criar: todos os endereços já estão cadastrados.' };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function deleteRedirectAction(form: FormData) {
+  await adminFetch(`/redirects/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/redirecionamentos');
+}
