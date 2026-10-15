@@ -13,7 +13,7 @@ export type ThemeDocument = {
 };
 type FieldSchema = { title?: string; type?: string; enum?: (string | number)[]; maxLength?: number; minimum?: number; maximum?: number };
 type SectionDefinition = { type: string; title: string; description: string; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
-export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[] };
+export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[]; globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
 
 function labelFor(key: string, schema: FieldSchema) {
   return schema.title ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase());
@@ -75,8 +75,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
 
   const tokens = document.global.designTokens;
   const colors = tokens.colors ?? {};
-  const globalSchema = manifest as ThemeManifest & { globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
-  const globalProperties = globalSchema.globalSettingsSchema?.properties ?? {};
+  const globalProperties = manifest.globalSettingsSchema?.properties ?? {};
 
   return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
     <div className="grid content-start gap-6">
