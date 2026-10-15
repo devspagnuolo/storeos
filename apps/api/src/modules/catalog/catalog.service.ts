@@ -64,6 +64,24 @@ export class CatalogService {
     return { items, total, page, pageSize };
   }
 
+  /** Para cada linha do carrinho: se o produto (ou variação) ainda está à venda, o saldo livre e o preço vigente. */
+  async availability(storeSlug: string, items: { productId: string; variantId?: string }[]) {
+    const storeId = await this.storeId(storeSlug);
+    const products = storeId && items.length ? await this.prisma.product.findMany({
+      where: { storeId, id: { in: [...new Set(items.map(i => i.productId))] } },
+      select: { id: true, status: true, price: true, variants: { where: { active: true }, select: { id: true, price: true } }, inventory: { select: { variantId: true, quantity: true, reserved: true } } },
+    }) : [];
+    return items.map(({ productId, variantId }) => {
+      const product = products.find(p => p.id === productId);
+      const variant = variantId ? product?.variants.find(v => v.id === variantId) : undefined;
+      // Produto com variações só vende pela variação; sem variações, só a linha do produto vale.
+      const sellable = product && product.status === ProductStatus.ACTIVE && (variantId ? Boolean(variant) : product.variants.length === 0);
+      if (!sellable) return { productId, variantId: variantId ?? null, active: false, available: 0, price: null };
+      const available = product.inventory.filter(i => (variantId ? i.variantId === variantId : !i.variantId)).reduce((sum, i) => sum + Math.max(i.quantity - i.reserved, 0), 0);
+      return { productId, variantId: variantId ?? null, active: true, available, price: (variant?.price ?? product.price).toFixed(2) };
+    });
+  }
+
   async bySlug(storeSlug: string, slug: string) {
     const storeId = await this.storeId(storeSlug);
     const product = storeId && await this.prisma.product.findFirst({

@@ -26,6 +26,18 @@ export function setQuantity(items: CartItem[], key: string, quantity: number): C
   return next ? items.map(i => (lineKey(i) === key ? { ...i, quantity: next } : i)) : items.filter(i => lineKey(i) !== key);
 }
 
+/** Atualiza o preço das linhas com o valor vigente na loja; devolve a mesma lista se nada mudou (evita re-render). */
+export function applyPrices(items: CartItem[], prices: Map<string, string | null>): CartItem[] {
+  let changed = false;
+  const next = items.map(item => {
+    const price = prices.get(lineKey(item));
+    if (!price || Number(price) === Number(item.price)) return item;
+    changed = true;
+    return { ...item, price };
+  });
+  return changed ? next : items;
+}
+
 export const cartCount = (items: CartItem[]) => items.reduce((sum, i) => sum + i.quantity, 0);
 
 export const cartSubtotalCents = (items: CartItem[]) => items.reduce((sum, i) => sum + toCents(i.price) * i.quantity, 0);
@@ -34,6 +46,7 @@ type CartState = {
   items: CartItem[];
   add: (item: Omit<CartItem, 'quantity'>, quantity?: number) => void;
   setQuantity: (key: string, quantity: number) => void;
+  syncPrices: (prices: Map<string, string | null>) => void;
   clear: () => void;
 };
 
@@ -43,6 +56,7 @@ export const useCart = create<CartState>()(
       items: [],
       add: (item, quantity) => set(state => ({ items: addItem(state.items, item, quantity) })),
       setQuantity: (key, quantity) => set(state => ({ items: setQuantity(state.items, key, quantity) })),
+      syncPrices: prices => set(state => ({ items: applyPrices(state.items, prices) })),
       clear: () => set({ items: [] }),
     }),
     { name: 'storeos-cart', storage: createJSONStorage(() => localStorage) },

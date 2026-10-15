@@ -1,6 +1,9 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchAvailability } from '../lib/availability';
+import { lineKey } from '../lib/cart';
+import { useStoreBrand } from './store-name';
 import type { ProductVariant } from '../lib/api';
 import { useCart } from '../lib/cart';
 import { track } from '../lib/track';
@@ -10,8 +13,22 @@ type Props = { product: { id: string; slug: string; name: string; price: string;
 
 const labelOf = (variant: ProductVariant) => variant.attributes.map(a => a.value).join(' / ');
 
-export function AddToCart({ product, available, variants = [] }: Props) {
+export function AddToCart({ product, available: initialAvailable, variants: initialVariants = [] }: Props) {
   const add = useCart(state => state.add);
+  const cartItems = useCart(state => state.items);
+  const { slug: storeSlug } = useStoreBrand();
+  // A página vem de cache; o saldo é reconsultado ao abrir e ao voltar para a aba, para refletir vendas e ajustes do painel.
+  const [live, setLive] = useState<Map<string, number>>();
+  const variantIds = initialVariants.map(v => v.id).join(',');
+  useEffect(() => {
+    const lines = variantIds ? variantIds.split(',').map(variantId => ({ productId: product.id, variantId })) : [{ productId: product.id }];
+    const load = () => void fetchAvailability(storeSlug, lines).then(map => setLive(new Map([...map].map(([key, info]) => [key, info.active ? info.available : 0])))).catch(() => undefined);
+    load();
+    window.addEventListener('focus', load);
+    return () => window.removeEventListener('focus', load);
+  }, [storeSlug, product.id, variantIds]);
+  const variants = useMemo(() => initialVariants.map(v => ({ ...v, available: live?.get(lineKey({ productId: product.id, variantId: v.id })) ?? v.available })), [initialVariants, live, product.id]);
+  const available = initialVariants.length ? variants.reduce((sum, v) => sum + v.available, 0) : live?.get(product.id) ?? initialAvailable;
   const router = useRouter();
   const [quantity, setQuantity] = useState(1);
   // Uma escolha por atributo (Cor, Tamanho…); a variação sai da combinação escolhida.
@@ -23,9 +40,11 @@ export function AddToCart({ product, available, variants = [] }: Props) {
 
   if (available < 1) return <p className="mt-8 rounded-xl bg-slate-100 p-4 font-medium text-slate-600">Produto esgotado no momento.</p>;
   const stock = hasVariants ? selected?.available ?? 0 : available;
-  const max = Math.min(stock, 99);
+  // O que já está no carrinho conta: o cliente não consegue somar além do saldo.
+  const inCart = cartItems.find(i => lineKey(i) === lineKey({ productId: product.id, variantId: selected?.id }))?.quantity ?? 0;
+  const max = Math.min(Math.max(stock - inCart, 0), 99);
   const price = selected?.price ?? product.price;
-  const ready = !hasVariants || Boolean(selected && stock > 0);
+  const ready = (!hasVariants || Boolean(selected && stock > 0)) && max > 0;
 
   return (
     <div className="mt-8 grid gap-5">
@@ -50,7 +69,8 @@ export function AddToCart({ product, available, variants = [] }: Props) {
         <button className="button disabled:opacity-60" disabled={!ready} onClick={() => { add({ productId: product.id, ...(selected && { variantId: selected.id, variantLabel: labelOf(selected) }), slug: product.slug, name: product.name, price: price, image: product.image }, quantity); track('add_to_cart', { value: Number(price) * quantity, items: [{ id: product.id, name: product.name, price: Number(price), quantity }] }); router.push('/carrinho'); }}>
           {hasVariants && !selected ? 'Escolha as opções' : hasVariants && stock < 1 ? 'Opção esgotada' : 'Adicionar ao carrinho'}
         </button>
-        {ready && stock <= 5 && <p className="w-full text-sm text-amber-700">Restam apenas {stock} unidades.</p>}
+        {(!hasVariants || selected) && stock > 0 && max < 1 && <p className="w-full text-sm text-amber-700">Você já tem no carrinho todas as {stock} unidades disponíveis.</p>}
+        {ready && stock <= 5 && <p className="w-full text-sm text-amber-700">Restam apenas {stock} {stock === 1 ? 'unidade' : 'unidades'}{inCart ? ` (${inCart} já no seu carrinho)` : ''}.</p>}
       </div>
     </div>
   );

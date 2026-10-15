@@ -30,6 +30,9 @@ Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao la
 | Menus, banners, WhatsApp, páginas institucionais, newsletter | ✅ | |
 | Motor de temas (biblioteca, instalação, rascunho, publicar a página inicial) | 🟡 | Recurso avançado em `/painel/site/temas`; desenha só a página inicial e, quando publicado, substitui o editor nela. Veja `avaliacao-total-2026-10-15.md` |
 | Temas prontos (12: Essencial, Elegante, Vibrante, Natural, Tecnologia, Gourmet, Aurora, Noir (escuro), Linho, Pop, Oceano, Rosé; com cantos, cartões, fonte de títulos e modo escuro configuráveis) | ✅ | Em `/painel/site/temas`; aplicam visual + seções de início, categoria e produto ao **rascunho** (logo preservada), sem publicar |
+| Checkout em etapas: CPF primeiro, cadastro salvo a cada campo (rascunho no servidor por 30 dias), endereço pelo CEP; cliente de outro aparelho confirma o e-mail para carregar os dados | ✅ | `/checkout/identify`, `/checkout/draft` |
+| Estoque ao vivo no carrinho, checkout e produto (limite de quantidade, aviso e ajuste); preço atualizado no carrinho | ✅ | `/catalog/availability`; alterações do painel atualizam a vitrine na hora |
+| Menu do painel em seções com submenus e busca; nova tela de personalização com prévia ao lado | ✅ | |
 | Assistente único de criação (`/painel/criar-minha-loja`): marca → tema → produtos → pagamento/entrega → publicar | ✅ | Reaproveita as telas e o estado do passo a passo; nada vai ao ar antes do último passo |
 | Loja sem domínio próprio via subdomínio (`slug.vivimodaplussize.com.br`) | 🟡 ⏳ | Código e variável `STORE_BASE_DOMAIN` prontos; exige DNS curinga `*` e o domínio curinga cadastrado no Render (web). Rótulos reservados (www, api, mail…) nunca viram loja |
 

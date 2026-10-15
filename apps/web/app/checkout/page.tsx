@@ -6,6 +6,9 @@ import { CardPayment, CardPaymentHandle } from '../../components/card-payment';
 import { PixPayment } from '../../components/pix-payment';
 import { ShippingOptions } from '../../components/shipping-options';
 import { cartSubtotalCents, lineKey, useCart } from '../../lib/cart';
+import { CartLines, hasStockIssues } from '../../components/cart/cart-lines';
+import { useAvailability } from '../../lib/availability';
+import { clearLocalDraft, confirmCustomer, DraftData, formatPhone, identifyCustomer, mergeAddress, readLocalDraft, saveDraft, writeLocalDraft } from '../../lib/checkout-draft';
 import { track } from '../../lib/track';
 import { CheckoutForm, CheckoutResult, PromotionPreview, captureCart, previewCoupon, previewPromotions, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
@@ -13,17 +16,21 @@ import { formatCpf, getPaymentConfig, isValidCpf, PaymentConfig } from '../../li
 import { useStoreBrand } from '../../components/store-name';
 import { formatCep, lookupCep, onlyDigits, quoteShipping, rememberCep, ShippingQuote } from '../../lib/shipping';
 
-const fields: { name: keyof CheckoutForm; label: string; required?: boolean; className?: string; pattern?: string; type?: string; autoComplete?: string }[] = [
+type Field = { name: keyof DraftData; label: string; required?: boolean; className?: string; pattern?: string; type?: string; autoComplete?: string; inputMode?: 'numeric' | 'tel' | 'email' };
+const contactFields: Field[] = [
   { name: 'name', label: 'Nome completo', required: true, className: 'sm:col-span-2', autoComplete: 'name' },
-  { name: 'email', label: 'E-mail', required: true, className: 'sm:col-span-2', type: 'email', autoComplete: 'email' },
-  { name: 'zipCode', label: 'CEP', required: true, pattern: '\\d{5}-?\\d{3}', autoComplete: 'postal-code' },
-  { name: 'street', label: 'Rua', required: true, autoComplete: 'address-line1' },
+  { name: 'email', label: 'E-mail', required: true, type: 'email', autoComplete: 'email', inputMode: 'email' },
+  { name: 'phone', label: 'Celular / WhatsApp', type: 'tel', autoComplete: 'tel', inputMode: 'tel' },
+];
+const addressFields: Field[] = [
+  { name: 'street', label: 'Rua', required: true, className: 'sm:col-span-2', autoComplete: 'address-line1' },
   { name: 'number', label: 'Número', required: true },
   { name: 'complement', label: 'Complemento', autoComplete: 'address-line2' },
   { name: 'district', label: 'Bairro' },
   { name: 'city', label: 'Cidade', required: true, autoComplete: 'address-level2' },
   { name: 'state', label: 'UF', required: true, pattern: '[A-Za-z]{2}', autoComplete: 'address-level1' },
 ];
+const inputClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal';
 
 function PaymentIcon({ kind }: { kind: 'pix' | 'card' | 'boleto' }) {
   if (kind === 'pix') return <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true"><path d="m12 2.8 4.2 4.2L12 11.2 7.8 7 12 2.8Zm0 10 4.2 4.2-4.2 4.2-4.2-4.2 4.2-4.2ZM2.8 12l4.2-4.2L11.2 12 7 16.2 2.8 12Zm10 0L17 7.8l4.2 4.2-4.2 4.2-4.2-4.2Z" fill="currentColor" /></svg>;
@@ -33,12 +40,18 @@ function PaymentIcon({ kind }: { kind: 'pix' | 'card' | 'boleto' }) {
 
 export default function CheckoutPage() {
   const { slug } = useStoreBrand();
-  const { items, clear } = useCart();
+  const { items, clear, syncPrices } = useCart();
   const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
   const [order, setOrder] = useState<CheckoutResult>();
-  const [cep, setCep] = useState('');
+  // Etapa 1: CPF. Etapa 2: cadastro e entrega (já preenchidos quando o cliente é reconhecido).
+  const [step, setStep] = useState<'cpf' | 'form'>('cpf');
+  const [identify, setIdentify] = useState<{ state: 'idle' | 'loading' } | { state: 'known'; maskedEmail: string } | { state: 'error'; message: string }>({ state: 'idle' });
+  const [confirmEmail, setConfirmEmail] = useState('');
+  const [confirmError, setConfirmError] = useState<string>();
+  const [data, setData] = useState<DraftData>({});
+  const [greeting, setGreeting] = useState<string>();
   const [cepLookup, setCepLookup] = useState<'idle' | 'loading' | 'success' | 'not-found'>('idle');
   const cepLookupId = useRef(0);
   const [quote, setQuote] = useState<ShippingQuote>();
@@ -52,12 +65,10 @@ export default function CheckoutPage() {
   const [cpf, setCpf] = useState('');
   const [payConfig, setPayConfig] = useState<PaymentConfig>();
   const cardRef = useRef<CardPaymentHandle>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const rememberCart = () => {
-    const form = formRef.current;
-    if (form) void captureCart(slug, String(new FormData(form).get('email') ?? ''), String(new FormData(form).get('name') ?? ''), items);
-  };
   const itemsKey = items.map(i => `${lineKey(i)}:${i.quantity}`).join(',');
+  const cep = data.zipCode ?? '';
+  const { availability, refresh: refreshStock } = useAvailability(slug, hydrated ? items : []);
+  useEffect(() => { if (availability.size) syncPrices(new Map([...availability].map(([key, info]) => [key, info.price]))); }, [availability, syncPrices]);
 
   const startedCheckout = useRef(false);
   useEffect(() => {
@@ -68,9 +79,74 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setHydrated(true);
-    setCep(rememberCep());
+    // Volta ao checkout: o CPF e os dados digitados antes já aparecem.
+    const local = readLocalDraft();
+    if (local.cpf) setCpf(formatCpf(local.cpf));
     void getPaymentConfig().then(setPayConfig);
   }, []);
+
+  // Cada campo é gravado na hora (neste aparelho) e, logo depois, no servidor; assim o cliente pode voltar e continuar.
+  useEffect(() => {
+    if (step !== 'form') return;
+    writeLocalDraft(cpf, data);
+    const timer = window.setTimeout(() => void saveDraft(slug, cpf, data), 600);
+    return () => window.clearTimeout(timer);
+  }, [data, cpf, step, slug]);
+
+  /** Cópia local só vale para o mesmo CPF: trocar de CPF começa um cadastro limpo. */
+  const localFor = (value: string) => { const local = readLocalDraft(); return local.cpf && onlyDigits(local.cpf) === onlyDigits(value) ? local.data : {}; };
+  const update = (field: keyof DraftData, value: string) => setData(current => ({ ...current, [field]: value }));
+
+  /** Busca o endereço do CEP e completa só os campos vazios. */
+  const fillFromCep = useCallback(async (value: string) => {
+    const lookupId = ++cepLookupId.current;
+    if (onlyDigits(value).length !== 8) { setCepLookup('idle'); return; }
+    setCepLookup('loading');
+    const address = await lookupCep(value);
+    if (lookupId !== cepLookupId.current) return;
+    if (!address) { setCepLookup('not-found'); return; }
+    setData(current => mergeAddress(current, address));
+    setCepLookup('success');
+  }, []);
+
+  /** Abre o cadastro: usa o CEP já calculado no carrinho e traz o endereço antes de o cliente digitar. */
+  function openForm(initial: DraftData) {
+    const zipCode = initial.zipCode || rememberCep();
+    const next = { ...initial, ...(zipCode && { zipCode: formatCep(zipCode) }) };
+    setData(next);
+    setStep('form');
+    if (next.zipCode && onlyDigits(next.zipCode).length === 8 && (!next.street || !next.city)) void fillFromCep(next.zipCode);
+  }
+
+  async function onIdentify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!isValidCpf(cpf)) return;
+    setIdentify({ state: 'loading' });
+    try {
+      const result = await identifyCustomer(slug, cpf);
+      if (result.status === 'draft') { setGreeting(result.data.name ? `Que bom te ver de novo, ${result.data.name.split(' ')[0]}! Seus dados foram recuperados.` : 'Recuperamos o que você já tinha preenchido.'); openForm(result.data); setIdentify({ state: 'idle' }); return; }
+      if (result.status === 'known') { setIdentify({ state: 'known', maskedEmail: result.maskedEmail }); return; }
+      setGreeting('Primeira compra por aqui? Preencha seu cadastro: tudo fica salvo enquanto você digita.');
+      openForm(localFor(cpf));
+      setIdentify({ state: 'idle' });
+    } catch (e) {
+      setIdentify({ state: 'error', message: e instanceof Error ? e.message : 'Não foi possível continuar agora.' });
+    }
+  }
+
+  async function onConfirm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setConfirmError(undefined);
+    try {
+      const result = await confirmCustomer(slug, cpf, confirmEmail);
+      if (!result.matched) { setConfirmError('Este e-mail não confere com o cadastro. Confira ou continue sem carregar os dados.'); return; }
+      setGreeting(result.data?.name ? `Olá, ${result.data.name.split(' ')[0]}! Carregamos seus dados. Confira antes de pagar.` : 'Carregamos seus dados. Confira antes de pagar.');
+      openForm({ ...result.data });
+      setIdentify({ state: 'idle' });
+    } catch (e) {
+      setConfirmError(e instanceof Error ? e.message : 'Não foi possível confirmar agora.');
+    }
+  }
 
   // Recalcula o frete quando o CEP fica completo ou o carrinho muda; o servidor recalcula de novo no pedido.
   const refreshQuote = useCallback(async (value: string) => {
@@ -88,23 +164,13 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsKey]);
 
-  useEffect(() => { void refreshQuote(cep); }, [cep, refreshQuote]);
+  useEffect(() => { if (step === 'form') void refreshQuote(cep); }, [cep, refreshQuote, step]);
 
-  async function onCepChange(value: string) {
+  function onCepChange(value: string) {
     const formatted = formatCep(value);
-    setCep(formatted);
-    const lookupId = ++cepLookupId.current;
-    if (onlyDigits(formatted).length !== 8) { setCepLookup('idle'); return; }
-    setCepLookup('loading');
-    const address = await lookupCep(formatted);
-    if (lookupId !== cepLookupId.current) return;
-    const form = formRef.current;
-    if (!address || !form) { setCepLookup('not-found'); return; }
-    for (const [field, fieldValue] of Object.entries(address)) {
-      const input = form.elements.namedItem(field) as HTMLInputElement | null;
-      if (input && fieldValue) input.value = fieldValue;
-    }
-    setCepLookup('success');
+    // CEP novo: o endereço anterior não vale mais, então a busca preenche tudo de novo.
+    setData(current => ({ ...current, zipCode: formatted, ...(onlyDigits(formatted).length === 8 && onlyDigits(formatted) !== onlyDigits(current.zipCode ?? '') && { street: '', district: '', city: '', state: '' }) }));
+    void fillFromCep(formatted);
   }
 
   const subtotal = cartSubtotalCents(items) / 100;
@@ -112,8 +178,9 @@ export default function CheckoutPage() {
   const shipping = chosen ? Number(chosen.price) : 0;
   const promoDiscount = promo ? Number(promo.discount) : 0;
   const discount = coupon?.discount ?? 0;
+  const stockBlocked = hasStockIssues(items, availability);
   // O CPF é sempre pedido: vai na nota fiscal e no pedido registrado no ERP (e é exigido pelo Mercado Pago no cartão e no boleto).
-  const blocked = Boolean(quote?.required && !quote.options.length) || !isValidCpf(cpf);
+  const blocked = Boolean(quote?.required && !quote.options.length) || !isValidCpf(cpf) || stockBlocked || step !== 'form';
 
   async function applyCoupon(code = couponInput) {
     if (!code.trim()) return;
@@ -137,16 +204,19 @@ export default function CheckoutPage() {
     setSubmitting(true);
     setError(undefined);
     try {
-      const form = Object.fromEntries(new FormData(event.currentTarget)) as unknown as CheckoutForm;
       if (!isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
+      const form: CheckoutForm = { name: data.name ?? '', email: data.email ?? '', phone: data.phone ? onlyDigits(data.phone) : undefined, zipCode: cep, street: data.street ?? '', number: data.number ?? '', complement: data.complement, district: data.district, city: data.city ?? '', state: data.state ?? '', paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code };
       const card = method === 'CREDIT_CARD' ? await cardRef.current?.tokenize(cpf) : undefined;
-      const placed = await submitCheckout(slug, { ...form, paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card);
+      const placed = await submitCheckout(slug, form, items, card);
       setOrder(placed);
       // Conta o pedido feito (para PIX e boleto o pagamento vem depois), com o valor final cobrado.
       track('purchase', { value: Number(placed.total), transactionId: placed.number, items: items.map(i => ({ id: i.productId, name: i.name, price: Number(i.price), quantity: i.quantity })) });
+      clearLocalDraft();
       clear();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível concluir o pedido.');
+      // O estoque pode ter mudado enquanto o cliente preenchia: atualiza as linhas para mostrar o saldo real.
+      void refreshStock();
     } finally {
       setSubmitting(false);
     }
@@ -187,47 +257,91 @@ export default function CheckoutPage() {
         {hydrated && !items.length ? (
           <div className="card mt-8 p-10 text-center text-slate-500">Seu carrinho está vazio. <Link href="/categorias" className="font-medium text-brand">Ver produtos</Link></div>
         ) : (
-          <form ref={formRef} onSubmit={onSubmit} className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
-            <div className="card grid gap-4 p-6 sm:grid-cols-2">
-              <h2 className="font-bold sm:col-span-2">Dados e entrega</h2>
-              {fields.map(f => (
-                <label key={f.name} className={`text-sm font-medium ${f.className ?? ''}`}>{f.label}
-                  {f.name === 'zipCode'
-                    ? <input name="zipCode" required pattern={f.pattern} inputMode="numeric" autoComplete={f.autoComplete} value={cep} onChange={e => void onCepChange(e.target.value)} placeholder="00000-000" aria-describedby="cep-help" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />
-                    : <input name={f.name} required={f.required} pattern={f.pattern} type={f.type ?? 'text'} autoComplete={f.autoComplete} onBlur={f.name === 'email' ? rememberCart : undefined} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />}
-                  {f.name === 'zipCode' && <span id="cep-help" className="mt-1 block text-xs font-normal text-slate-500" aria-live="polite">{cepLookup === 'loading' ? 'Buscando endereço pelo CEP…' : cepLookup === 'success' ? 'Endereço localizado. Confira e complete número e complemento.' : cepLookup === 'not-found' ? 'Não localizamos este CEP. Você pode preencher o endereço manualmente.' : 'Ao informar o CEP, buscamos rua, bairro, cidade e UF automaticamente.'}</span>}
-                  {f.name === 'email' && <span className="mt-1 block text-xs font-normal text-slate-500">Se você não concluir a compra, podemos enviar um lembrete com o seu carrinho.</span>}
-                </label>
-              ))}
-              <label className="text-sm font-medium sm:col-span-2">CPF (para a nota fiscal)
-                <input value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required aria-invalid={cpf.length === 14 && !isValidCpf(cpf)} aria-describedby="cpf-help" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal sm:max-w-xs" />
-                <span id="cpf-help" className="mt-1 block text-xs font-normal text-slate-500" aria-live="polite">{cpf.length === 14 && !isValidCpf(cpf) ? 'CPF inválido. Confira os números digitados.' : isValidCpf(cpf) ? 'CPF válido.' : 'Usaremos o documento no pedido e na integração fiscal.'}</span>
-              </label>
-              <fieldset className="sm:col-span-2">
-                <legend className="mb-2 font-bold">Entrega</legend>
-                {quote ? <ShippingOptions quote={quote} name="shippingRuleId" selected={shippingRuleId} onSelect={setShippingRuleId} /> : <p className="text-sm text-slate-500">{quoteError ?? 'Informe o CEP para ver as opções de entrega.'}</p>}
-              </fieldset>
-              <fieldset className="sm:col-span-2">
-                <legend className="mb-3 font-bold">Pagamento</legend>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
-                    <input className="sr-only" type="radio" name="paymentMethod" value="PIX" checked={method === 'PIX'} onChange={() => setMethod('PIX')} />
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><PaymentIcon kind="pix" /></span><span><b className="block">PIX</b><span className="text-xs text-slate-500">Aprovação rápida</span></span>
+          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
+            <div className="grid h-fit gap-6">
+              <ol className="flex items-center gap-3 text-sm" aria-label="Etapas">
+                <li className={'flex items-center gap-2 font-semibold ' + (step === 'cpf' ? 'text-brand' : 'text-slate-500')}><span className={'grid h-7 w-7 place-items-center rounded-full text-xs ' + (step === 'cpf' ? 'bg-brand text-brand-fg' : 'bg-emerald-100 text-emerald-700')}>{step === 'cpf' ? '1' : '✓'}</span>Identificação</li>
+                <li aria-hidden="true" className="h-px flex-1 bg-slate-200" />
+                <li className={'flex items-center gap-2 font-semibold ' + (step === 'form' ? 'text-brand' : 'text-slate-400')}><span className={'grid h-7 w-7 place-items-center rounded-full text-xs ' + (step === 'form' ? 'bg-brand text-brand-fg' : 'bg-slate-100')}>2</span>Entrega e pagamento</li>
+              </ol>
+
+              {step === 'cpf' ? (
+                <section className="card p-6">
+                  <h2 className="text-lg font-bold">Informe seu CPF para começar</h2>
+                  <p className="mt-1 text-sm text-slate-500">Se você já comprou aqui, recuperamos seus dados. Se for a primeira vez, abrimos o cadastro e salvamos tudo enquanto você preenche.</p>
+                  <form onSubmit={onIdentify} className="mt-5 flex flex-wrap items-end gap-3">
+                    <label className="text-sm font-medium">CPF
+                      <input value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setIdentify({ state: 'idle' }); }} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required autoFocus aria-invalid={cpf.length === 14 && !isValidCpf(cpf)} aria-describedby="cpf-help" className={inputClass + ' sm:w-56'} />
+                    </label>
+                    <button className="button disabled:opacity-60" disabled={!isValidCpf(cpf) || identify.state === 'loading'}>{identify.state === 'loading' ? 'Verificando…' : 'Continuar'}</button>
+                    <span id="cpf-help" className="block w-full text-xs text-slate-500" aria-live="polite">{cpf.length === 14 && !isValidCpf(cpf) ? 'CPF inválido. Confira os números digitados.' : 'Usado no pedido e na nota fiscal.'}</span>
+                  </form>
+                  {identify.state === 'error' && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{identify.message}</p>}
+                  {identify.state === 'known' && (
+                    <form onSubmit={onConfirm} className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="font-semibold">Encontramos seu cadastro!</p>
+                      <p className="mt-1 text-sm text-slate-600">Para sua segurança, confirme o e-mail cadastrado (<b>{identify.maskedEmail}</b>) e carregamos seu endereço.</p>
+                      <div className="mt-3 flex flex-wrap items-end gap-3">
+                        <label className="w-full text-sm font-medium sm:w-auto sm:min-w-0 sm:flex-1">E-mail<input type="email" required value={confirmEmail} onChange={e => setConfirmEmail(e.target.value)} autoComplete="email" inputMode="email" className={inputClass} /></label>
+                        <button className="button">Carregar meus dados</button>
+                      </div>
+                      {confirmError && <p role="alert" className="mt-2 text-sm text-red-700">{confirmError}</p>}
+                      <button type="button" onClick={() => { setGreeting(undefined); openForm(localFor(cpf)); setIdentify({ state: 'idle' }); }} className="mt-3 text-sm font-medium text-brand underline">Continuar sem carregar os dados</button>
+                    </form>
+                  )}
+                </section>
+              ) : (
+                <form id="checkout-form" onSubmit={onSubmit} className="card grid gap-4 p-6 sm:grid-cols-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
+                    <h2 className="text-lg font-bold">Seus dados</h2>
+                    <span className="text-sm text-slate-500">CPF {cpf} · <button type="button" onClick={() => setStep('cpf')} className="font-medium text-brand underline">trocar</button></span>
+                  </div>
+                  {greeting && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 sm:col-span-2">{greeting}</p>}
+                  {contactFields.map(f => (
+                    <label key={f.name} className={`text-sm font-medium ${f.className ?? ''}`}>{f.label}{!f.required && <span className="font-normal text-slate-400"> (opcional)</span>}
+                      <input name={f.name} required={f.required} type={f.type ?? 'text'} inputMode={f.inputMode} autoComplete={f.autoComplete} value={data[f.name] ?? ''} onChange={e => update(f.name, f.name === 'phone' ? formatPhone(e.target.value) : e.target.value)} onBlur={f.name === 'email' ? () => void captureCart(slug, data.email ?? '', data.name ?? '', items) : undefined} className={inputClass} />
+                      {f.name === 'email' && <span className="mt-1 block text-xs font-normal text-slate-500">Enviamos a confirmação do pedido para este e-mail.</span>}
+                    </label>
+                  ))}
+                  <h2 className="mt-2 text-lg font-bold sm:col-span-2">Entrega</h2>
+                  <label className="text-sm font-medium">CEP
+                    <input name="zipCode" required pattern={'\\d{5}-?\\d{3}'} inputMode="numeric" autoComplete="postal-code" value={cep} onChange={e => onCepChange(e.target.value)} placeholder="00000-000" aria-describedby="cep-help" className={inputClass} />
                   </label>
-                  {payConfig?.card && <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
-                    <input className="sr-only" type="radio" name="paymentMethod" value="CREDIT_CARD" checked={method === 'CREDIT_CARD'} onChange={() => setMethod('CREDIT_CARD')} />
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700"><PaymentIcon kind="card" /></span><span><b className="block">Cartão de crédito</b><span className="text-xs text-slate-500">Parcelamento disponível</span></span>
-                  </label>}
-                  {payConfig?.boleto && <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
-                    <input className="sr-only" type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} />
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700"><PaymentIcon kind="boleto" /></span><span><b className="block">Boleto bancário</b><span className="text-xs text-slate-500">Compensação em até 2 dias úteis</span></span>
-                  </label>}
-                </div>
-                {payConfig?.card && method === 'CREDIT_CARD' && <CardPayment ref={cardRef} config={payConfig.card} amount={subtotal - promoDiscount - discount + shipping} cpf={cpf} />}
-              </fieldset>
+                  <p id="cep-help" className="self-end pb-2 text-xs text-slate-500" aria-live="polite">{cepLookup === 'loading' ? 'Buscando endereço pelo CEP…' : cepLookup === 'success' ? 'Endereço encontrado. Confira e informe o número.' : cepLookup === 'not-found' ? 'Não localizamos este CEP. Preencha o endereço manualmente.' : 'Com o CEP, buscamos rua, bairro, cidade e UF.'}</p>
+                  {addressFields.map(f => (
+                    <label key={f.name} className={`text-sm font-medium ${f.className ?? ''}`}>{f.label}
+                      <input name={f.name} required={f.required} pattern={f.pattern} type="text" autoComplete={f.autoComplete} value={data[f.name] ?? ''} onChange={e => update(f.name, f.name === 'state' ? e.target.value.toUpperCase().slice(0, 2) : e.target.value)} className={inputClass} />
+                    </label>
+                  ))}
+                  <p className="text-xs text-slate-500 sm:col-span-2">Tudo o que você preenche fica salvo: se precisar sair, é só voltar e informar o CPF.</p>
+                  <fieldset className="sm:col-span-2">
+                    <legend className="mb-2 font-bold">Opções de entrega</legend>
+                    {quote ? <ShippingOptions quote={quote} name="shippingRuleId" selected={shippingRuleId} onSelect={setShippingRuleId} /> : <p className="text-sm text-slate-500">{quoteError ?? 'Informe o CEP para ver as opções de entrega.'}</p>}
+                  </fieldset>
+                  <fieldset className="sm:col-span-2">
+                    <legend className="mb-3 font-bold">Pagamento</legend>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
+                        <input className="sr-only" type="radio" name="paymentMethod" value="PIX" checked={method === 'PIX'} onChange={() => setMethod('PIX')} />
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><PaymentIcon kind="pix" /></span><span><b className="block">PIX</b><span className="text-xs text-slate-500">Aprovação rápida</span></span>
+                      </label>
+                      {payConfig?.card && <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
+                        <input className="sr-only" type="radio" name="paymentMethod" value="CREDIT_CARD" checked={method === 'CREDIT_CARD'} onChange={() => setMethod('CREDIT_CARD')} />
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700"><PaymentIcon kind="card" /></span><span><b className="block">Cartão de crédito</b><span className="text-xs text-slate-500">Parcelamento disponível</span></span>
+                      </label>}
+                      {payConfig?.boleto && <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
+                        <input className="sr-only" type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} />
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700"><PaymentIcon kind="boleto" /></span><span><b className="block">Boleto bancário</b><span className="text-xs text-slate-500">Compensação em até 2 dias úteis</span></span>
+                      </label>}
+                    </div>
+                    {payConfig?.card && method === 'CREDIT_CARD' && <CardPayment ref={cardRef} config={payConfig.card} amount={subtotal - promoDiscount - discount + shipping} cpf={cpf} />}
+                  </fieldset>
+                </form>
+              )}
             </div>
             <aside className="card h-fit p-6">
-              <ul className="divide-y text-sm">{items.map(i => <li key={lineKey(i)} className="flex justify-between py-2"><span>{i.quantity}× {i.name}{i.variantLabel && <span className="text-slate-500"> ({i.variantLabel})</span>}</span><span>{formatPrice((Number(i.price) * 100 * i.quantity) / 100)}</span></li>)}</ul>
+              <h2 className="font-bold">Resumo do pedido</h2>
+              <CartLines items={items} availability={availability} compact />
               <div className="mt-4 flex justify-between border-t pt-4 text-sm"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div>
               {promo?.applied.map(p => <div key={p.id} className="mt-2 flex justify-between text-sm text-emerald-700"><span>{p.name}</span><span>− {formatPrice(p.amount)}</span></div>)}
               <div className="mt-2 flex justify-between text-sm"><span>Frete</span><span>{!quote?.required ? (quote ? 'A combinar' : '—') : !chosen ? '—' : chosen.free ? 'Grátis' : formatPrice(chosen.price)}</span></div>
@@ -238,9 +352,10 @@ export default function CheckoutPage() {
               {coupon && <div className="mt-3 flex justify-between text-sm text-emerald-700"><span>Cupom {coupon.code} <button type="button" onClick={() => { setCoupon(undefined); setCouponInput(''); }} className="underline">remover</button></span><span>− {formatPrice(coupon.discount)}</span></div>}
               <div className="mt-4 flex justify-between border-t pt-4"><span>Total</span><b>{formatPrice(subtotal - promoDiscount - discount + shipping)}</b></div>
               {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-              <button className="button mt-6 w-full disabled:opacity-60" disabled={submitting || !hydrated || blocked}>{submitting ? 'Enviando…' : 'Confirmar pedido'}</button>
+              {stockBlocked && <p role="alert" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Ajuste os itens marcados no resumo para continuar.</p>}
+              <button form="checkout-form" className="button mt-6 w-full disabled:opacity-60" disabled={submitting || !hydrated || blocked}>{submitting ? 'Enviando…' : step === 'cpf' ? 'Informe o CPF para continuar' : 'Confirmar pedido'}</button>
             </aside>
-          </form>
+          </div>
         )}
       </main>
     </>

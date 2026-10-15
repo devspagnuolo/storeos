@@ -89,6 +89,7 @@ model Store {
   stockMovements         StockMovement[]
   domains                StoreDomain[]
   abandonedCarts         AbandonedCart[]
+  checkoutDrafts         CheckoutDraft[]
   emailTemplates         EmailTemplate[]
   emailCampaigns EmailCampaign[]
   warehouses     Warehouse[]
@@ -1113,6 +1114,23 @@ model AbandonedCart {
 
   @@unique([storeId, email])
   @@index([storeId, status, lastActivityAt])
+}
+
+/// Dados do checkout ainda não concluído, gravados a cada campo para o cliente não perder o que digitou.
+/// O token fica só no navegador do cliente; o registro some ao fechar o pedido ou após 30 dias sem uso.
+model CheckoutDraft {
+  id        String   @id @default(uuid())
+  storeId   String
+  token     String   @unique
+  /// CPF só com dígitos, para reencontrar o rascunho quando o cliente volta em outro aparelho.
+  cpf       String?
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, cpf])
+  @@index([updatedAt])
 }
 
 /// Texto personalizado de um e-mail da loja (chave = modelo padrão no código). Sem linha, vale o padrão.

@@ -2,7 +2,7 @@ import { apiUrl } from './config';
 import { toRequestItems, type CartItem } from './cart';
 
 export type CheckoutForm = {
-  name: string; email: string;
+  name: string; email: string; phone?: string;
   zipCode: string; street: string; number: string; complement?: string; district?: string; city: string; state: string;
   paymentMethod: 'PIX' | 'BOLETO' | 'CREDIT_CARD';
   cpf?: string;
@@ -18,13 +18,13 @@ export type CheckoutResult = {
 
 /** Envia o pedido direto do navegador para a API; o rate limit da API considera o IP de cada cliente. */
 export async function submitCheckout(storeSlug: string, form: CheckoutForm, items: CartItem[], card?: import('../components/card-payment').CardPayload): Promise<CheckoutResult> {
-  const { name, email, paymentMethod, shippingRuleId, couponCode, cpf, ...address } = form;
+  const { name, email, phone, paymentMethod, shippingRuleId, couponCode, cpf, ...address } = form;
   const response = await fetch(`${apiUrl}/checkout`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       storeSlug,
-      customer: { name, email },
+      customer: { name, email, ...(phone && { phone }) },
       shippingAddress: { ...address, state: address.state.toUpperCase(), complement: address.complement || undefined, district: address.district || undefined },
       items: toRequestItems(items),
       paymentMethod,
