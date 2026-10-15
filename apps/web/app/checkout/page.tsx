@@ -133,6 +133,7 @@ export default function CheckoutPage() {
           <p className="text-sm font-semibold text-brand">PEDIDO RECEBIDO</p>
           <h1 className="mt-1 text-3xl font-bold">Obrigado! Seu pedido é o {order.number}</h1>
           <p className="mt-4 rounded-xl bg-violet-50 p-4 text-slate-700">{order.payment.instructions.message}</p>
+          <p className="mt-3 text-sm text-slate-500">Guarde o número do pedido: você acompanha a entrega em <Link href="/acompanhar" className="font-semibold text-brand">Acompanhar pedido</Link>.</p>
           {order.payment.instructions.ticketUrl && !order.payment.instructions.pixCode && (
             <div className="mt-6 rounded-xl border border-slate-200 p-6 text-center">
               <a href={order.payment.instructions.ticketUrl} target="_blank" rel="noopener noreferrer" className="button">Abrir boleto</a>

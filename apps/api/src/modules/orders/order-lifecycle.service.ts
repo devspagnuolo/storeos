@@ -4,6 +4,7 @@ import { earnForOrder, reverseForOrder } from '../loyalty/ledger';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { recordMovement } from '../inventory/stock-ledger';
 import { inventoryOf } from './order-lines';
+import { cleanTrackingCode, trackingLink } from './tracking-rules';
 
 type Tx = Prisma.TransactionClient;
 export type OrderRef = { storeId: string; number: string } | { orderId: string };
@@ -126,7 +127,9 @@ export class OrderLifecycleService {
 
   /** Faturado → expedido, com transportadora e código de rastreio. */
   markShipped(ref: OrderRef, data: { carrier: string; trackingCode: string; trackingUrl?: string }, by: { actorId?: string } = {}) {
-    return this.advance(ref, { from: [OrderStatus.INVOICED], to: OrderStatus.SHIPPED, event: 'orders.order-shipped.v1', message: `Enviado por ${data.carrier} (${data.trackingCode})`, actorId: by.actorId, fulfillment: { carrier: data.carrier, trackingCode: data.trackingCode, trackingUrl: data.trackingUrl ?? null, shippedAt: new Date() }, payload: { carrier: data.carrier, trackingCode: data.trackingCode } });
+    const trackingCode = cleanTrackingCode(data.trackingCode) ?? data.trackingCode.trim();
+    const trackingUrl = trackingLink(trackingCode, data.trackingUrl);
+    return this.advance(ref, { from: [OrderStatus.INVOICED], to: OrderStatus.SHIPPED, event: 'orders.order-shipped.v1', message: `Enviado por ${data.carrier} (${trackingCode})`, actorId: by.actorId, fulfillment: { carrier: data.carrier, trackingCode, trackingUrl, shippedAt: new Date() }, payload: { carrier: data.carrier, trackingCode, ...(trackingUrl && { trackingUrl }) } });
   }
 
   /** Expedido → entregue. */

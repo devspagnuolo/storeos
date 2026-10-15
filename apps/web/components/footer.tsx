@@ -33,6 +33,7 @@ export function Footer({ categories, pages = [] }: { categories: Category[]; pag
         <nav aria-label="Minha compra">
           <p className="text-sm font-semibold">Minha compra</p>
           <ul className="mt-3 space-y-2 text-sm text-slate-500">
+            <li><Link href="/acompanhar" className={link}>Acompanhar pedido</Link></li>
             <li><Link href="/carrinho" className={link}>Carrinho</Link></li>
             <li><Link href="/busca" className={link}>Buscar produtos</Link></li>
             <li><Link href="/conta" className={link}>Minha conta</Link></li>

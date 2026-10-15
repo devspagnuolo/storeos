@@ -8,6 +8,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { BlingAuthService } from './bling-auth.service';
 import { BlingImportService } from './bling-import.service';
 import { BlingInvoicesService } from './bling-invoices.service';
+import { BlingTrackingService } from './bling-tracking.service';
 import { BlingStockService } from './bling-stock.service';
 import { BlingOrdersService } from './bling-orders.service';
 import { BlingWebhookPayload, BlingWebhookService } from './bling-webhook.service';
@@ -18,7 +19,7 @@ const webOrigin = () => (process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localh
 @ApiTags('Bling')
 @Controller('bling')
 export class BlingController {
-  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService, private readonly invoices: BlingInvoicesService, private readonly webhooks: BlingWebhookService, private readonly stock: BlingStockService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService, private readonly invoices: BlingInvoicesService, private readonly webhooks: BlingWebhookService, private readonly stock: BlingStockService, private readonly tracking: BlingTrackingService) {}
 
   @Get('status') @RequirePermissions(Permissions.SETTINGS_WRITE)
   async status(@CurrentStore() storeId: string) {
@@ -80,6 +81,9 @@ export class BlingController {
 
   @Get('reconciliation') @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
   reconciliation(@CurrentStore() storeId: string) { return this.stock.report(storeId); }
+
+  @Post('tracking-sync') @HttpCode(200) @RequirePermissions(Permissions.ORDERS_WRITE)
+  syncTracking(@CurrentStore() storeId: string) { return this.tracking.syncAll(50, storeId); }
 
   @Post('stock-sync') @HttpCode(200) @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
   syncStock(@CurrentStore() storeId: string) { return this.stock.sync(storeId); }
