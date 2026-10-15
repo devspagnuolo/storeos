@@ -91,6 +91,7 @@ model Store {
   abandonedCarts         AbandonedCart[]
   emailTemplates         EmailTemplate[]
   emailCampaigns EmailCampaign[]
+  warehouses     Warehouse[]
 }
 
 model User {
@@ -293,6 +294,7 @@ model Inventory {
   updatedAt    DateTime        @updatedAt
   product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  warehouseStocks WarehouseStock[]
 
   @@unique([storeId, productId, variantId])
   @@index([productId])
@@ -1070,4 +1072,51 @@ model CustomerNote {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([storeId, customerId, createdAt])
+}
+
+/// Depósito/loja física. O padrão guarda o "restante" (saldo total menos os outros depósitos),
+/// por isso pedidos, devoluções e a sincronização com o ERP continuam mexendo só no saldo total.
+model Warehouse {
+  id        String           @id @default(uuid())
+  storeId   String
+  name      String
+  code      String
+  isDefault Boolean          @default(false)
+  active    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  store     Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  stocks    WarehouseStock[]
+
+  @@unique([storeId, code])
+}
+
+/// Saldo de um item num depósito que não é o padrão.
+model WarehouseStock {
+  id          String    @id @default(uuid())
+  storeId     String
+  warehouseId String
+  inventoryId String
+  quantity    Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, inventoryId])
+  @@index([inventoryId])
+}
+
+/// Histórico de transferências entre depósitos (nomes guardados para sobreviver à exclusão).
+model WarehouseTransfer {
+  id            String   @id @default(uuid())
+  storeId       String
+  productId     String
+  variantId     String?
+  fromWarehouse String
+  toWarehouse   String
+  quantity      Int
+  reason        String?
+  actorId       String?
+  createdAt     DateTime @default(now())
+
+  @@index([storeId, createdAt])
 }

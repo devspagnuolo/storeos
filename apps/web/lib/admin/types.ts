@@ -122,3 +122,10 @@ export type SeoAudit = {
   products: { total: number; withIssues: number; counts: { key: string; label: string; count: number }[] };
   list: { id: string; name: string; slug: string; labels: string[] }[];
 };
+
+export type WarehouseRow = { id: string; name: string; code: string; isDefault: boolean; active: boolean; units: number; skus: number };
+export type WarehouseMatrix = {
+  warehouses: { id: string; name: string; isDefault: boolean; active: boolean }[];
+  items: { productId: string; variantId: string | null; name: string; sku: string; variation: string; quantity: number; reserved: number; byWarehouse: Record<string, number> }[];
+};
+export type WarehouseTransferRow = { id: string; fromWarehouse: string; toWarehouse: string; quantity: number; reason: string | null; productId: string; variantId: string | null; createdAt: string };

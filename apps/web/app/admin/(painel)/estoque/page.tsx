@@ -18,7 +18,7 @@ export default async function StockPage() {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">Estoque</h1>
-        <a href="/painel/estoque/export" className="button">Baixar planilha (CSV)</a>
+        <div className="flex gap-2"><a href="/painel/estoque/depositos" className="button-ghost">Depósitos</a><a href="/painel/estoque/export" className="button">Baixar planilha (CSV)</a></div>
       </div>
       <p className="mt-1 text-sm text-slate-500">Saldo de cada produto e variação, com o histórico de todas as entradas e saídas. O reservado são pedidos aguardando pagamento.</p>
 
