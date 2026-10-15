@@ -8,7 +8,7 @@ const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, add
 const schemaCache = new Map<string, ValidateFunction>();
 
 function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): ThemeDocumentIssue[] {
-  const issues = settingsIssues(document, manifest);
+  const issues = validateThemeDocument(document, manifest);
   if (issues.length || !document || typeof document !== 'object') return issues;
   const typed = document as ThemeDocument;
   const validateAt = (schema: Record<string, unknown>, value: unknown, path: string, cacheKey: string) => {
