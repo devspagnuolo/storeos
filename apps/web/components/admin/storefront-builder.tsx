@@ -219,6 +219,10 @@ export function StorefrontBuilder({ state, hasBanners, institutional }: { state:
         </section>
         <section className="card grid gap-4 p-4"><h2 className="font-bold">Aparência</h2>
           <Segmented label="Tipografia" value={(doc.design.font ?? preset.design.font) as 'sans'} options={[['sans', 'Moderna'], ['serif', 'Clássica'], ['rounded', 'Arredondada']]} onChange={v => setDesign({ font: v })} />
+          <Segmented label="Estilo dos cartões" value={(doc.design.cardStyle ?? 'soft') as 'soft'} options={[['soft', 'Suave'], ['flat', 'Plano'], ['outline', 'Contorno'], ['elevated', 'Sombra']]} onChange={v => setDesign({ cardStyle: v })} />
+          <Segmented label="Títulos" value={(doc.design.headingFont ?? 'same') as 'same'} options={[['same', 'Igual ao texto'], ['serif', 'Serifa'], ['display', 'Impacto']]} onChange={v => setDesign({ headingFont: v })} />
+          <Segmented label="Destaque da página inicial" value={(doc.design.heroTone ?? 'dark') as 'dark'} options={[['dark', 'Escuro'], ['light', 'Claro'], ['brand', 'Cor da marca']]} onChange={v => setDesign({ heroTone: v })} />
+          <Segmented label="Modo da loja" value={(doc.design.mode ?? 'light') as 'light'} options={[['light', 'Claro'], ['dark', 'Escuro']]} onChange={v => setDesign({ mode: v })} />
           <Segmented label="Botões" value={(doc.design.buttonRadius ?? preset.design.buttonRadius) as 'md'} options={[['none', 'Retos'], ['sm', 'Leves'], ['md', 'Suaves'], ['full', 'Redondos']]} onChange={v => setDesign({ buttonRadius: v })} />
           <Segmented label="Largura da página" value={(doc.design.containerWidth ?? preset.design.containerWidth) as 'normal'} options={[['narrow', 'Estreita'], ['normal', 'Normal'], ['wide', 'Larga']]} onChange={v => setDesign({ containerWidth: v })} />
           <Segmented label="Espaçamento entre seções" value={(doc.design.spacing ?? preset.design.spacing) as 'normal'} options={[['compact', 'Compacto'], ['normal', 'Normal'], ['relaxed', 'Amplo']]} onChange={v => setDesign({ spacing: v })} />

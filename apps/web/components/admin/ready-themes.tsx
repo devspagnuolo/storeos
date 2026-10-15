@@ -3,24 +3,32 @@ import { applyReadyThemeAction } from '../../app/admin/actions';
 export type ReadyThemeCard = {
   key: string; name: string; tagline: string; segments: string[];
   accentColor?: string; backgroundColor: string; textColor: string; font: string; buttonRadius: string; sections: string[];
+  cardStyle?: string; headingFont?: string; heroTone?: string; mode?: string; heroLayout?: string;
 };
 
 const FONT: Record<string, string> = { sans: 'ui-sans-serif, system-ui, sans-serif', serif: 'ui-serif, Georgia, serif', rounded: 'ui-rounded, "Trebuchet MS", system-ui, sans-serif' };
 const RADIUS: Record<string, string> = { none: '0', sm: '4px', md: '8px', full: '9999px' };
 const SECTION_LABEL: Record<string, string> = { banners: 'Banners', hero: 'Destaque', categories: 'Categorias', products: 'Produtos', benefits: 'Vantagens', testimonials: 'Depoimentos', newsletter: 'Newsletter', text: 'Texto', image: 'Imagem', carousel: 'Carrossel', video: 'Vídeo' };
 
-/** Miniatura desenhada com as cores e a tipografia reais do tema (nenhuma imagem externa). */
+/** Miniatura desenhada com as cores, a tipografia e o estilo reais do tema (nenhuma imagem externa). */
 export function ThemeThumb({ theme }: { theme: ReadyThemeCard }) {
   const accent = theme.accentColor ?? '#5B3DF5';
+  const dark = theme.mode === 'dark';
+  const cardStyle = theme.cardStyle ?? 'soft';
+  const card: React.CSSProperties = cardStyle === 'flat' ? { background: dark ? '#ffffff14' : '#0000000a' } : cardStyle === 'outline' ? { border: `1px solid ${dark ? '#ffffff30' : '#00000022'}` } : cardStyle === 'elevated' ? { background: dark ? '#ffffff10' : '#fff', boxShadow: '0 6px 14px -6px #0006' } : { background: dark ? '#ffffff10' : '#ffffffb3', border: `1px solid ${dark ? '#ffffff20' : '#0000001a'}` };
+  const heroBg = theme.heroTone === 'brand' ? accent : theme.heroTone === 'light' ? `${accent}18` : '#111827';
+  const heroFg = theme.heroTone === 'light' ? theme.textColor : '#ffffff';
+  const centered = theme.heroLayout === 'centered';
+  const headingFont = theme.headingFont === 'serif' ? FONT.serif : undefined;
   return <div aria-hidden className="overflow-hidden rounded-xl border" style={{ backgroundColor: theme.backgroundColor, color: theme.textColor, fontFamily: FONT[theme.font] ?? FONT.sans }}>
-    <div className="px-3 py-1 text-center text-[10px] font-semibold text-white" style={{ backgroundColor: accent }}>Aviso da loja</div>
-    <div className="flex items-center justify-between px-3 py-2 text-[11px] font-bold"><span>Sua marca</span><span className="opacity-60">Início · Produtos</span></div>
-    <div className="px-3 pb-3 pt-2">
-      <p className="text-sm font-bold leading-tight">Título da vitrine</p>
-      <p className="mt-1 text-[10px] opacity-70">Texto de apoio da sua loja</p>
-      <span className="mt-2 inline-block px-3 py-1 text-[10px] font-semibold text-white" style={{ backgroundColor: accent, borderRadius: RADIUS[theme.buttonRadius] ?? '8px' }}>Ver produtos</span>
-      <div className="mt-3 grid grid-cols-3 gap-1.5">{[0, 1, 2].map(i => <div key={i} className="rounded border border-black/10 bg-white/70 p-1"><div className="h-8 rounded bg-black/10" /><div className="mt-1 h-1.5 w-3/4 rounded bg-black/20" /><div className="mt-1 h-1.5 w-1/2 rounded" style={{ backgroundColor: accent }} /></div>)}</div>
+    <div className="px-3 py-1 text-center text-[10px] font-semibold" style={{ backgroundColor: accent, color: '#fff', textShadow: '0 0 2px #0006' }}>Aviso da loja</div>
+    <div className="flex items-center justify-between px-3 py-2 text-[11px] font-bold"><span style={{ fontFamily: headingFont }}>Sua marca</span><span className="opacity-60">Início · Produtos</span></div>
+    <div className="mx-3 rounded-lg px-3 py-3" style={{ background: heroBg, color: heroFg, textAlign: centered ? 'center' : 'left' }}>
+      <p className="text-sm font-bold leading-tight" style={{ fontFamily: headingFont, letterSpacing: theme.headingFont === 'display' ? '-0.03em' : undefined }}>Título da vitrine</p>
+      <p className="mt-1 text-[10px] opacity-75">Texto de apoio da sua loja</p>
+      <span className="mt-2 inline-block px-3 py-1 text-[10px] font-semibold" style={{ backgroundColor: theme.heroTone === 'brand' ? '#fff' : accent, color: theme.heroTone === 'brand' ? accent : '#fff', borderRadius: RADIUS[theme.buttonRadius] ?? '8px' }}>Ver produtos</span>
     </div>
+    <div className="grid grid-cols-3 gap-1.5 px-3 pb-3 pt-3">{[0, 1, 2].map(i => <div key={i} className="p-1" style={{ ...card, borderRadius: cardStyle === 'outline' ? 4 : cardStyle === 'flat' ? 6 : 10 }}><div className="h-8 rounded" style={{ background: dark ? '#ffffff22' : '#0000001a' }} /><div className="mt-1 h-1.5 w-3/4 rounded" style={{ background: dark ? '#ffffff40' : '#00000033' }} /><div className="mt-1 h-1.5 w-1/2 rounded" style={{ backgroundColor: accent }} /></div>)}</div>
   </div>;
 }
 

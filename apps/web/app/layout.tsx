@@ -6,7 +6,7 @@ import { resolveSiteUrl } from '../lib/store-host';
 import { Footer } from '../components/footer';
 import { WhatsAppButton } from '../components/whatsapp-button';
 import { defaultMenu, getCategories, getMenu, getPages, getStore } from '../lib/api';
-import { themeStyle } from '../lib/theme';
+import { themeAttributes, themeStyle } from '../lib/theme';
 import './globals.css';
 
 const viviHosts = new Set(['vivimodaplussize.com.br', 'www.vivimodaplussize.com.br']);
@@ -59,5 +59,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     { '@context': 'https://schema.org', '@type': 'Organization', name, url: siteUrl, ...((design?.logoUrl ?? logoUrl) && { logo: design?.logoUrl ?? logoUrl }) },
     { '@context': 'https://schema.org', '@type': 'WebSite', name, url: siteUrl, potentialAction: { '@type': 'SearchAction', target: `${siteUrl}/busca?q={search_term_string}`, 'query-input': 'required name=search_term_string' } },
   ];
-  return <html lang="pt-BR"><body style={themeStyle(themeConfig ?? {})}><TrackingScripts marketing={marketing} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} /><StoreNameProvider name={name} slug={slug} logoUrl={design?.logoUrl ?? logoUrl} menus={menus}>{children}<Footer categories={categories} pages={pages} /><WhatsAppButton number={whatsappNumber} message={whatsappMessage} /></StoreNameProvider></body></html>;
+  const inAdmin = ['/painel', '/admin'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+  const attributes = themeAttributes(themeConfig ?? {});
+  return <html lang="pt-BR"><body className={!inAdmin && attributes.dark ? 'dark' : undefined} data-hero={inAdmin ? undefined : attributes.heroTone} style={themeStyle(themeConfig ?? {}, { admin: inAdmin })}><TrackingScripts marketing={marketing} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} /><StoreNameProvider name={name} slug={slug} logoUrl={design?.logoUrl ?? logoUrl} menus={menus}>{children}<Footer categories={categories} pages={pages} /><WhatsAppButton number={whatsappNumber} message={whatsappMessage} /></StoreNameProvider></body></html>;
 }

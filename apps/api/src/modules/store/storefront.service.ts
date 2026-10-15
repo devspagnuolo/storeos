@@ -67,6 +67,8 @@ export class StorefrontService {
       key: theme.key, name: theme.name, tagline: theme.tagline, segments: theme.segments,
       accentColor: theme.config.accentColor, backgroundColor: theme.config.design?.backgroundColor ?? '#FFFFFF', textColor: theme.config.design?.textColor ?? '#111827',
       font: theme.config.design?.font ?? 'sans', buttonRadius: theme.config.design?.buttonRadius ?? 'md',
+      cardStyle: theme.config.design?.cardStyle ?? 'soft', headingFont: theme.config.design?.headingFont ?? 'same', heroTone: theme.config.design?.heroTone ?? 'dark', mode: theme.config.design?.mode ?? 'light',
+      heroLayout: String(theme.config.home?.sections.find(section => section.type === 'hero')?.props.layout ?? 'split'),
       sections: theme.config.home?.sections.map(section => section.type) ?? [],
     }));
   }

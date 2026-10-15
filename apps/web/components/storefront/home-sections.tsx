@@ -23,9 +23,25 @@ async function Banners() {
 }
 
 function Hero({ p }: { p: SectionProps }) {
-  return <section className="bg-ink text-white"><div className="shell grid min-h-[440px] items-center gap-10 md:grid-cols-2" style={{ paddingBlock: 'var(--section-y, 4rem)' }}>
-    <div><h1 className="text-4xl font-black leading-tight sm:text-6xl">{p.title}</h1>{p.description && <p className="mt-6 max-w-lg text-slate-300">{p.description}</p>}
-      {p.cta && <Linked href={p.ctaHref ?? '/categorias'}><span className="button mt-8">{p.cta}</span></Linked>}</div>
+  const layout = p.layout === 'centered' || p.layout === 'overlay' ? p.layout : 'split';
+  const action = p.cta && <Linked href={p.ctaHref ?? '/categorias'}><span className="button mt-8">{p.cta}</span></Linked>;
+  const pad = { paddingBlock: 'var(--section-y, 4rem)' };
+  if (layout === 'overlay') {
+    return <section className="hero hero-overlay relative isolate overflow-hidden">
+      {p.imageUrl && <img src={p.imageUrl} alt={p.imageAlt ?? ''} className="absolute inset-0 -z-10 h-full w-full object-cover" />}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/75 via-black/45 to-black/10" aria-hidden />
+      <div className="shell flex min-h-[420px] items-center sm:min-h-[520px]" style={pad}><div className="max-w-xl">
+        <h1 className="text-4xl font-black leading-[1.05] sm:text-6xl">{p.title}</h1>{p.description && <p className="hero-muted mt-5 text-lg">{p.description}</p>}{action}
+      </div></div></section>;
+  }
+  if (layout === 'centered') {
+    return <section className="hero"><div className="shell text-center" style={pad}>
+      <div className="mx-auto max-w-3xl"><h1 className="text-4xl font-black leading-[1.05] sm:text-6xl">{p.title}</h1>{p.description && <p className="hero-muted mx-auto mt-5 max-w-xl text-lg">{p.description}</p>}{action}</div>
+      {p.imageUrl && <div className="mx-auto mt-10 aspect-[16/8] max-w-5xl overflow-hidden rounded-3xl"><img src={p.imageUrl} alt={p.imageAlt ?? ''} className="h-full w-full object-cover" /></div>}
+    </div></section>;
+  }
+  return <section className="hero"><div className="shell grid min-h-[440px] items-center gap-10 md:grid-cols-2" style={pad}>
+    <div><h1 className="text-4xl font-black leading-tight sm:text-6xl">{p.title}</h1>{p.description && <p className="hero-muted mt-6 max-w-lg">{p.description}</p>}{action}</div>
     <div className="aspect-[4/3] overflow-hidden rounded-3xl bg-brand p-2">{p.imageUrl ? <img src={p.imageUrl} alt={p.imageAlt ?? ''} className="h-full w-full rounded-2xl object-cover" /> : <div className="h-full rounded-2xl border border-white/30 bg-white/10" />}</div>
   </div></section>;
 }
@@ -42,6 +58,12 @@ function TextBlock({ p }: { p: SectionProps }) {
 async function Categories({ p }: { p: SectionProps }) {
   const roots = (await getCategories()).filter(c => !c.parentId).slice(0, p.limit ?? 6);
   if (!roots.length) return null;
+  if (p.layout === 'circles') {
+    return <Wrap><Heading title={p.heading} center /><ul className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">{roots.map(c => (
+      <li key={c.id}><Link href={`/categorias/${c.slug}`} className="group block text-center">
+        <div className="mx-auto aspect-square w-full max-w-[9rem] overflow-hidden rounded-full border-2 border-transparent bg-slate-100 transition group-hover:border-brand">{c.bannerUrl ? <img src={c.bannerMobileUrl ?? c.bannerUrl} alt="" loading="lazy" className="h-full w-full object-cover" /> : <span className="flex h-full items-center justify-center text-2xl font-bold text-brand" aria-hidden>{c.name.slice(0, 1)}</span>}</div>
+        <p className="mt-3 text-sm font-semibold group-hover:text-brand sm:text-base">{c.name}</p></Link></li>))}</ul></Wrap>;
+  }
   return <Wrap><Heading title={p.heading} /><ul className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">{roots.map(c => (
     <li key={c.id}><Link href={`/categorias/${c.slug}`} className="card group block overflow-hidden text-center">
       <div className="aspect-square bg-slate-100">{c.bannerUrl && <img src={c.bannerMobileUrl ?? c.bannerUrl} alt="" loading="lazy" className="h-full w-full object-cover" />}</div>
@@ -55,7 +77,7 @@ async function Products({ p }: { p: SectionProps }) {
   return <Wrap>
     <div className="mb-8 flex items-end justify-between"><div>{p.subheading && <p className="text-sm font-semibold text-brand">{p.subheading}</p>}{p.heading && <h2 className="text-3xl font-bold">{p.heading}</h2>}</div>
       <Link href={!picked.length && p.categorySlug ? `/categorias/${p.categorySlug}` : '/categorias'} className="font-medium text-brand">Ver todos →</Link></div>
-    {items.length ? <div className="grid grid-cols-2 gap-4 md:grid-cols-4">{items.map(product => <ProductCard product={product} key={product.id} />)}</div>
+    {items.length ? <div className={cls('grid grid-cols-2 gap-3 sm:gap-4', ({ '3': 'md:grid-cols-3', '5': 'md:grid-cols-3 lg:grid-cols-5' } as Record<string, string>)[String(p.columns)] ?? 'md:grid-cols-4')}>{items.map(product => <ProductCard product={product} key={product.id} />)}</div>
       : <div className="card p-10 text-center text-slate-500">Os produtos aparecerão aqui assim que forem publicados.</div>}
   </Wrap>;
 }
