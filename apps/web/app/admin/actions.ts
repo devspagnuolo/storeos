@@ -1121,3 +1121,20 @@ export async function saveThemeDraftAction(installationId: string, revision: num
     throw error;
   }
 }
+
+
+export async function publishThemeAction(installationId: string, revision: number): Promise<ThemeDraftSaveResult> {
+  if (!/^[a-zA-Z0-9_-]{1,96}$/.test(installationId) || !Number.isInteger(revision) || revision < 1) {
+    return { error: 'Os dados de publicação são inválidos.' };
+  }
+  try {
+    await adminFetch(`/themes/installations/${encodeURIComponent(installationId)}/publish`, { method: 'POST', body: { revision } });
+    revalidatePath('/');
+    revalidatePath('/admin/site/temas', 'layout');
+    revalidatePath(`/admin/site/temas/${encodeURIComponent(installationId)}`);
+    return { ok: 'Tema publicado. O layout novo já está ativo na loja.' };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
