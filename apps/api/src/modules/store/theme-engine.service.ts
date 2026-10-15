@@ -1,7 +1,39 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { ThemeReleaseManifest, validateThemeDocument } from '@storeos/contracts';
+import Ajv, { ValidateFunction } from 'ajv';
+import { ThemeDocument, ThemeDocumentIssue, ThemeReleaseManifest, validateThemeDocument } from '@storeos/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
+
+const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, addUsedSchema: false });
+const schemaCache = new Map<string, ValidateFunction>();
+
+function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): ThemeDocumentIssue[] {
+  const issues = settingsIssues(document, manifest);
+  if (issues.length || !document || typeof document !== 'object') return issues;
+  const typed = document as ThemeDocument;
+  const validateAt = (schema: Record<string, unknown>, value: unknown, path: string, cacheKey: string) => {
+    try {
+      let validate = schemaCache.get(cacheKey);
+      if (!validate) { validate = ajv.compile(schema); schemaCache.set(cacheKey, validate); }
+      if (!validate(value)) {
+        for (const error of validate.errors ?? []) {
+          issues.push({ path: `${path}${error.instancePath}`, code: 'INVALID_SETTINGS', message: 'A configuração não corresponde aos campos aceitos por este tema.' });
+        }
+      }
+    } catch {
+      issues.push({ path, code: 'INVALID_SETTINGS', message: 'O schema de configurações deste tema é inválido.' });
+    }
+  };
+  const releaseKey = `${manifest.slug}@${manifest.version}`;
+  validateAt(manifest.globalSettingsSchema, typed.global.settings, '$.global.settings', `${releaseKey}:global`);
+  for (const [pageType, template] of Object.entries(typed.templates)) {
+    template.sections.forEach((section, index) => {
+      const definition = manifest.sections.find(item => item.type === section.type);
+      if (definition) validateAt(definition.settingsSchema, section.settings, `$.templates.${pageType}.sections[${index}].settings`, `${releaseKey}:${section.type}`);
+    });
+  }
+  return issues;
+}
 
 @Injectable()
 export class ThemeEngineService {
@@ -33,7 +65,7 @@ export class ThemeEngineService {
     });
     if (!release) throw new NotFoundException('Tema publicado não encontrado.');
     const manifest = release.manifest as unknown as ThemeReleaseManifest;
-    const issues = validateThemeDocument(manifest.defaultDocument, manifest);
+    const issues = settingsIssues(manifest.defaultDocument, manifest);
     if (issues.length) throw new UnprocessableEntityException({ message: 'O tema publicado contém um layout inicial inválido.', issues });
 
     return this.prisma.$transaction(async tx => {
