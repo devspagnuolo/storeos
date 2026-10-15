@@ -27,7 +27,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   });
   return (
     <>
-      <h1 className="text-3xl font-bold">Pedidos</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-3xl font-bold">Pedidos</h1><Link href="/admin/pedidos/novo" className="button">Novo pedido manual</Link></div>
       <form method="get" className="card mt-6 flex flex-wrap gap-3 p-4">
         {status && <input type="hidden" name="status" value={status} />}
         <label className="sr-only" htmlFor="order-search">Buscar pedidos</label>
