@@ -19,7 +19,9 @@ export type ShippingRule = { id: string; name: string; states: string[]; price: 
 export type AuditRow = { id: string; action: string; entity: string | null; entityId: string | null; outcome: 'SUCCESS' | 'DENIED' | 'FAILURE'; statusCode: number | null; ip: string | null; userAgent: string | null; createdAt: string; metadata: Record<string, unknown> | null; actor: { id: string; name: string; email: string } | null };
 export type AuditPage = { items: AuditRow[]; total: number; page: number; pageSize: number };
 
-export type AdminCoupon = { id: string; code: string; description: string | null; type: 'PERCENT' | 'FIXED' | 'FREE_SHIPPING'; value: string; minSubtotal: string | null; maxUses: number | null; usedCount: number; oncePerCustomer: boolean; startsAt: string | null; endsAt: string | null; active: boolean };
+export type AdminCoupon = { id: string; code: string; description: string | null; type: 'PERCENT' | 'FIXED' | 'FREE_SHIPPING'; value: string; minSubtotal: string | null; maxUses: number | null; usedCount: number; oncePerCustomer: boolean; firstOrderOnly: boolean; productIds: string[]; categoryIds: string[]; campaign: string | null; startsAt: string | null; endsAt: string | null; active: boolean; stats: { uses: number; paidOrders: number; revenue: string; discount: string } };
+export type CouponCampaign = { name: string; type: AdminCoupon['type']; value: string; total: number; used: number; paidOrders: number; revenue: string; discount: string; createdAt: string; active: boolean };
+export type CampaignCode = { id: string; code: string; used: boolean; active: boolean };
 
 export type AdminCollection = { id: string; name: string; slug: string; description: string | null; active: boolean; position: number; skus: string[] };
 

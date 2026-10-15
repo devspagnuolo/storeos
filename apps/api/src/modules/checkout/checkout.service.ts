@@ -102,7 +102,7 @@ export class CheckoutService {
       let discount = money(0);
       let couponId: string | undefined;
       if (input.couponCode?.trim()) {
-        const redeemed = await this.coupons.redeem(tx, { storeId: store.id, code: input.couponCode, subtotal: afterPromotions, shipping, customerId: customer.id });
+        const redeemed = await this.coupons.redeem(tx, { storeId: store.id, code: input.couponCode, subtotal, afterPromotions, lines, shipping, customerId: customer.id });
         discount = redeemed.discount;
         couponId = redeemed.coupon.id;
       }

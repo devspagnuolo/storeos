@@ -122,6 +122,7 @@ export async function createCouponAction(_: FormState, form: FormData): Promise<
     await adminFetch('/coupons', { method: 'POST', body: {
       code: String(form.get('code') ?? '').trim(), type, value: type === 'FREE_SHIPPING' ? undefined : num('value'),
       minSubtotal: num('minSubtotal'), maxUses: num('maxUses'), oncePerCustomer: form.get('oncePerCustomer') === 'on',
+      firstOrderOnly: form.get('firstOrderOnly') === 'on', categoryIds: form.getAll('categoryIds').map(String),
       startsAt: date('startsAt'), endsAt: date('endsAt'),
     } });
   } catch (error) {
@@ -130,6 +131,33 @@ export async function createCouponAction(_: FormState, form: FormData): Promise<
   }
   revalidatePath('/admin/cupons');
   return { ok: 'Cupom criado.' };
+}
+
+export async function createBulkCouponsAction(_: FormState, form: FormData): Promise<FormState> {
+  const num = (name: string) => { const raw = String(form.get(name) ?? '').trim().replace(',', '.'); return raw ? Number(raw) : undefined; };
+  const date = (name: string) => { const raw = String(form.get(name) ?? ''); return raw ? new Date(raw).toISOString() : undefined; };
+  const type = String(form.get('type'));
+  const campaign = String(form.get('campaign') ?? '').trim();
+  try {
+    const result = await adminFetch<{ created: number }>('/coupons/bulk', { method: 'POST', body: {
+      prefix: String(form.get('prefix') ?? '').trim(), count: num('count'), campaign, type, value: type === 'FREE_SHIPPING' ? undefined : num('value'),
+      minSubtotal: num('minSubtotal'), oncePerCustomer: form.get('oncePerCustomer') === 'on',
+      firstOrderOnly: form.get('firstOrderOnly') === 'on', categoryIds: form.getAll('categoryIds').map(String),
+      startsAt: date('startsAt'), endsAt: date('endsAt'),
+    } });
+    revalidatePath('/admin/cupons');
+    return { ok: `${result.created} códigos criados na campanha "${campaign}". Veja a lista abaixo.` };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function toggleCampaignAction(form: FormData) {
+  const name = String(form.get('name'));
+  await adminFetch(`/coupons/campaigns/${encodeURIComponent(name)}`, { method: 'PATCH', body: { active: form.get('active') === 'true' } });
+  revalidatePath('/admin/cupons');
+  revalidatePath('/admin/cupons/campanha');
 }
 
 export async function toggleCouponAction(form: FormData) {

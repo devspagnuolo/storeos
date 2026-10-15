@@ -21,15 +21,37 @@ class CreateCouponDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) minSubtotal?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) maxUses?: number | null;
   @IsOptional() @IsBoolean() oncePerCustomer?: boolean;
+  @IsOptional() @IsBoolean() firstOrderOnly?: boolean;
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) productIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) categoryIds?: string[];
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() startsAt?: string | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() endsAt?: string | null;
   @IsOptional() @IsBoolean() active?: boolean;
 }
+class BulkCouponDto {
+  @IsString() @Length(2, 16) @Matches(/^[A-Za-z0-9_-]+$/) prefix!: string;
+  @IsInt() @Min(1) @Max(500) count!: number;
+  @IsString() @Length(2, 60) campaign!: string;
+  @IsOptional() @IsString() @MaxLength(200) description?: string;
+  @IsEnum(CouponType) type!: CouponType;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(1_000_000) value?: number;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) minSubtotal?: number | null;
+  @IsOptional() @IsBoolean() oncePerCustomer?: boolean;
+  @IsOptional() @IsBoolean() firstOrderOnly?: boolean;
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) productIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) categoryIds?: string[];
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() startsAt?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() endsAt?: string | null;
+}
+class CampaignActiveDto { @IsBoolean() active!: boolean; }
 class UpdateCouponDto {
   @IsOptional() @IsString() @MaxLength(200) description?: string;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) minSubtotal?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) maxUses?: number | null;
   @IsOptional() @IsBoolean() oncePerCustomer?: boolean;
+  @IsOptional() @IsBoolean() firstOrderOnly?: boolean;
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) productIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) categoryIds?: string[];
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() startsAt?: string | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() endsAt?: string | null;
   @IsOptional() @IsBoolean() active?: boolean;
@@ -45,6 +67,10 @@ class PreviewDto {
   constructor(private readonly coupons: CouponsService, private readonly promotions: PromotionsService, private readonly prisma: PrismaService) {}
   @Get() @RequirePermissions(Permissions.MARKETING_WRITE) list(@CurrentStore() storeId: string) { return this.coupons.list(storeId); }
   @Post() @RequirePermissions(Permissions.MARKETING_WRITE) create(@CurrentStore() storeId: string, @Body() dto: CreateCouponDto) { return this.coupons.create(storeId, dto); }
+  @Get('campaigns') @RequirePermissions(Permissions.MARKETING_WRITE) campaigns(@CurrentStore() storeId: string) { return this.coupons.campaigns(storeId); }
+  @Get('campaigns/:name') @RequirePermissions(Permissions.MARKETING_WRITE) campaignCodes(@CurrentStore() storeId: string, @Param('name') name: string) { return this.coupons.campaignCodes(storeId, name); }
+  @Patch('campaigns/:name') @RequirePermissions(Permissions.MARKETING_WRITE) setCampaign(@CurrentStore() storeId: string, @Param('name') name: string, @Body() dto: CampaignActiveDto) { return this.coupons.setCampaignActive(storeId, name, dto.active); }
+  @Post('bulk') @RequirePermissions(Permissions.MARKETING_WRITE) bulk(@CurrentStore() storeId: string, @Body() dto: BulkCouponDto) { return this.coupons.createBulk(storeId, dto); }
   @Patch(':id') @RequirePermissions(Permissions.MARKETING_WRITE) update(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdateCouponDto) { return this.coupons.update(storeId, id, dto); }
 
   /** Público: a vitrine mostra o desconto antes de finalizar. A regra de verdade roda de novo no checkout. */
@@ -56,6 +82,6 @@ class PreviewDto {
     const { lines, subtotal } = priceOrderLines(items, products);
     // Mesma ordem do checkout: promoções automáticas primeiro, cupom sobre o restante.
     const { discount } = await this.promotions.evaluate(this.prisma, store.id, lines);
-    return this.coupons.preview(store.id, dto.code, subtotal.minus(discount), money(dto.shipping ?? 0));
+    return this.coupons.preview(store.id, dto.code, subtotal, subtotal.minus(discount), lines, money(dto.shipping ?? 0));
   }
 }

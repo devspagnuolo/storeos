@@ -558,6 +558,10 @@ model Coupon {
   maxUses         Int?
   usedCount       Int                @default(0)
   oncePerCustomer Boolean            @default(false)
+  firstOrderOnly  Boolean            @default(false)
+  productIds      String[]           @default([])
+  categoryIds     String[]           @default([])
+  campaign        String?
   startsAt        DateTime?
   endsAt          DateTime?
   active          Boolean            @default(true)
