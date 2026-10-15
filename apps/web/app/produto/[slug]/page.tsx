@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AddToCart } from '../../../components/add-to-cart';
 import { Header } from '../../../components/header';
+import { ReviewsSection, Stars } from '../../../components/reviews-section';
 import { TrackView } from '../../../components/track-view';
 import { resolveSiteUrl } from '../../../lib/store-host';
-import { getProduct } from '../../../lib/api';
+import { getProduct, getReviews } from '../../../lib/api';
 import { formatPrice } from '../../../lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -21,12 +22,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProductPage({ params }: Props) {
-  const product = await getProduct((await params).slug);
+  const slug = (await params).slug;
+  const [product, reviews] = await Promise.all([getProduct(slug), getReviews(slug)]);
   if (!product) notFound();
   const image = product.images?.[0];
   const siteUrl = await resolveSiteUrl();
   // Dados estruturados para o Google exibir preço e disponibilidade no resultado de busca.
-  const jsonLd = { '@context': 'https://schema.org', '@type': 'Product', name: product.name, sku: product.sku, brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined, description: product.description, image: product.images?.map(i => i.url), offers: { '@type': 'Offer', url: `${siteUrl}/produto/${product.slug}`, priceCurrency: 'BRL', price: product.price, availability: `https://schema.org/${product.available > 0 ? 'InStock' : 'OutOfStock'}` } };
+  const jsonLd = { '@context': 'https://schema.org', '@type': 'Product', name: product.name, sku: product.sku, brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined, description: product.description, image: product.images?.map(i => i.url), offers: { '@type': 'Offer', url: `${siteUrl}/produto/${product.slug}`, priceCurrency: 'BRL', price: product.price, availability: `https://schema.org/${product.available > 0 ? 'InStock' : 'OutOfStock'}` },
+    ...(reviews.summary.count > 0 && { aggregateRating: { '@type': 'AggregateRating', ratingValue: reviews.summary.average, reviewCount: reviews.summary.count, bestRating: 5, worstRating: 1 }, review: reviews.items.slice(0, 5).map(r => ({ '@type': 'Review', author: { '@type': 'Person', name: r.author }, datePublished: r.createdAt.slice(0, 10), reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5, worstRating: 1 }, reviewBody: r.body, ...(r.title && { name: r.title }) })) }) };
   const breadcrumb = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
     { '@type': 'ListItem', position: 1, name: 'Produtos', item: `${siteUrl}/categorias` },
     ...(product.categories[0] ? [{ '@type': 'ListItem', position: 2, name: product.categories[0].name, item: `${siteUrl}/categorias/${product.categories[0].slug}` }] : []),
@@ -43,6 +46,7 @@ export default async function ProductPage({ params }: Props) {
           <div>
             {product.brand && <Link href={`/marcas/${product.brand.slug}`} className="text-sm font-semibold text-brand">{product.brand.name}</Link>}
             <h1 className="text-3xl font-bold">{product.name}</h1>
+            {reviews.summary.count > 0 && <a href="#avaliacoes" className="mt-1 flex items-center gap-2 text-sm"><Stars value={reviews.summary.average} /><span className="text-slate-500">{reviews.summary.average.toFixed(1).replace('.', ',')} ({reviews.summary.count})</span></a>}
             <p className="mt-4 text-3xl font-black">{formatPrice(product.price)}</p>
             <p className="mt-1 text-sm text-slate-500">ou no PIX, com confirmação rápida</p>
             {product.description && <p className="mt-6 leading-relaxed text-slate-700">{product.description}</p>}
@@ -50,6 +54,7 @@ export default async function ProductPage({ params }: Props) {
             <p className="mt-8 text-xs text-slate-400">SKU {product.sku}</p>
           </div>
         </div>
+        <ReviewsSection productSlug={product.slug} reviews={reviews} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([jsonLd, breadcrumb]).replace(/</g, '\\u003c') }} />
       </main>
     </>

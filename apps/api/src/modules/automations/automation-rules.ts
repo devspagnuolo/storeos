@@ -110,7 +110,7 @@ export const PRESETS: Preset[] = [
     description: 'Uma semana após a entrega, envia um e-mail perguntando como foi a compra.',
     rule: {
       name: 'Pedir avaliação após a entrega', trigger: 'orders.order-delivered.v1', conditions: {}, delayMinutes: 7 * 24 * 60,
-      actions: [{ type: 'SEND_EMAIL', requireOptIn: false, subject: 'Como foi sua compra, {{nome}}?', body: 'Oi, {{nome}}!\n\nSeu pedido {{pedido}} já chegou. Gostou? Responda este e-mail contando como foi a experiência: sua opinião ajuda muito a {{loja}} a melhorar.\n\nObrigada!\nEquipe {{loja}}' }],
+      actions: [{ type: 'SEND_EMAIL', requireOptIn: false, subject: 'Como foi sua compra, {{nome}}?', body: 'Oi, {{nome}}!\n\nSeu pedido {{pedido}} já chegou. Gostou? Gostou? Conte como foi na página do produto, em {{link_loja}}: é só clicar em “Avaliar este produto” e usar o número do pedido. Sua opinião ajuda muito outras clientes e a {{loja}} a melhorar.\n\nObrigada!\nEquipe {{loja}}' }],
     },
   },
   {

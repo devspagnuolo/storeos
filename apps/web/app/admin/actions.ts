@@ -1044,3 +1044,20 @@ export async function deleteRedirectAction(form: FormData) {
   await adminFetch(`/redirects/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
   revalidatePath('/admin/redirecionamentos');
 }
+
+export async function moderateReviewAction(form: FormData) {
+  const id = encodeURIComponent(String(form.get('id')));
+  const status = String(form.get('status') ?? '');
+  const body: Record<string, unknown> = {};
+  if (['APPROVED', 'REJECTED', 'PENDING'].includes(status)) body.status = status;
+  if (form.has('reply')) body.reply = String(form.get('reply') ?? '').trim() || null;
+  await adminFetch(`/reviews/${id}`, { method: 'PATCH', body });
+  revalidatePath('/admin/avaliacoes');
+  revalidatePath('/produto/[slug]', 'page');
+}
+
+export async function deleteReviewAction(form: FormData) {
+  await adminFetch(`/reviews/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/avaliacoes');
+  revalidatePath('/produto/[slug]', 'page');
+}
