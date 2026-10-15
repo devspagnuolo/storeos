@@ -113,7 +113,7 @@ export class CheckoutService {
           storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, promotionDiscount: promo.discount, promotions: promo.applied as unknown as Prisma.InputJsonArray, shipping, total, shippingMethod, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : null,
           shippingAddress: input.shippingAddress as Prisma.InputJsonObject,
           items: { create: persistLines(lines) },
-          timeline: { create: [{ status: OrderStatus.NEW, message: 'Pedido criado no checkout' }, { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento', createdAt: new Date(Date.now() + 1) }] },
+          timeline: { create: [{ status: OrderStatus.NEW, message: 'Pedido criado no checkout', createdAt: new Date() }, { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento', createdAt: new Date(Date.now() + 2) }] },
           payments: { create: { provider: 'pending', method: input.paymentMethod, amount: total, expiresAt } },
         },
         include: { payments: true, items: true },
