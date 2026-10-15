@@ -6,6 +6,7 @@ import { CardPayment, CardPaymentHandle } from '../../components/card-payment';
 import { PixPayment } from '../../components/pix-payment';
 import { ShippingOptions } from '../../components/shipping-options';
 import { cartSubtotalCents, lineKey, useCart } from '../../lib/cart';
+import { track } from '../../lib/track';
 import { CheckoutForm, CheckoutResult, PromotionPreview, captureCart, previewCoupon, previewPromotions, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
 import { formatCpf, getPaymentConfig, isValidCpf, PaymentConfig } from '../../lib/payment';
@@ -49,6 +50,13 @@ export default function CheckoutPage() {
     if (form) void captureCart(slug, String(new FormData(form).get('email') ?? ''), String(new FormData(form).get('name') ?? ''), items);
   };
   const itemsKey = items.map(i => `${lineKey(i)}:${i.quantity}`).join(',');
+
+  const startedCheckout = useRef(false);
+  useEffect(() => {
+    if (!hydrated || startedCheckout.current || !items.length) return;
+    startedCheckout.current = true;
+    track('begin_checkout', { value: items.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0), items: items.map(i => ({ id: i.productId, name: i.name, price: Number(i.price), quantity: i.quantity })) });
+  }, [hydrated, items]);
 
   useEffect(() => {
     setHydrated(true);
@@ -120,7 +128,10 @@ export default function CheckoutPage() {
       const form = Object.fromEntries(new FormData(event.currentTarget)) as unknown as CheckoutForm;
       if (!isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
       const card = method === 'CREDIT_CARD' ? await cardRef.current?.tokenize(cpf) : undefined;
-      setOrder(await submitCheckout(slug, { ...form, paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card));
+      const placed = await submitCheckout(slug, { ...form, paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code }, items, card);
+      setOrder(placed);
+      // Conta o pedido feito (para PIX e boleto o pagamento vem depois), com o valor final cobrado.
+      track('purchase', { value: Number(placed.total), transactionId: placed.number, items: items.map(i => ({ id: i.productId, name: i.name, price: Number(i.price), quantity: i.quantity })) });
       clear();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível concluir o pedido.');

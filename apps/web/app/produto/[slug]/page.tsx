@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AddToCart } from '../../../components/add-to-cart';
 import { Header } from '../../../components/header';
+import { TrackView } from '../../../components/track-view';
+import { resolveSiteUrl } from '../../../lib/store-host';
 import { getProduct } from '../../../lib/api';
 import { formatPrice } from '../../../lib/format';
 
@@ -15,18 +17,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!product) return { title: 'Produto não encontrado' };
   const title = product.seoTitle || product.name;
   const description = product.seoDescription || product.description?.slice(0, 160) || undefined;
-  return { title, description, openGraph: { title, description, images: product.images?.map(i => i.url) } };
+  return { title, description, alternates: { canonical: `/produto/${product.slug}` }, openGraph: { title, description, type: 'website', images: product.images?.map(i => i.url) } };
 }
 
 export default async function ProductPage({ params }: Props) {
   const product = await getProduct((await params).slug);
   if (!product) notFound();
   const image = product.images?.[0];
+  const siteUrl = await resolveSiteUrl();
   // Dados estruturados para o Google exibir preço e disponibilidade no resultado de busca.
-  const jsonLd = { '@context': 'https://schema.org', '@type': 'Product', name: product.name, sku: product.sku, brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined, description: product.description, image: product.images?.map(i => i.url), offers: { '@type': 'Offer', priceCurrency: 'BRL', price: product.price, availability: `https://schema.org/${product.available > 0 ? 'InStock' : 'OutOfStock'}` } };
+  const jsonLd = { '@context': 'https://schema.org', '@type': 'Product', name: product.name, sku: product.sku, brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined, description: product.description, image: product.images?.map(i => i.url), offers: { '@type': 'Offer', url: `${siteUrl}/produto/${product.slug}`, priceCurrency: 'BRL', price: product.price, availability: `https://schema.org/${product.available > 0 ? 'InStock' : 'OutOfStock'}` } };
+  const breadcrumb = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Produtos', item: `${siteUrl}/categorias` },
+    ...(product.categories[0] ? [{ '@type': 'ListItem', position: 2, name: product.categories[0].name, item: `${siteUrl}/categorias/${product.categories[0].slug}` }] : []),
+    { '@type': 'ListItem', position: product.categories[0] ? 3 : 2, name: product.name, item: `${siteUrl}/produto/${product.slug}` },
+  ] };
   return (
     <>
       <Header />
+      <TrackView id={product.id} name={product.name} price={Number(product.price)} />
       <main className="shell py-10">
         <nav className="mb-6 text-sm text-slate-500"><Link href="/categorias">Produtos</Link>{product.categories[0] && <> / <Link href={`/categorias/${product.categories[0].slug}`}>{product.categories[0].name}</Link></>}</nav>
         <div className="grid gap-10 md:grid-cols-2">
@@ -41,7 +50,7 @@ export default async function ProductPage({ params }: Props) {
             <p className="mt-8 text-xs text-slate-400">SKU {product.sku}</p>
           </div>
         </div>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([jsonLd, breadcrumb]).replace(/</g, '\\u003c') }} />
       </main>
     </>
   );

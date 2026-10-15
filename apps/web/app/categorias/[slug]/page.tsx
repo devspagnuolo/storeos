@@ -10,10 +10,11 @@ export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const page = Math.max(Number((await searchParams).page) || 1, 1);
   const category = (await getCategories()).find(c => c.slug === slug);
-  return { title: category ? `${category.name}` : 'Categoria', description: category?.description ?? undefined };
+  return { alternates: { canonical: page > 1 ? `/categorias/${slug}?page=${page}` : `/categorias/${slug}` }, title: category ? `${category.name}` : 'Categoria', description: category?.description ?? undefined };
 }
 
 export default async function CategoryPage({ params, searchParams }: Props) {

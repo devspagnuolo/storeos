@@ -52,7 +52,8 @@ export type SectionProps = Record<string, Json>;
 export type HomeSection = { id: string; type: SectionType; hidden: boolean; props: SectionProps };
 export type StorefrontDesign = { preset?: string; font?: string; buttonRadius?: string; containerWidth?: string; spacing?: string; logoUrl?: string | null; faviconUrl?: string | null; backgroundColor?: string; textColor?: string };
 export type StorefrontConfig = { announcementText?: string; heroTitle?: string; heroDescription?: string; heroCta?: string; heroImageUrl?: string | null; accentColor?: string; design?: StorefrontDesign; home?: { sections: HomeSection[] } };
-export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig; whatsappNumber?: string | null; whatsappMessage?: string | null };
+export type StoreMarketing = { ga4?: string; gtm?: string; metaPixel?: string; googleVerification?: string; homeTitle?: string; homeDescription?: string };
+export type StoreInfo = { slug: string; name: string; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig; whatsappNumber?: string | null; whatsappMessage?: string | null; marketing?: StoreMarketing };
 
 export const getStore = () => get<StoreInfo>(store => `/store/public/${encodeURIComponent(store)}`, { slug: defaultStoreSlug, name: 'Loja', logoUrl: null, faviconUrl: null, themeConfig: {} });
 

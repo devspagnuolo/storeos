@@ -8,10 +8,11 @@ export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const page = Math.max(Number((await searchParams).page) || 1, 1);
   const entry = (await getBrands()).find(item => item.slug === slug);
-  return { title: entry?.name ?? 'Marca', description: undefined };
+  return { alternates: { canonical: page > 1 ? `/marcas/${slug}?page=${page}` : `/marcas/${slug}` }, title: entry?.name ?? 'Marca', description: undefined };
 }
 
 export default async function BrandPage({ params, searchParams }: Props) {

@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
+import { readMarketingConfig } from '../seo/seo-rules';
 import { StoreAssetsService } from './store-assets.service';
 import { StorefrontService } from './storefront.service';
 
@@ -35,11 +36,13 @@ export class StoreController {
   async publicInfo(@Param('slug') slug: string) {
     const store = await this.prisma.store.findUnique({
       where: { slug },
-      select: { slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, whatsappNumber: true, whatsappMessage: true },
+      select: { slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, whatsappNumber: true, whatsappMessage: true, marketingConfig: true },
     });
     if (!store) throw new NotFoundException('Loja não encontrada');
     const primary = await this.prisma.storeDomain.findFirst({ where: { store: { slug }, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } });
-    return { ...store, primaryDomain: primary?.hostname ?? null };
+    const { marketingConfig, ...rest } = store;
+    // Os IDs de rastreamento e os textos da página inicial já são públicos no HTML da vitrine.
+    return { ...rest, marketing: readMarketingConfig(marketingConfig), primaryDomain: primary?.hostname ?? null };
   }
 
   @Get()
