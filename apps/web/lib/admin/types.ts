@@ -150,3 +150,8 @@ export type LoyaltyConfig = {
   enabled: boolean; pointsPerReal: number; realPerPoint: number; minRedeem: number;
   silverFrom: number; goldFrom: number; diamondFrom: number; silverPct: number; goldPct: number; diamondPct: number; customized: boolean;
 };
+
+export type FeedStatus = {
+  siteConfigured: boolean; apiConfigured: boolean; google: string; meta: string; products: number; withoutPhoto: number;
+  counts: { key: string; label: string; count: number }[]; list: { id: string; name: string; labels: string[] }[];
+};
