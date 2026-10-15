@@ -45,6 +45,14 @@ describe('motor de temas', () => {
     const live = await api(`/store/public/${store.slug}`);
     expect(live.body.publishedTheme.document.templates.home.sections.some((s: { settings: { title?: string } }) => s.settings.title === 'Olá, vitrine nova')).toBe(true);
 
+    const live2 = await api(`/store/public/${store.slug}`);
+    expect(live2.body.publishedTheme.release.manifest.globalSettingsSchema).toBeUndefined();
+    expect(live2.body.publishedTheme.release.manifest.displayName).toBeTruthy();
+
+    // Reinstalar o tema ativo não pode tirá-lo do ar.
+    expect((await api('/themes/installations', { method: 'POST', token: editor, body: { releaseId: library.body[0].id } })).status).toBe(201);
+    expect((await api(`/store/public/${store.slug}`)).body.publishedTheme).not.toBeNull();
+
     const off = await api(`/themes/installations/${installationId}/deactivate`, { method: 'POST', token: editor });
     expect(off.status).toBe(201);
     expect((await api(`/store/public/${store.slug}`)).body.publishedTheme).toBeNull();

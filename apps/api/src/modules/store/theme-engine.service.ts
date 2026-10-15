@@ -112,11 +112,11 @@ export class ThemeEngineService {
     if (issues.length) throw new UnprocessableEntityException({ message: 'O tema publicado contém um layout inicial inválido.', issues });
 
     return this.prisma.$transaction(async tx => {
-      const installation = await tx.themeInstallation.upsert({
-        where: { storeId_releaseId: { storeId, releaseId } },
-        create: { storeId, releaseId, status: 'INACTIVE' },
-        update: { status: 'INACTIVE' },
-      });
+      // Reinstalar não pode tirar do ar um tema ativo: só reativa como inativo uma instalação removida.
+      const existing = await tx.themeInstallation.findUnique({ where: { storeId_releaseId: { storeId, releaseId } } });
+      const installation = existing
+        ? (existing.status === 'REMOVED' ? await tx.themeInstallation.update({ where: { id_storeId: { id: existing.id, storeId } }, data: { status: 'INACTIVE' } }) : existing)
+        : await tx.themeInstallation.create({ data: { storeId, releaseId, status: 'INACTIVE' } });
       const existingDraft = await tx.themeDraft.findFirst({
         where: { storeId, installationId: installation.id, status: 'DRAFT' },
         orderBy: { updatedAt: 'desc' },

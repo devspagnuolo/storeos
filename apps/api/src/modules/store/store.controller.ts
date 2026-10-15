@@ -54,7 +54,11 @@ export class StoreController {
     // O documento é declarativo e seu HTML/código nunca é executado. Publica-se apenas conteúdo do tenant e componentes compilados.
     return {
       ...rest,
-      publishedTheme: activeTheme ? { version: activeTheme.version, document: activeTheme.document, documentHash: activeTheme.documentHash, release: activeTheme.installation.release } : null,
+      publishedTheme: activeTheme ? {
+        version: activeTheme.version, document: activeTheme.document, documentHash: activeTheme.documentHash,
+        // Só o que a vitrine usa: o manifesto completo (schemas e layout inicial) não precisa trafegar em toda visita.
+        release: { version: activeTheme.installation.release.version, package: activeTheme.installation.release.package, manifest: pickManifest(activeTheme.installation.release.manifest) },
+      } : null,
       open: storefrontOpen,
       marketing: readMarketingConfig(marketingConfig),
       primaryDomain: primary?.hostname ?? null,
@@ -105,4 +109,9 @@ export class StoreController {
     if (!file) throw new BadRequestException('Selecione uma imagem PNG, JPG ou WebP de até 5 MB.');
     return this.assets.uploadHero(storeId, file);
   }
+}
+
+function pickManifest(manifest: unknown) {
+  const value = (manifest ?? {}) as { displayName?: string; slug?: string; version?: string };
+  return { displayName: value.displayName, slug: value.slug, version: value.version };
 }

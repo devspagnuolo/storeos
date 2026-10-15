@@ -14,7 +14,7 @@ export function normalizeHost(raw: string | null | undefined) {
 /** Domínio-base para lojas sem domínio próprio (ex.: lojas.exemplo.com.br → vivi.lojas.exemplo.com.br). Vazio = recurso desligado. */
 export const storeBaseDomain = () => (process.env.STORE_BASE_DOMAIN ?? '').trim().toLowerCase().replace(/^\.+|\.+$/g, '');
 
-const RESERVED_LABELS = new Set(['www', 'api', 'app', 'admin', 'painel', 'mail', 'smtp', 'send', 'static', 'assets', 'login', 'blog', 'storeos', 'suporte', 'ajuda']);
+const RESERVED_LABELS = new Set(['www', 'api', 'app', 'admin', 'painel', 'mail', 'smtp', 'send', 'static', 'assets', 'login', 'blog', 'storeos', 'suporte', 'ajuda', 'smtp', 'send', 'ftp', 'ns1', 'ns2', 'webmail', 'status', 'docs', 'cdn', 'img', 'dev', 'staging']);
 
 /** Subdomínio da plataforma → slug da loja, só se o domínio-base estiver configurado e o rótulo for um slug válido. */
 export function platformSlug(host: string, base = storeBaseDomain()) {

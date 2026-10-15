@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 /** Endereços que a plataforma usa e nenhuma loja pode ocupar. */
-export const RESERVED_SLUGS = ['admin', 'api', 'app', 'painel', 'www', 'mail', 'static', 'assets', 'login', 'suporte', 'ajuda', 'blog', 'loja', 'storeos', 'demo', 'teste', 'test'];
+export const RESERVED_SLUGS = ['admin', 'api', 'app', 'painel', 'www', 'mail', 'static', 'assets', 'login', 'suporte', 'ajuda', 'blog', 'loja', 'storeos', 'demo', 'teste', 'test', 'smtp', 'send', 'ftp', 'ns1', 'ns2', 'webmail', 'status', 'docs', 'cdn', 'img', 'dev', 'staging', 'painel-admin'];
 
 /** "Vivi Moda Plus Size!" -> "vivi-moda-plus-size": sem acentos, só letras e números, de 3 a 40 caracteres. */
 export function slugify(name: string): string {
