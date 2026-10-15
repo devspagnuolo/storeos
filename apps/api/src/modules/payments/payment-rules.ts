@@ -21,10 +21,10 @@ export function maxAllowedInstallments(value: unknown = process.env.MERCADOPAGO_
 }
 
 /** Máximo de parcelas sem juros que a loja aceita apresentar, dentro do limite geral. */
-export function maxFreeInstallments(value: unknown = process.env.MERCADOPAGO_MAX_FREE_INSTALLMENTS) {
+export function maxFreeInstallments(value: unknown = process.env.MERCADOPAGO_MAX_FREE_INSTALLMENTS, max = maxAllowedInstallments()) {
   const parsed = Number(value ?? 1);
   const configured = Number.isFinite(parsed) ? Math.max(1, Math.min(Math.trunc(parsed), MAX_INSTALLMENTS)) : 1;
-  return Math.min(configured, maxAllowedInstallments());
+  return Math.min(configured, maxAllowedInstallments(max));
 }
 
 /** Parcelas pedidas pelo cliente: inteiro entre 1 e o máximo configurado para a loja. */
