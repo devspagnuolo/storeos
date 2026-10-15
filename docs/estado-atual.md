@@ -1,6 +1,6 @@
 # Estado atual do STOREOS (referência única)
 
-Atualizado em 15/10/2026, com base no código em `main` (PRs até #74). **Este é o documento que orienta novas entregas.** Os outros documentos desta pasta são histórico: o diagnóstico e a avaliação de outubro descrevem uma loja que ainda não vendia, e as análises de paridade partem de um painel bem menor que o atual. Onde houver conflito, vale este documento e o código.
+Atualizado em 15/10/2026, com base no código em `main` (PRs até #75 e motor de temas). **Este é o documento que orienta novas entregas.** Os outros documentos desta pasta são histórico: o diagnóstico e a avaliação de outubro descrevem uma loja que ainda não vendia, e as análises de paridade partem de um painel bem menor que o atual. Onde houver conflito, vale este documento e o código.
 
 Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao lado) · ❌ não existe · ⏳ depende de dados, contas ou credenciais do lojista.
 
@@ -28,6 +28,7 @@ Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao la
 | Páginas institucionais | 🟡 | Texto editado em Páginas; ainda sem seções próprias |
 | Escolha visual de produtos já cadastrados nas seções | ✅ | Guarda só os ids; até 24 por seção; produto despublicado some da loja |
 | Menus, banners, WhatsApp, páginas institucionais, newsletter | ✅ | |
+| Motor de temas (biblioteca, instalação, rascunho, publicar a página inicial) | 🟡 | Recurso avançado em `/painel/site/temas`; desenha só a página inicial e, quando publicado, substitui o editor nela. Veja `avaliacao-total-2026-10-15.md` |
 | Temas prontos para escolher | ❌ | Há cores e tipografia editáveis, não vários modelos |
 
 ## Operação
