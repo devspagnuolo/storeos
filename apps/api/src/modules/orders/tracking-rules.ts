@@ -39,6 +39,6 @@ export function extractBlingTracking(order: unknown): BlingTracking | null {
 
 const LABEL: Record<string, string> = {
   NEW: 'Pedido recebido', AWAITING_PAYMENT: 'Aguardando pagamento', PAID: 'Pagamento confirmado', PICKING: 'Em separação', INVOICED: 'Nota fiscal emitida',
-  SHIPPED: 'Enviado', DELIVERED: 'Entregue', CANCELLED: 'Cancelado', RETURNED: 'Devolvido',
+  SHIPPED: 'Enviado', DELIVERED: 'Entregue', CANCELLED: 'Cancelado', RETURNED: 'Devolvido', REFUNDED: 'Reembolsado',
 };
 export const statusLabel = (status: string) => LABEL[status] ?? status;

@@ -701,3 +701,17 @@ export async function shippingTestAction(zip: string): Promise<{ result?: import
     throw error;
   }
 }
+
+export async function refundOrderAction(_: FormState, form: FormData): Promise<FormState> {
+  const number = String(form.get('number'));
+  if (form.get('confirm') !== 'on') return { error: 'Marque a confirmação: o reembolso não pode ser desfeito.' };
+  const amount = String(form.get('amount') ?? '').trim();
+  try {
+    await adminFetch(`/orders/${encodeURIComponent(number)}/refunds`, { method: 'POST', body: { ...(amount && { amount }), reason: String(form.get('reason') ?? '').trim(), mode: form.get('mode') === 'GATEWAY' ? 'GATEWAY' : 'MANUAL' } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin', 'layout');
+  return { ok: 'Reembolso registrado.' };
+}

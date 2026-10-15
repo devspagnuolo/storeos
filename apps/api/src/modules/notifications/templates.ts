@@ -27,6 +27,8 @@ export function buildOrderMail(eventName: string, data: OrderMailData): Mail | n
       return { template: 'order-delivered', subject: `Pedido ${n} entregue`, ...layout(data, 'Pedido entregue', [`O pedido ${n} foi entregue. Esperamos que goste!`]) };
     case 'orders.order-cancelled.v1':
       return { template: 'order-cancelled', subject: `Pedido ${n} cancelado`, ...layout(data, 'Pedido cancelado', [`O pedido ${n} foi cancelado.`, 'Se isso foi um engano, é só fazer um novo pedido na loja.']) };
+    case 'orders.order-refunded.v1':
+      return { template: 'order-refunded', subject: `Reembolso do pedido ${n}`, ...layout(data, 'Pedido reembolsado', [`O pedido ${n} foi reembolsado${data.total ? ` (${money(data.total)})` : ''}.`, 'O prazo para o valor aparecer na sua conta ou fatura depende do banco ou da operadora do cartão.']) };
     default:
       return null;
   }
