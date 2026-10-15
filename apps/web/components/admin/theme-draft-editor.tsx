@@ -211,7 +211,7 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
         <button type="button" aria-pressed={previewSize === 'mobile'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'mobile' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('mobile')}>Celular</button>
       </div>
     </div>
-    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Composição demonstrativa do rascunho. Produtos e categorias são exemplos; a vitrine publicada não é alterada.</p>
+    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Prévia indicativa do editor. Ao publicar, a página inicial usa produtos e categorias reais; páginas internas ainda usam os modelos atuais da loja.</p>
     <div className="overflow-auto rounded-xl border bg-slate-100 p-2">
       <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : '100%', maxWidth: '100%' }}>
         <div style={{ color: textColor, backgroundColor: background, fontFamily }}>
