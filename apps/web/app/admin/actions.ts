@@ -977,3 +977,27 @@ export async function usePresetAction(form: FormData) {
   await adminFetch(`/automations/presets/${encodeURIComponent(String(form.get('key')))}`, { method: 'POST', body: {} });
   revalidatePath('/admin/automacoes');
 }
+
+export async function saveLoyaltyConfigAction(_: FormState, form: FormData): Promise<FormState> {
+  const num = (name: string) => Number(String(form.get(name) ?? '').replace(',', '.'));
+  const body = {
+    enabled: form.get('enabled') === 'on',
+    pointsPerReal: num('pointsPerReal'), realPerPoint: num('realPerPoint'), minRedeem: Math.round(num('minRedeem')),
+    silverFrom: Math.round(num('silverFrom')), goldFrom: Math.round(num('goldFrom')), diamondFrom: Math.round(num('diamondFrom')),
+    silverPct: Math.round(num('silverPct')), goldPct: Math.round(num('goldPct')), diamondPct: Math.round(num('diamondPct')),
+  };
+  if (Object.values(body).some(value => typeof value === 'number' && Number.isNaN(value))) return { error: 'Preencha todos os campos com números.' };
+  try {
+    await adminFetch('/loyalty/config', { method: 'PUT', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/fidelidade');
+  return { ok: 'Regras salvas. Valem para os próximos pedidos pagos e resgates.' };
+}
+
+export async function resetLoyaltyConfigAction(): Promise<void> {
+  await adminFetch('/loyalty/config', { method: 'DELETE' });
+  revalidatePath('/admin/fidelidade');
+}

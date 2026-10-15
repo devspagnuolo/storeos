@@ -56,7 +56,7 @@ export type SalesReport = {
 };
 
 export type LoyaltySummary = {
-  balance: number; lifetime: number; valuePerPoint: number;
+  balance: number; lifetime: number; valuePerPoint: number; minRedeem?: number; enabled?: boolean;
   tier: { key: string; label: string; next: { key: string; label: string; missing: number } | null };
   entries: { id: string; type: 'EARN' | 'REVERSAL' | 'REDEEM' | 'ADJUST'; points: number; note: string | null; createdAt: string }[];
 };
@@ -145,3 +145,8 @@ export type AutomationRule = {
 };
 export type AutomationPreset = { key: string; title: string; description: string };
 export type AutomationRunRow = { id: string; rule: string; status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' | 'SKIPPED'; runAt: string; finishedAt: string | null; attempts: number; result: string | null; customer: { name: string; email: string } | null; orderNumber: string | null };
+
+export type LoyaltyConfig = {
+  enabled: boolean; pointsPerReal: number; realPerPoint: number; minRedeem: number;
+  silverFrom: number; goldFrom: number; diamondFrom: number; silverPct: number; goldPct: number; diamondPct: number; customized: boolean;
+};

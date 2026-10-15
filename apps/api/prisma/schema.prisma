@@ -92,6 +92,7 @@ model Store {
   emailTemplates         EmailTemplate[]
   emailCampaigns EmailCampaign[]
   warehouses     Warehouse[]
+  loyaltyConfig LoyaltyConfig?
   automationRules AutomationRule[]
 }
 
@@ -1177,4 +1178,21 @@ model AutomationRun {
   @@unique([ruleId, eventId])
   @@index([status, runAt])
   @@index([storeId, createdAt])
+}
+
+/// Regras do programa de pontos de cada loja (uma linha por loja; sem linha valem os padrões).
+model LoyaltyConfig {
+  storeId       String   @id
+  enabled       Boolean  @default(true)
+  pointsPerReal Decimal  @default(1) @db.Decimal(8, 2)
+  realPerPoint  Decimal  @default(0.05) @db.Decimal(8, 4)
+  minRedeem     Int      @default(1)
+  silverFrom    Int      @default(500)
+  goldFrom      Int      @default(2000)
+  diamondFrom   Int      @default(5000)
+  silverPct     Int      @default(100)
+  goldPct       Int      @default(100)
+  diamondPct    Int      @default(100)
+  updatedAt     DateTime @updatedAt
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
