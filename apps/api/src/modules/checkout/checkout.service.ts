@@ -108,6 +108,8 @@ export class CheckoutService {
         couponId = redeemed.coupon.id;
       }
       const total = afterPromotions.minus(discount).plus(shipping);
+      // Nenhum gateway cobra R$ 0,00: melhor recusar antes de reservar estoque e criar pedido.
+      if (!total.gt(0)) throw new BadRequestException('O total do pedido precisa ser maior que zero. Revise cupom e promoções.');
       const number = generateOrderNumber();
       const created = await tx.order.create({
         data: {
