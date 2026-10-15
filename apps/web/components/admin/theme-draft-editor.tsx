@@ -5,7 +5,7 @@ import { saveThemeDraftAction } from '../../app/admin/actions';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 type ThemeSection = { id: string; type: string; enabled: boolean; settings: Record<string, JsonValue>; blocks: { id: string; type: string; enabled: boolean; settings: Record<string, JsonValue> }[] };
-type ThemeDocument = {
+export type ThemeDocument = {
   schemaVersion: 1;
   themeRelease: string;
   templates: Record<string, { sections: ThemeSection[] }>;
@@ -13,7 +13,7 @@ type ThemeDocument = {
 };
 type FieldSchema = { title?: string; type?: string; enum?: (string | number)[]; maxLength?: number; minimum?: number; maximum?: number };
 type SectionDefinition = { type: string; title: string; description: string; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
-type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[] };
+export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[] };
 
 function labelFor(key: string, schema: FieldSchema) {
   return schema.title ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase());
