@@ -53,6 +53,7 @@ export async function createStore(stock = 5) {
 export const checkoutBody = (storeSlug: string, items: { productId: string; quantity: number }[], paymentMethod = 'PIX') => ({
   storeSlug,
   customer: { name: 'Maria Silva', email: 'Maria@Example.com' },
+  cpf: '529.982.247-25',
   shippingAddress: { zipCode: '01310-100', street: 'Av. Paulista', number: '1000', city: 'São Paulo', state: 'SP' },
   items,
   paymentMethod,

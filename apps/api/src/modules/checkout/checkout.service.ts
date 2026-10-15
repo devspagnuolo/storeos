@@ -33,10 +33,10 @@ export class CheckoutService {
   async checkout(input: CheckoutInput) {
     if (this.payments.supports && !this.payments.supports(input.paymentMethod)) throw new BadRequestException('Este meio de pagamento não está disponível');
     const isCard = input.paymentMethod === PaymentMethod.CREDIT_CARD;
-    const cpf = input.cpf ? onlyDigits(input.cpf) : undefined;
-    // O CPF vai para o cadastro do cliente (nota fiscal e pedido no ERP); só é guardado se for válido.
-    const validCpf = cpf && isValidCpf(cpf) ? cpf : undefined;
-    if (this.payments.requiresTaxId?.(input.paymentMethod) && !(cpf && isValidCpf(cpf))) throw new BadRequestException('Informe um CPF válido');
+    const cpf = onlyDigits(input.cpf ?? '');
+    if (!isValidCpf(cpf)) throw new BadRequestException('Informe um CPF válido');
+    // CPF válido acompanha o cliente para emissão fiscal e sincronização com o ERP. Não registramos números inválidos.
+    const validCpf = cpf;
     if (isCard && !input.card) throw new BadRequestException('Dados do cartão ausentes');
     const gateway = isCard ? this.payments.cardGateway?.() : null;
     let card: CardPayment | undefined;
@@ -130,7 +130,7 @@ export class CheckoutService {
     // A cobrança fica fora da transação: chamadas a gateways não devem segurar locks no banco.
     const [payment] = order.payments;
     let charge: ChargeResult;
-    if (card && gateway === 'rede') card.installments = Math.min(card.installments, installmentCount(Number(order.total), clampInstallments(12)));
+    if (card && gateway === 'rede') card.installments = Math.min(card.installments, installmentCount(Number(order.total), clampInstallments(12, 12)));
     try {
       charge = await this.payments.createCharge({ storeId: store.id, orderNumber: order.number, amount: order.total.toFixed(2), currency: order.currency, method: input.paymentMethod, expiresAt, customer: { name: input.customer.name, email, cpf, address: input.shippingAddress }, card });
     } catch (error) {

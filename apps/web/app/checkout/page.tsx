@@ -25,6 +25,12 @@ const fields: { name: keyof CheckoutForm; label: string; required?: boolean; cla
   { name: 'state', label: 'UF', required: true, pattern: '[A-Za-z]{2}', autoComplete: 'address-level1' },
 ];
 
+function PaymentIcon({ kind }: { kind: 'pix' | 'card' | 'boleto' }) {
+  if (kind === 'pix') return <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true"><path d="m12 2.8 4.2 4.2L12 11.2 7.8 7 12 2.8Zm0 10 4.2 4.2-4.2 4.2-4.2-4.2 4.2-4.2ZM2.8 12l4.2-4.2L11.2 12 7 16.2 2.8 12Zm10 0L17 7.8l4.2 4.2-4.2 4.2-4.2-4.2Z" fill="currentColor" /></svg>;
+  if (kind === 'card') return <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M3 9h18M6 15h4" /></svg>;
+  return <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 4h16v16H4zM7 7v10m3-10v10m3-10v10m3-10v10m2-10v10" /></svg>;
+}
+
 export default function CheckoutPage() {
   const { slug } = useStoreBrand();
   const { items, clear } = useCart();
@@ -33,6 +39,8 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string>();
   const [order, setOrder] = useState<CheckoutResult>();
   const [cep, setCep] = useState('');
+  const [cepLookup, setCepLookup] = useState<'idle' | 'loading' | 'success' | 'not-found'>('idle');
+  const cepLookupId = useRef(0);
   const [quote, setQuote] = useState<ShippingQuote>();
   const [quoteError, setQuoteError] = useState<string>();
   const [shippingRuleId, setShippingRuleId] = useState<string>();
@@ -85,14 +93,18 @@ export default function CheckoutPage() {
   async function onCepChange(value: string) {
     const formatted = formatCep(value);
     setCep(formatted);
-    if (onlyDigits(formatted).length !== 8) return;
+    const lookupId = ++cepLookupId.current;
+    if (onlyDigits(formatted).length !== 8) { setCepLookup('idle'); return; }
+    setCepLookup('loading');
     const address = await lookupCep(formatted);
+    if (lookupId !== cepLookupId.current) return;
     const form = formRef.current;
-    if (!address || !form) return;
+    if (!address || !form) { setCepLookup('not-found'); return; }
     for (const [field, fieldValue] of Object.entries(address)) {
       const input = form.elements.namedItem(field) as HTMLInputElement | null;
       if (input && fieldValue) input.value = fieldValue;
     }
+    setCepLookup('success');
   }
 
   const subtotal = cartSubtotalCents(items) / 100;
@@ -101,7 +113,7 @@ export default function CheckoutPage() {
   const promoDiscount = promo ? Number(promo.discount) : 0;
   const discount = coupon?.discount ?? 0;
   // O CPF é sempre pedido: vai na nota fiscal e no pedido registrado no ERP (e é exigido pelo Mercado Pago no cartão e no boleto).
-  const blocked = Boolean(quote?.required && !quote.options.length);
+  const blocked = Boolean(quote?.required && !quote.options.length) || !isValidCpf(cpf);
 
   async function applyCoupon(code = couponInput) {
     if (!code.trim()) return;
@@ -181,24 +193,35 @@ export default function CheckoutPage() {
               {fields.map(f => (
                 <label key={f.name} className={`text-sm font-medium ${f.className ?? ''}`}>{f.label}
                   {f.name === 'zipCode'
-                    ? <input name="zipCode" required pattern={f.pattern} inputMode="numeric" autoComplete={f.autoComplete} value={cep} onChange={e => void onCepChange(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />
+                    ? <input name="zipCode" required pattern={f.pattern} inputMode="numeric" autoComplete={f.autoComplete} value={cep} onChange={e => void onCepChange(e.target.value)} placeholder="00000-000" aria-describedby="cep-help" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />
                     : <input name={f.name} required={f.required} pattern={f.pattern} type={f.type ?? 'text'} autoComplete={f.autoComplete} onBlur={f.name === 'email' ? rememberCart : undefined} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal" />}
+                  {f.name === 'zipCode' && <span id="cep-help" className="mt-1 block text-xs font-normal text-slate-500" aria-live="polite">{cepLookup === 'loading' ? 'Buscando endereço pelo CEP…' : cepLookup === 'success' ? 'Endereço localizado. Confira e complete número e complemento.' : cepLookup === 'not-found' ? 'Não localizamos este CEP. Você pode preencher o endereço manualmente.' : 'Ao informar o CEP, buscamos rua, bairro, cidade e UF automaticamente.'}</span>}
                   {f.name === 'email' && <span className="mt-1 block text-xs font-normal text-slate-500">Se você não concluir a compra, podemos enviar um lembrete com o seu carrinho.</span>}
                 </label>
               ))}
               <label className="text-sm font-medium sm:col-span-2">CPF (para a nota fiscal)
-                <input value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal sm:max-w-xs" />
+                <input value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required aria-invalid={cpf.length === 14 && !isValidCpf(cpf)} aria-describedby="cpf-help" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal sm:max-w-xs" />
+                <span id="cpf-help" className="mt-1 block text-xs font-normal text-slate-500" aria-live="polite">{cpf.length === 14 && !isValidCpf(cpf) ? 'CPF inválido. Confira os números digitados.' : isValidCpf(cpf) ? 'CPF válido.' : 'Usaremos o documento no pedido e na integração fiscal.'}</span>
               </label>
               <fieldset className="sm:col-span-2">
                 <legend className="mb-2 font-bold">Entrega</legend>
                 {quote ? <ShippingOptions quote={quote} name="shippingRuleId" selected={shippingRuleId} onSelect={setShippingRuleId} /> : <p className="text-sm text-slate-500">{quoteError ?? 'Informe o CEP para ver as opções de entrega.'}</p>}
               </fieldset>
               <fieldset className="sm:col-span-2">
-                <legend className="mb-2 font-bold">Pagamento</legend>
-                <div className="flex flex-wrap gap-x-6 gap-y-2">
-                  <label><input type="radio" name="paymentMethod" value="PIX" checked={method === 'PIX'} onChange={() => setMethod('PIX')} /> PIX</label>
-                  {payConfig?.card && <label><input type="radio" name="paymentMethod" value="CREDIT_CARD" checked={method === 'CREDIT_CARD'} onChange={() => setMethod('CREDIT_CARD')} /> Cartão de crédito</label>}
-                  {payConfig?.boleto && <label><input type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} /> Boleto</label>}
+                <legend className="mb-3 font-bold">Pagamento</legend>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
+                    <input className="sr-only" type="radio" name="paymentMethod" value="PIX" checked={method === 'PIX'} onChange={() => setMethod('PIX')} />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><PaymentIcon kind="pix" /></span><span><b className="block">PIX</b><span className="text-xs text-slate-500">Aprovação rápida</span></span>
+                  </label>
+                  {payConfig?.card && <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
+                    <input className="sr-only" type="radio" name="paymentMethod" value="CREDIT_CARD" checked={method === 'CREDIT_CARD'} onChange={() => setMethod('CREDIT_CARD')} />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700"><PaymentIcon kind="card" /></span><span><b className="block">Cartão de crédito</b><span className="text-xs text-slate-500">Parcelamento disponível</span></span>
+                  </label>}
+                  {payConfig?.boleto && <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
+                    <input className="sr-only" type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700"><PaymentIcon kind="boleto" /></span><span><b className="block">Boleto bancário</b><span className="text-xs text-slate-500">Compensação em até 2 dias úteis</span></span>
+                  </label>}
                 </div>
                 {payConfig?.card && method === 'CREDIT_CARD' && <CardPayment ref={cardRef} config={payConfig.card} amount={subtotal - promoDiscount - discount + shipping} cpf={cpf} />}
               </fieldset>

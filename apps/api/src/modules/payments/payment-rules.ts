@@ -14,8 +14,21 @@ export function isValidCpf(value: string) {
 
 export const MAX_INSTALLMENTS = 12;
 
-/** Parcelas pedidas pelo cliente: inteiro entre 1 e o máximo da loja. */
-export function clampInstallments(value: unknown, max = Number(process.env.MERCADOPAGO_MAX_INSTALLMENTS ?? MAX_INSTALLMENTS)) {
+/** Limite configurado no servidor, sempre restrito ao máximo permitido pelo gateway. */
+export function maxAllowedInstallments(value: unknown = process.env.MERCADOPAGO_MAX_INSTALLMENTS) {
+  const parsed = Number(value ?? MAX_INSTALLMENTS);
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(Math.trunc(parsed), MAX_INSTALLMENTS)) : MAX_INSTALLMENTS;
+}
+
+/** Máximo de parcelas sem juros que a loja aceita apresentar, dentro do limite geral. */
+export function maxFreeInstallments(value: unknown = process.env.MERCADOPAGO_MAX_FREE_INSTALLMENTS, max = maxAllowedInstallments()) {
+  const parsed = Number(value ?? 1);
+  const configured = Number.isFinite(parsed) ? Math.max(1, Math.min(Math.trunc(parsed), MAX_INSTALLMENTS)) : 1;
+  return Math.min(configured, maxAllowedInstallments(max));
+}
+
+/** Parcelas pedidas pelo cliente: inteiro entre 1 e o máximo configurado para a loja. */
+export function clampInstallments(value: unknown, max = maxAllowedInstallments()) {
   const parsed = Math.trunc(Number(value));
   if (!Number.isFinite(parsed) || parsed < 1) return 1;
   return Math.min(parsed, Math.min(max, MAX_INSTALLMENTS));

@@ -178,7 +178,7 @@ describe('cartão e boleto pelo Mercado Pago', () => {
   afterEach(() => { mercadoPago.cardOutcome = { status: 'approved' }; mercadoPago.publicKey = 'TEST-public-key'; });
 
   it('expõe a chave pública e o limite de parcelas, e some sem chave', async () => {
-    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'mercadopago', publicKey: 'TEST-public-key', maxInstallments: 12 }, boleto: true });
+    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'mercadopago', publicKey: 'TEST-public-key', maxInstallments: 12, maxFreeInstallments: 1 }, boleto: true });
     mercadoPago.publicKey = undefined;
     expect((await api('/payments/config')).body).toEqual({ card: null, boleto: true });
   });
@@ -223,7 +223,7 @@ describe('cartão e boleto pelo Mercado Pago', () => {
 
   it('valida CPF, dados do cartão e disponibilidade', async () => {
     const { store, product } = await createStore(5);
-    expect((await pay(store.slug, product.id, { card })).status).toBe(400);
+    expect((await pay(store.slug, product.id, { cpf: undefined, card })).status).toBe(400);
     expect((await pay(store.slug, product.id, { cpf: '111.111.111-11', card })).status).toBe(400);
     expect((await pay(store.slug, product.id, { cpf })).status).toBe(400);
     expect((await pay(store.slug, product.id, { cpf, card: { ...card, installments: 99 } })).status).toBe(400);
@@ -235,7 +235,7 @@ describe('cartão e boleto pelo Mercado Pago', () => {
 
   it('boleto exige CPF, devolve link e código de barras e é pago pelo webhook', async () => {
     const { store, product } = await createStore(5);
-    expect((await pay(store.slug, product.id, {}, 'BOLETO')).status).toBe(400);
+    expect((await pay(store.slug, product.id, { cpf: undefined }, 'BOLETO')).status).toBe(400);
     const checkout = await pay(store.slug, product.id, { cpf }, 'BOLETO');
     expect(checkout.status).toBe(201);
     expect(checkout.body.payment.instructions).toMatchObject({ ticketUrl: 'https://mp.test/boleto', barcode: '23790000' });
@@ -254,7 +254,7 @@ describe('cartão pela Rede', () => {
   afterEach(() => { rede.configured = false; });
 
   it('a config aponta a Rede e não expõe chave', async () => {
-    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'rede', maxInstallments: 12, minInstallment: 5 }, boleto: true });
+    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'rede', maxInstallments: 12, maxFreeInstallments: 12, minInstallment: 5 }, boleto: true });
   });
 
   it('aprova na hora, manda o cartão só ao adquirente e não grava dados do cartão', async () => {

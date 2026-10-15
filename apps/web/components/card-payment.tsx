@@ -41,7 +41,11 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
       if (!found) return;
       const [info] = await sdk.current.getInstallments({ amount: amount.toFixed(2), bin: bin.slice(0, 6) });
       method.current = { id: found.id, issuerId: info?.issuer?.id ? String(info.issuer.id) : found.issuer?.id ? String(found.issuer.id) : undefined };
-      const costs = (info?.payer_costs ?? []).filter(cost => cost.installments <= maxInstallments);
+      const costs = (info?.payer_costs ?? []).filter(cost => {
+        if (cost.installments > maxInstallments) return false;
+        const interestFree = cost.total_amount <= amount + 0.005;
+        return !interestFree || cost.installments <= config.maxFreeInstallments;
+      });
       if (costs.length) {
         setOptions(costs.map(cost => ({ installments: cost.installments, label: `${cost.installments}x de ${formatPrice(cost.installment_amount)}${cost.total_amount > amount + 0.005 ? ` (total ${formatPrice(cost.total_amount)})` : ' sem juros'}` })));
         setInstallments(current => (costs.some(cost => cost.installments === current) ? current : 1));
@@ -97,7 +101,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
           {options.map(option => <option key={option.installments} value={option.installments}>{option.label}</option>)}
         </select>
       </label>
-      <p className="text-xs text-slate-500 sm:col-span-2">{isRede ? 'Pagamento processado pela Rede. Os dados do cartão são enviados com segurança e não ficam guardados.' : 'Pagamento processado pelo Mercado Pago. Os dados do cartão não passam pelo nosso servidor.'}</p>
+      <p className="text-xs text-slate-500 sm:col-span-2">{isRede ? 'Pagamento processado pela Rede. Os dados do cartão são enviados com segurança e não ficam guardados.' : 'Pagamento processado pelo Mercado Pago. As opções e os juros são calculados pelo próprio Mercado Pago para este cartão; os dados não passam pelo nosso servidor.'}</p>
     </div>
   );
 });

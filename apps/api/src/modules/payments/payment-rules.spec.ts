@@ -1,4 +1,4 @@
-import { clampInstallments, declineMessage, installmentCount, isValidCardNumber, isValidCpf, onlyDigits, redeDeclineMessage } from './payment-rules';
+import { clampInstallments, declineMessage, installmentCount, isValidCardNumber, isValidCpf, maxAllowedInstallments, maxFreeInstallments, onlyDigits, redeDeclineMessage } from './payment-rules';
 
 describe('payment-rules', () => {
   it('valida CPF', () => {
@@ -15,6 +15,15 @@ describe('payment-rules', () => {
     expect(clampInstallments(3.9)).toBe(3);
     expect(clampInstallments(40)).toBe(12);
     expect(clampInstallments(10, 6)).toBe(6);
+  });
+
+  it('aplica limites de parcelas configuráveis sem ultrapassar o máximo do gateway', () => {
+    expect(maxAllowedInstallments('6')).toBe(6);
+    expect(maxAllowedInstallments('99')).toBe(12);
+    expect(maxAllowedInstallments('0')).toBe(1);
+    expect(maxFreeInstallments('4', 6)).toBe(4);
+    expect(maxFreeInstallments('9', 6)).toBe(6);
+    expect(clampInstallments(10, maxAllowedInstallments('6'))).toBe(6);
   });
 
   it('traduz a recusa do cartão sem vazar detalhe técnico', () => {

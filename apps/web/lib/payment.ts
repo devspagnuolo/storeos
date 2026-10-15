@@ -34,7 +34,7 @@ export function parseExpiry(value: string, now = new Date()) {
 export const formatExpiry = (value: string) => onlyDigits(value).slice(0, 4).replace(/^(\d{2})(\d)/, '$1/$2');
 
 export type PaymentConfig = {
-  card: { provider: 'mercadopago'; publicKey: string; maxInstallments: number } | { provider: 'rede'; maxInstallments: number; minInstallment: number } | null;
+  card: { provider: 'mercadopago'; publicKey: string; maxInstallments: number; maxFreeInstallments: number } | { provider: 'rede'; maxInstallments: number; maxFreeInstallments: number; minInstallment: number } | null;
   boleto: boolean;
 };
 
