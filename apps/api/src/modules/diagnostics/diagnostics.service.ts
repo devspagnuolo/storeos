@@ -26,7 +26,6 @@ export class DiagnosticsService {
       apiPublicUrl: process.env.API_PUBLIC_URL?.trim(), webOrigin: process.env.WEB_ORIGIN?.trim(), dbOk,
       outboxPending: outbox?._count._all ?? 0, outboxOldestMinutes: oldest ? Math.round((Date.now() - oldest.getTime()) / 60_000) : null,
       mp: { token: env('MERCADOPAGO_ACCESS_TOKEN'), webhookSecret: env('MERCADOPAGO_WEBHOOK_SECRET'), publicKey: Boolean(this.mercadoPago.publicKey), ping: env('MERCADOPAGO_ACCESS_TOKEN') ? await this.mercadoPago.ping() : 'skipped' },
-      rede: { configured: env('REDE_PV') && env('REDE_TOKEN'), sandbox: process.env.REDE_SANDBOX === 'true' },
       carrier, shippingRules, email: { resend: env('RESEND_API_KEY'), from: env('MAIL_FROM') },
       bling: { appConfigured: env('BLING_CLIENT_ID') && env('BLING_CLIENT_SECRET'), connected: Boolean(bling), lastError: bling?.lastError ?? null, tokenExpired: false, companyLinked: Boolean(bling?.companyId), failedOrders },
       failedPayments24h: failedPayments,

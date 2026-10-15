@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCardNumber, formatCpf, formatExpiry, installmentCount, isEligibleFreeInstallment, isValidCpf, parseExpiry } from './payment';
+import { formatCardNumber, formatCpf, formatExpiry, isEligibleFreeInstallment, isValidCpf, parseExpiry } from './payment';
 
 describe('payment', () => {
   it('formata e valida CPF', () => {
@@ -21,12 +21,6 @@ describe('payment', () => {
     expect(parseExpiry('09/26', now)).toBeUndefined();
     expect(parseExpiry('13/30', now)).toBeUndefined();
     expect(parseExpiry('1', now)).toBeUndefined();
-  });
-
-  it('limita parcelas pelo valor mínimo', () => {
-    expect(installmentCount(30, 12, 5)).toBe(6);
-    expect(installmentCount(300, 12, 5)).toBe(12);
-    expect(installmentCount(2, 12, 5)).toBe(1);
   });
 
   it('aplica piso de parcela apenas para opções sem juros do Mercado Pago', () => {

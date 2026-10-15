@@ -11,7 +11,7 @@ Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao la
 | Catálogo: produtos, variações (cor/tamanho), categorias em até 4 níveis, marcas, coleções, imagens múltiplas | ✅ | Importação/exportação por planilha; dados fiscais (NCM, CEST, GTIN, origem, unidade) |
 | Página de produto, busca, carrinho, conta, acompanhar pedido (número + e-mail) | ✅ | |
 | Checkout com reserva de estoque, cupom, promoções automáticas, frete por CEP | ✅ | Frete: SuperFrete/Melhor Envio, precisa de token e CEP de origem |
-| Pagamento: PIX e boleto (Mercado Pago), cartão (Rede ou Mercado Pago) | 🟡 ⏳ | Exige credenciais; reembolso por gateway só no Mercado Pago |
+| Pagamento: PIX, boleto e cartão (somente Mercado Pago) | 🟡 ⏳ | Exige credenciais; parcelas validadas no servidor com a oferta real do Mercado Pago; pagamento tardio devolvido e estorno externo acompanhado |
 | Avaliações de produtos com moderação e estrelas no Google | ✅ | Sem foto na avaliação; estrelas só na página do produto |
 | Redirecionamentos 301, SEO, sitemap, JSON-LD, GA4/GTM/Meta Pixel | ✅ | Sem blog; sem Conversions API do Meta; redirecionamento só por caminho exato |
 | Feeds Google Shopping e Meta (Instagram/Facebook) | ✅ | Marketplaces (Mercado Livre, Shopee) ❌ |
@@ -66,4 +66,4 @@ Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao la
 
 ## Pendências que dependem do lojista
 
-Domínio e DNS; credenciais de pagamento (Mercado Pago, Rede); Resend com domínio de e-mail verificado e `MAIL_FROM`; `PUBLIC_SITE_URL` e `API_PUBLIC_URL`; IDs do Google Analytics e do Meta Pixel; token do SuperFrete e CEP de origem; permissões do aplicativo no painel do Bling; textos das páginas legais; senha inicial a trocar.
+Domínio e DNS; credenciais de pagamento (Mercado Pago); Resend com domínio de e-mail verificado e `MAIL_FROM`; `PUBLIC_SITE_URL` e `API_PUBLIC_URL`; IDs do Google Analytics e do Meta Pixel; token do SuperFrete e CEP de origem; permissões do aplicativo no painel do Bling; textos das páginas legais; senha inicial a trocar.

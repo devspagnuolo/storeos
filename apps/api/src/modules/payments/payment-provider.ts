@@ -1,8 +1,8 @@
 import { PaymentMethod, PaymentStatus } from '@prisma/client';
 
-/** Cartão tokenizado no navegador (Mercado Pago) ou dados brutos em trânsito (Rede, que não tem token no navegador). */
-export type CardPayment = { installments: number; token?: string; paymentMethodId?: string; issuerId?: string; number?: string; holder?: string; expMonth?: number; expYear?: number; cvv?: string };
-export type CardGateway = 'mercadopago' | 'rede';
+/** Cartão tokenizado no navegador pelo Mercado Pago: o número do cartão nunca chega ao servidor. */
+export type CardPayment = { installments: number; token: string; paymentMethodId: string; issuerId?: string };
+export type CardGateway = 'mercadopago';
 export type ChargeCustomer = { name: string; email: string; cpf?: string; address?: { zipCode: string; street: string; number: string; district?: string; city: string; state: string } };
 export type ChargeRequest = { storeId: string; orderNumber: string; amount: string; currency: string; method: PaymentMethod; expiresAt: Date; customer: ChargeCustomer; card?: CardPayment };
 export type ChargeInstructions = { message: string; pixCode?: string; qrCodeBase64?: string; ticketUrl?: string; barcode?: string; installments?: number };
