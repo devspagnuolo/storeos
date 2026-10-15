@@ -88,7 +88,7 @@ async function ThemeHomeSection({ section, store, products, categories, primary,
     case 'storeos.newsletter.v1':
       return <section className="shell py-8"><NewsletterForm /></section>;
     case 'storeos.footer.v1':
-      return <Footer />;
+      return <Footer categories={categories ?? []} />;
     default:
       // Seção ainda não conectada ao runtime público: não exibe conteúdo de demonstração nem texto de configuração.
       return null;
