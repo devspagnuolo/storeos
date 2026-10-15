@@ -1,5 +1,7 @@
 # Backlog priorizado — paridade operacional
 
+> **Documento histórico.** Descreve o estado de outubro/2026 e parte das lacunas citadas aqui já foi entregue. Para o estado atual e as próximas entregas, consulte [estado-atual.md](estado-atual.md).
+
 | Prioridade | Épico | Entregas e critérios de aceite |
 |---|---|---|
 | P0 | Pedidos STOREOS ↔ Bling | Todo pedido STOREOS é enviado uma única vez, inclusive pendente, com número local próprio e ID/número Bling separados; conciliação após timeout; reprocessamento com permissão e auditoria. |

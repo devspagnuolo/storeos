@@ -27,3 +27,7 @@ O painel já oferece login, edição do nome, catálogo, pedidos e regras de fre
 ## Incremento de 14/10/2026
 
 O painel agora inclui /painel/primeiros-passos com etapas calculadas a partir da loja autenticada e /painel/pagamentos com estado de configuração. O editor mantém um rascunho privado, publicação explícita, histórico recuperável e controle de concorrência. Consulte [evolução do painel](evolucao-painel-2026-10-14.md) para critérios e limites. A criação pública de contas e confirmação de e-mail continuam pendentes.
+
+## Atualização de 15/10/2026
+
+A jornada ideal passa a ser: criar acesso, configurar dados básicos, adicionar marca, cadastrar ou importar produtos, escolher um tema, montar a vitrine com seções que usam o catálogo, configurar pagamentos e entregas, revisar e publicar. O estado de cada etapa está em [estado-atual.md](estado-atual.md).

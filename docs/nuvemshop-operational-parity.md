@@ -1,5 +1,7 @@
 # Mapa de paridade operacional — STOREOS x Nuvemshop
 
+> **Documento histórico.** Descreve o estado de outubro/2026 e parte das lacunas citadas aqui já foi entregue. Para o estado atual e as próximas entregas, consulte [estado-atual.md](estado-atual.md).
+
 ## Escopo e método
 
 Mapa do painel conectado, percorrido por grupos de navegação para definir o que o lojista precisa operar no STOREOS. Isto cobre a superfície administrativa observada e a operação central de uma loja; não certifica a cobertura de cada aplicativo de terceiros do marketplace Nuvemshop nem substitui uma auditoria funcional/técnica de cada fluxo em produção.
