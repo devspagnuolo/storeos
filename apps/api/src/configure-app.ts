@@ -10,7 +10,14 @@ export function configureApp(app: NestExpressApplication) {
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   // Planilhas de produtos (CSV) chegam como texto puro e podem passar dos 100 kb padrão do JSON.
   app.useBodyParser('text', { type: ['text/csv', 'text/plain'], limit: '4mb' });
-  app.enableCors({ origin: process.env.WEB_ORIGIN?.split(',') ?? ['http://localhost:3000'], credentials: true });
+  const allowed = process.env.WEB_ORIGIN?.split(',').map(origin => origin.trim()) ?? ['http://localhost:3000'];
+  // Lojas sem domínio próprio ficam em subdomínios do STORE_BASE_DOMAIN (https://loja.base).
+  const baseDomain = (process.env.STORE_BASE_DOMAIN ?? '').trim().toLowerCase();
+  const platformOrigin = baseDomain ? new RegExp(`^https://[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?\\.${baseDomain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) : null;
+  app.enableCors({
+    origin: (origin, done) => done(null, !origin || allowed.includes(origin) || Boolean(platformOrigin?.test(origin))),
+    credentials: true,
+  });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   return app;
 }

@@ -9,6 +9,9 @@ class SaveStorefrontDto {
   @IsInt() @Min(0) @Max(2147483646) version!: number;
   @IsObject() config!: Record<string, unknown>;
 }
+class ApplyThemeDto {
+  @IsString() @MaxLength(40) key!: string;
+}
 class RestoreStorefrontDto {
   @IsInt() @Min(0) @Max(2147483646) version!: number;
   @IsString() @MaxLength(100) publicationId!: string;
@@ -24,6 +27,16 @@ export class StorefrontController {
   @Get()
   @ApiOperation({ summary: 'Consultar rascunho privado, versão atual e histórico da loja autenticada' })
   get(@CurrentStore() storeId: string) { return this.storefront.get(storeId); }
+
+  @Get('themes')
+  @ApiOperation({ summary: 'Listar os temas prontos do STOREOS' })
+  themes() { return this.storefront.listThemes(); }
+
+  @Post('themes/apply') @HttpCode(200)
+  @ApiOperation({ summary: 'Aplicar um tema pronto ao rascunho (não publica)' })
+  applyTheme(@CurrentStore() storeId: string, @Body() dto: ApplyThemeDto, @Req() req: Actor) {
+    return this.storefront.applyTheme(storeId, dto.key, req.user.sub);
+  }
 
   @Get('publications/:id')
   @ApiOperation({ summary: 'Consultar a configuração de uma publicação (para comparar versões)' })

@@ -1087,6 +1087,21 @@ export async function setStoreOpenAction(_: FormState, form: FormData): Promise<
   return { ok: open ? 'Sua loja está no ar!' : 'A loja voltou para “em construção”.' };
 }
 
+/** Aplica um tema pronto ao rascunho da vitrine; nada é publicado. */
+export async function applyReadyThemeAction(form: FormData): Promise<void> {
+  const key = String(form.get('key') ?? '').trim();
+  const back = String(form.get('back') ?? '') === 'assistente' ? '/admin/criar-minha-loja' : '/admin/site/temas';
+  if (!/^[a-z0-9-]{1,40}$/.test(key)) redirect(`${back}?erro=Tema+inv%C3%A1lido.`);
+  try {
+    await adminFetch('/store/storefront/themes/apply', { method: 'POST', body: { key } });
+  } catch (error) {
+    redirect(`${back}?erro=${encodeURIComponent(error instanceof ApiError ? error.message : 'Não foi possível aplicar o tema.')}`);
+  }
+  revalidatePath('/admin/site');
+  revalidatePath('/admin/primeiros-passos');
+  redirect(back === '/admin/site/temas' ? '/admin/site?salvo=tema' : `${back}?tema=${encodeURIComponent(key)}`);
+}
+
 /** Instala um release publicado como rascunho inativo; não altera a vitrine ativa. */
 export async function installThemeAction(form: FormData): Promise<void> {
   const releaseId = String(form.get('releaseId') ?? '').trim();

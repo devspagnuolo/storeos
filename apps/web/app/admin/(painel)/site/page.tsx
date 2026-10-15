@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function StorefrontPage({ searchParams }: { searchParams: Promise<{ salvo?: string }> }) {
   const [state, banners, pages, params] = await Promise.all([adminFetch<StorefrontState>('/store/storefront'), getBanners(), getPages(), searchParams]);
   const notices: Record<string, string> = {
+    tema: 'Tema aplicado ao rascunho. Troque textos e imagens, escolha seus produtos e publique quando estiver pronta.',
     restaurado: 'Versão recuperada como rascunho. Revise a prévia ao lado e publique quando estiver pronta.',
   };
   return <>
