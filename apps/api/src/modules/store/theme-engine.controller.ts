@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsInt, IsObject, IsString, Min } from 'class-validator';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
@@ -28,8 +28,8 @@ export class ThemeEngineController {
   listInstallations(@CurrentStore() storeId: string) { return this.themes.listInstallations(storeId); }
 
   @Post('installations')
-  install(@CurrentStore() storeId: string, @Body() dto: InstallThemeDto, @CurrentStore('userId') actorId: string) {
-    return this.themes.install(storeId, dto.releaseId, actorId);
+  install(@CurrentStore() storeId: string, @Body() dto: InstallThemeDto, @Req() req: { user: { sub: string } }) {
+    return this.themes.install(storeId, dto.releaseId, req.user.sub);
   }
 
   @Get('installations/:installationId/draft')
@@ -42,8 +42,8 @@ export class ThemeEngineController {
     @CurrentStore() storeId: string,
     @Param('installationId') installationId: string,
     @Body() dto: SaveThemeDraftDto,
-    @CurrentStore('userId') actorId: string,
+    @Req() req: { user: { sub: string } },
   ) {
-    return this.themes.saveDraft(storeId, installationId, dto.revision, dto.document, actorId);
+    return this.themes.saveDraft(storeId, installationId, dto.revision, dto.document, req.user.sub);
   }
 }
