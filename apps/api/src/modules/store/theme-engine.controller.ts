@@ -14,6 +14,10 @@ class SaveThemeDraftDto {
   @IsObject() document!: Record<string, unknown>;
 }
 
+class PublishThemeDto {
+  @IsInt() @Min(1) revision!: number;
+}
+
 @ApiTags('Theme Engine')
 @ApiBearerAuth()
 @Controller('themes')
@@ -35,6 +39,16 @@ export class ThemeEngineController {
   @Get('installations/:installationId/draft')
   getDraft(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
     return this.themes.getDraft(storeId, installationId);
+  }
+
+  @Post('installations/:installationId/publish')
+  publish(
+    @CurrentStore() storeId: string,
+    @Param('installationId') installationId: string,
+    @Body() dto: PublishThemeDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.themes.publish(storeId, installationId, dto.revision, req.user.sub);
   }
 
   @Patch('installations/:installationId/draft')
