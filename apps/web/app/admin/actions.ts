@@ -949,3 +949,31 @@ export async function saveTrackingAction(_: FormState, form: FormData): Promise<
   revalidatePath('/admin/seo');
   return { ok: 'Salvo. A loja passa a usar essas informações em até 1 minuto.' };
 }
+
+export async function saveAutomationAction(payload: string, id?: string): Promise<FormState> {
+  let body: unknown;
+  try { body = JSON.parse(payload); } catch { return { error: 'Dados inválidos.' }; }
+  try {
+    await adminFetch(id ? `/automations/${encodeURIComponent(id)}` : '/automations', { method: id ? 'PATCH' : 'POST', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/automacoes');
+  return { ok: id ? 'Automação salva.' : 'Automação criada (ela nasce desligada: confira e ligue na lista).' };
+}
+
+export async function toggleAutomationAction(form: FormData) {
+  await adminFetch(`/automations/${encodeURIComponent(String(form.get('id')))}`, { method: 'PATCH', body: { active: form.get('active') === 'true' } });
+  revalidatePath('/admin/automacoes');
+}
+
+export async function deleteAutomationAction(form: FormData) {
+  await adminFetch(`/automations/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/automacoes');
+}
+
+export async function usePresetAction(form: FormData) {
+  await adminFetch(`/automations/presets/${encodeURIComponent(String(form.get('key')))}`, { method: 'POST', body: {} });
+  revalidatePath('/admin/automacoes');
+}

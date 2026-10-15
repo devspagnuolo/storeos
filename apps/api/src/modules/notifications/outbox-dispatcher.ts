@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { EmailStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
+import { enqueueAutomationRuns } from '../automations/automation-enqueue';
 import { MAIL_PROVIDER, MailProvider } from './mail-provider';
 import { templateKeyForEvent } from './email-templates';
 import { buildOrderMail } from './templates';
@@ -57,6 +58,7 @@ export class OutboxDispatcher {
 
   private async handle(tx: Prisma.TransactionClient, event: Claimed) {
     if (!event.eventName.startsWith('orders.')) return; // sem consumidor para os demais eventos
+    await enqueueAutomationRuns(tx, event); // idempotente: a chave (regra, evento) impede disparo em dobro
     const order = await tx.order.findUnique({ where: { id: event.aggregateId }, include: { customer: true, store: { select: { name: true } }, fulfillment: true } });
     if (!order?.customer || order.customer.anonymizedAt) return;
     const payload = (event.payload ?? {}) as Record<string, string | undefined>;

@@ -92,6 +92,7 @@ model Store {
   emailTemplates         EmailTemplate[]
   emailCampaigns EmailCampaign[]
   warehouses     Warehouse[]
+  automationRules AutomationRule[]
 }
 
 model User {
@@ -1125,5 +1126,55 @@ model WarehouseTransfer {
   actorId       String?
   createdAt     DateTime @default(now())
 
+  @@index([storeId, createdAt])
+}
+
+enum AutomationRunStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  SKIPPED
+}
+
+/// Regra "quando acontecer X (gatilho), se Y (condições), esperar Z minutos e fazer W (ações)".
+model AutomationRule {
+  id           String          @id @default(uuid())
+  storeId      String
+  name         String
+  active       Boolean         @default(false)
+  trigger      String
+  conditions   Json            @default("{}")
+  delayMinutes Int             @default(0)
+  actions      Json
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  store        Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  runs         AutomationRun[]
+
+  @@index([storeId, trigger, active])
+}
+
+/// Uma execução de regra para um evento. A chave (regra, evento) garante que o mesmo evento nunca dispara a regra duas vezes.
+model AutomationRun {
+  id         String              @id @default(uuid())
+  storeId    String
+  ruleId     String
+  eventId    String
+  orderId    String?
+  customerId String?
+  status     AutomationRunStatus @default(PENDING)
+  runAt      DateTime
+  startedAt  DateTime?
+  finishedAt DateTime?
+  attempts   Int                 @default(0)
+  /// Progresso das ações (quantas já foram feitas e o cupom criado), para uma nova tentativa não repetir efeitos.
+  state      Json                @default("{}")
+  result     String?
+  createdAt  DateTime            @default(now())
+  rule       AutomationRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, eventId])
+  @@index([status, runAt])
   @@index([storeId, createdAt])
 }
