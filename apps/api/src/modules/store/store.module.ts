@@ -7,6 +7,8 @@ import { StoreController } from './store.controller';
 import { StorefrontController } from './storefront.controller';
 import { StorefrontService } from './storefront.service';
 import { StoreSetupController } from './store-setup.controller';
+import { ThemeEngineController } from './theme-engine.controller';
+import { ThemeEngineService } from './theme-engine.service';
 
-@Module({ controllers: [StoreController, StorefrontController, StoreSetupController, DomainsController], providers: [StoreAssetsService, StorefrontService, DomainsService, DnsResolver, TlsProbe], exports: [StoreAssetsService] })
+@Module({ controllers: [StoreController, StorefrontController, StoreSetupController, DomainsController, ThemeEngineController], providers: [StoreAssetsService, StorefrontService, DomainsService, DnsResolver, TlsProbe, ThemeEngineService], exports: [StoreAssetsService] })
 export class StoreModule {}
