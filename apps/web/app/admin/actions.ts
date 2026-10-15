@@ -1100,3 +1100,24 @@ export async function installThemeAction(form: FormData): Promise<void> {
   revalidatePath('/admin/site/temas');
   redirect('/admin/site/temas?instalado=1');
 }
+
+
+export type ThemeDraftSaveResult = { ok?: string; error?: string; revision?: number };
+
+/** Salva somente o rascunho do novo Theme Engine; nunca publica nem ativa o tema. */
+export async function saveThemeDraftAction(installationId: string, revision: number, documentJson: string): Promise<ThemeDraftSaveResult> {
+  if (!/^[a-zA-Z0-9_-]{1,96}$/.test(installationId) || !Number.isInteger(revision) || revision < 1 || documentJson.length > 262_144) {
+    return { error: 'Os dados do rascunho são inválidos.' };
+  }
+  let document: unknown;
+  try { document = JSON.parse(documentJson); } catch { return { error: 'O documento do tema está malformado.' }; }
+  try {
+    const saved = await adminFetch<{ revision: number }>(`/themes/installations/${encodeURIComponent(installationId)}/draft`, { method: 'PATCH', body: { revision, document } });
+    revalidatePath(`/admin/site/temas/${encodeURIComponent(installationId)}`);
+    revalidatePath('/admin/site/temas');
+    return { ok: 'Rascunho salvo. A loja publicada não foi alterada.', revision: saved.revision };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
