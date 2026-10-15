@@ -92,4 +92,28 @@ describe('criação de loja', () => {
     expect((await api('/store/setup/close', { method: 'POST', token: admin, body: {} })).body.open).toBe(false);
     for (const k of ['MERCADOPAGO_ACCESS_TOKEN', 'MERCADOPAGO_WEBHOOK_SECRET', 'API_PUBLIC_URL']) delete process.env[k];
   });
+
+  it('limpa só cadastros nunca confirmados, vencidos há dias, sem produtos nem pedidos', async () => {
+    const { OnboardingService } = await import('../src/modules/onboarding/onboarding.service');
+    const service = app.get(OnboardingService);
+    const tag = Math.random().toString(36).slice(2, 8);
+    const old = new Date(Date.now() - 10 * 86_400_000);
+    const make = async (suffix: string, user: Record<string, unknown>) => {
+      const store = await prisma.store.create({ data: { slug: `test-unv-${tag}-${suffix}`, name: 'Cadastro', storefrontOpen: false } });
+      await prisma.user.create({ data: { storeId: store.id, email: `${suffix}@example.com`, name: 'Dono', passwordHash: 'x', ...user } });
+      return store;
+    };
+    const stale = await make('stale', { verificationHash: `h-${tag}-1`, verificationExpiresAt: old });
+    const recent = await make('recent', { verificationHash: `h-${tag}-2`, verificationExpiresAt: new Date(Date.now() + 86_400_000) });
+    const verified = await make('verified', { emailVerifiedAt: old });
+    const withProduct = await make('product', { verificationHash: `h-${tag}-3`, verificationExpiresAt: old });
+    await prisma.product.create({ data: { storeId: withProduct.id, slug: 'p', sku: `P-${tag}`, name: 'P', price: '1.00', status: 'ACTIVE' } });
+
+    await service.purgeUnverified();
+    const alive = async (id: string) => Boolean(await prisma.store.findUnique({ where: { id } }));
+    expect(await alive(stale.id)).toBe(false);
+    expect(await alive(recent.id)).toBe(true);
+    expect(await alive(verified.id)).toBe(true);
+    expect(await alive(withProduct.id)).toBe(true);
+  });
 });

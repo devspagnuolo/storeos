@@ -25,6 +25,7 @@ export const ENV_VARS: EnvVar[] = [
   { name: 'MERCADOPAGO_PUBLIC_KEY', group: 'Pagamentos', importance: 'optional', description: 'Chave pública do Mercado Pago para cartão.' },
   { name: 'MERCADOPAGO_MAX_INSTALLMENTS', group: 'Pagamentos', importance: 'optional', description: 'Máximo de parcelas no cartão.' },
   { name: 'PIX_EXPIRATION_MINUTES', group: 'Pagamentos', importance: 'optional', description: 'Validade do PIX em minutos.' },
+  { name: 'SIGNUP_CLEANUP_JOB', group: 'Cadastro', importance: 'optional', description: '“off” desliga a limpeza de cadastros cujo e-mail nunca foi confirmado (7 dias após o link expirar).' },
   { name: 'PAYMENT_EXPIRY_JOB', group: 'Pagamentos', importance: 'optional', description: '“off” desliga o cancelamento de pedidos não pagos.' },
   { name: 'REDE_PV', group: 'Pagamentos', importance: 'optional', description: 'Número de filiação (PV) da Rede.' },
   { name: 'REDE_TOKEN', group: 'Pagamentos', importance: 'optional', description: 'Token da Rede.' },

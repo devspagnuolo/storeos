@@ -87,6 +87,26 @@ export class OnboardingService {
     return parsed.profile;
   }
 
+  /**
+   * Remove lojas criadas pelo cadastro cujo e-mail nunca foi confirmado e cujo link expirou há mais de `graceDays`.
+   * Só apaga lojas sem produtos e sem pedidos, e em que todos os usuários seguem sem confirmação.
+   */
+  async purgeUnverified(graceDays = 7, now = new Date()) {
+    const limit = new Date(now.getTime() - graceDays * 86_400_000);
+    const candidates = await this.prisma.store.findMany({
+      where: {
+        storefrontOpen: false,
+        users: { some: { verificationHash: { not: null }, verificationExpiresAt: { lt: limit } }, every: { verificationHash: { not: null }, emailVerifiedAt: null } },
+        products: { none: {} },
+        orders: { none: {} },
+      },
+      select: { id: true },
+      take: 100,
+    });
+    if (candidates.length) await this.prisma.store.deleteMany({ where: { id: { in: candidates.map(store => store.id) } } });
+    return candidates.length;
+  }
+
   private async sendMail(input: { email: string; ownerName: string; storeName: string; link: string }) {
     const message = verificationMail(input);
     try {
