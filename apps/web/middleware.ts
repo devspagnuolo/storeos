@@ -13,7 +13,7 @@ const apiUrl =
  */
 const storeSlug = process.env.NEXT_PUBLIC_STORE_SLUG ?? 'demo';
 /** Primeiros trechos que a própria loja usa: nunca consultam redirecionamentos. */
-const STORE_ROOTS = new Set(['', 'produto', 'categorias', 'colecoes', 'marcas', 'p', 'busca', 'carrinho', 'checkout', 'conta', 'acompanhar', 'descadastro', 'newsletter', 'recuperar', 'previa']);
+const STORE_ROOTS = new Set(['', 'produto', 'categorias', 'colecoes', 'marcas', 'p', 'busca', 'carrinho', 'checkout', 'conta', 'acompanhar', 'descadastro', 'newsletter', 'recuperar', 'previa', 'criar-loja']);
 const redirectCache = new Map<string, { to: string | null; at: number }>();
 const CACHE_MS = 60_000;
 

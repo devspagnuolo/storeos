@@ -1,11 +1,12 @@
 'use client';
 import { useActionState } from 'react';
+import Link from 'next/link';
 import { loginAction } from '../actions';
 
 export default function AdminLoginPage() {
   const [state, action, pending] = useActionState(loginAction, {});
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <main className="relative flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <form action={action} className="card w-full max-w-sm p-8">
         <p className="text-xl font-black tracking-tight">STORE<span className="text-brand">OS</span></p>
         <h1 className="mt-4 text-2xl font-bold">Entrar no painel</h1>
@@ -16,6 +17,7 @@ export default function AdminLoginPage() {
         {state.error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}
         <button className="button mt-6 w-full disabled:opacity-60" disabled={pending}>{pending ? 'Entrando…' : 'Entrar'}</button>
       </form>
+      <p className="absolute bottom-6 text-sm text-slate-500">Ainda não tem loja? <Link href="/criar-loja" className="font-semibold text-brand">Criar minha loja</Link></p>
     </main>
   );
 }
