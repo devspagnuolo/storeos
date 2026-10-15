@@ -24,6 +24,8 @@ export class InventoryService {
       const row = rows[0];
       if (!row) throw new NotFoundException('Saldo de estoque não encontrado');
       const target = input.mode === 'SET' ? input.quantity : row.quantity + input.quantity;
+      const others = await tx.warehouseStock.aggregate({ where: { inventoryId: row.id }, _sum: { quantity: true } });
+      if (target < (others._sum.quantity ?? 0)) throw new BadRequestException(`O saldo total não pode ficar abaixo das ${others._sum.quantity} unidades guardadas em outros depósitos`);
       if (target < row.reserved) throw new BadRequestException(`O saldo não pode ficar abaixo das ${row.reserved} unidades reservadas em pedidos pendentes`);
       if (target > 1_000_000) throw new BadRequestException('Saldo acima do limite permitido');
       await tx.inventory.update({ where: { id: row.id }, data: { quantity: target } });

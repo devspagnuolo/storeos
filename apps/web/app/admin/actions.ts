@@ -513,6 +513,41 @@ export async function adjustStockAction(_: FormState, form: FormData): Promise<F
   return { ok: 'Estoque atualizado.' };
 }
 
+async function stockCall(path: string, method: 'POST' | 'PATCH' | 'DELETE', body: unknown, ok: string): Promise<FormState> {
+  try { await adminFetch(path, { method, body }); }
+  catch (error) { if (error instanceof ApiError) return { error: error.message }; throw error; }
+  revalidatePath('/admin/estoque');
+  revalidatePath('/admin/estoque/depositos');
+  return { ok };
+}
+
+export async function createWarehouseAction(_: FormState, form: FormData): Promise<FormState> {
+  return stockCall('/inventory/warehouses', 'POST', { name: String(form.get('name') ?? '').trim() }, 'Depósito criado.');
+}
+
+export async function toggleWarehouseAction(form: FormData) {
+  await adminFetch(`/inventory/warehouses/${encodeURIComponent(String(form.get('id')))}`, { method: 'PATCH', body: { active: form.get('active') === 'true' } });
+  revalidatePath('/admin/estoque/depositos');
+}
+
+export async function deleteWarehouseAction(_: FormState, form: FormData): Promise<FormState> {
+  return stockCall(`/inventory/warehouses/${encodeURIComponent(String(form.get('id')))}`, 'DELETE', undefined, 'Depósito excluído.');
+}
+
+export async function transferStockAction(_: FormState, form: FormData): Promise<FormState> {
+  const [productId, variantId] = String(form.get('item') ?? '').split(':');
+  const quantity = Number(String(form.get('quantity') ?? '').trim());
+  if (!productId || !Number.isInteger(quantity) || quantity < 1) return { error: 'Informe o item e uma quantidade inteira maior que zero.' };
+  return stockCall('/inventory/transfer', 'POST', { productId, variantId: variantId || undefined, fromId: String(form.get('fromId')), toId: String(form.get('toId')), quantity, reason: String(form.get('reason') ?? '').trim() || undefined }, 'Transferência feita.');
+}
+
+export async function adjustWarehouseAction(_: FormState, form: FormData): Promise<FormState> {
+  const [productId, variantId] = String(form.get('item') ?? '').split(':');
+  const quantity = Number(String(form.get('quantity') ?? '').trim());
+  if (!productId || !Number.isInteger(quantity)) return { error: 'Informe o item e uma quantidade inteira.' };
+  return stockCall('/inventory/adjust-warehouse', 'POST', { productId, variantId: variantId || undefined, warehouseId: String(form.get('warehouseId')), mode: String(form.get('mode')) === 'SET' ? 'SET' : 'DELTA', quantity, reason: String(form.get('reason') ?? '').trim() }, 'Estoque do depósito atualizado.');
+}
+
 export async function saveMenuAction(_: FormState, form: FormData): Promise<FormState> {
   const key = String(form.get('key')) === 'footer' ? 'footer' : 'main';
   let items: unknown;
