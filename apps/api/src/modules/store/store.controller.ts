@@ -39,10 +39,11 @@ export class StoreController {
       select: { id: true, slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, whatsappNumber: true, whatsappMessage: true, marketingConfig: true, storefrontOpen: true },
     });
     if (!store) throw new NotFoundException('Loja não encontrada');
+    const { id: storeId, marketingConfig, storefrontOpen, ...rest } = store;
     const [primary, activeTheme] = await Promise.all([
-      this.prisma.storeDomain.findFirst({ where: { storeId: store.id, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } }),
+      this.prisma.storeDomain.findFirst({ where: { storeId, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } }),
       this.prisma.themeEnginePublication.findFirst({
-        where: { storeId: store.id },
+        where: { storeId },
         orderBy: { version: 'desc' },
         select: {
           version: true, document: true, documentHash: true,
@@ -50,7 +51,6 @@ export class StoreController {
         },
       }),
     ]);
-    const { marketingConfig, storefrontOpen, ...rest } = store;
     // O documento é declarativo e seu HTML/código nunca é executado. Publica-se apenas conteúdo do tenant e componentes compilados.
     return {
       ...rest,
