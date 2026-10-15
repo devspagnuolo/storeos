@@ -50,7 +50,7 @@ export class StoreController {
         },
       }),
     ]);
-    const { id: _id, marketingConfig, storefrontOpen, ...rest } = store;
+    const { marketingConfig, storefrontOpen, ...rest } = store;
     // O documento é declarativo e seu HTML/código nunca é executado. Publica-se apenas conteúdo do tenant e componentes compilados.
     return {
       ...rest,
