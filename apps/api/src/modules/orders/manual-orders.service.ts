@@ -58,7 +58,7 @@ export class ManualOrdersService {
           shippingMethod: input.shippingMethod?.trim() || null,
           ...(input.shippingAddress && { shippingAddress: { ...input.shippingAddress, state: input.shippingAddress.state.toUpperCase() } as Prisma.InputJsonObject }),
           items: { create: persistLines(priced.lines) },
-          timeline: { create: [{ status: OrderStatus.NEW, message: notes[0], actorId }, ...notes.slice(1).map(message => ({ status: OrderStatus.NEW, message, actorId })), { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento' }] },
+          timeline: { create: [{ status: OrderStatus.NEW, message: notes[0], actorId }, ...notes.slice(1).map(message => ({ status: OrderStatus.NEW, message, actorId })), { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento', createdAt: new Date(Date.now() + 1) }] },
           // Sem expiração: o pagamento é combinado direto com o cliente e confirmado no painel.
           payments: { create: { provider: 'manual', method: input.paymentMethod, amount: total } },
         },
