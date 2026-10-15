@@ -45,7 +45,7 @@ export default async function DiagnosticsPage() {
           <summary className="cursor-pointer font-medium">{group} <span className="text-xs font-normal text-slate-500">({env.variables.filter(v => v.group === group && v.set).length}/{env.variables.filter(v => v.group === group).length} definidas)</span></summary>
           <ul className="mt-2 space-y-1 text-sm">{env.variables.filter(v => v.group === group).map(v => <li key={v.name} className="flex flex-wrap gap-x-3"><span className={v.set ? 'text-emerald-700' : v.importance === 'optional' ? 'text-slate-400' : 'text-red-700'}>{v.set ? '✓' : '○'}</span><code>{v.name}</code><span className="text-slate-500">{v.description}</span></li>)}</ul>
         </details>)}
-        <p className="mt-4 text-xs text-slate-500">O site (storeos-nexo-web) tem as próprias variáveis, que esta tela não enxerga: NEXT_PUBLIC_API_URL, NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_STORE_SLUG, API_INTERNAL_URL e NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY.</p>
+        <p className="mt-4 text-xs text-slate-500">O site (storeos-nexo-web) tem as próprias variáveis, que esta tela não enxerga: NEXT_PUBLIC_API_URL, NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_STORE_SLUG e, se quiser, API_INTERNAL_URL (opcional).</p>
       </section>
       <section className="card mt-6 p-6" aria-label="Teste de frete">
         <h2 className="font-semibold">Testar cotação de frete</h2>
