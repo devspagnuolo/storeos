@@ -8,7 +8,7 @@ const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, add
 const schemaCache = new Map<string, ValidateFunction>();
 
 function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): ThemeDocumentIssue[] {
-  const issues = settingsIssues(document, manifest);
+  const issues = validateThemeDocument(document, manifest);
   if (issues.length || !document || typeof document !== 'object') return issues;
   const typed = document as ThemeDocument;
   const validateAt = (schema: Record<string, unknown>, value: unknown, path: string, cacheKey: string) => {
@@ -31,6 +31,16 @@ function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): Them
       const definition = manifest.sections.find(item => item.type === section.type);
       if (definition) validateAt(definition.settingsSchema, section.settings, `$.templates.${pageType}.sections[${index}].settings`, `${releaseKey}:${section.type}`);
     });
+    for (const definition of manifest.sections.filter(item => item.required && item.allowedPageTypes.includes(pageType as never))) {
+      const requiredSection = template.sections.find(section => section.type === definition.type && section.enabled);
+      if (!requiredSection) {
+        issues.push({
+          path: `$.templates.${pageType}.sections`,
+          code: 'INVALID_SECTION',
+          message: `A seção obrigatória “${definition.title}” precisa permanecer visível.`,
+        });
+      }
+    }
   }
   return issues;
 }
@@ -107,7 +117,7 @@ export class ThemeEngineService {
   async saveDraft(storeId: string, installationId: string, expectedRevision: number, document: unknown, actorId: string) {
     const current = await this.getDraft(storeId, installationId);
     const manifest = current.installation.release.manifest as unknown as ThemeReleaseManifest;
-    const issues = validateThemeDocument(document, manifest);
+    const issues = settingsIssues(document, manifest);
     if (issues.length) throw new UnprocessableEntityException({ message: 'Revise as configurações do tema.', issues });
     const updated = await this.prisma.themeDraft.updateMany({
       where: { id: current.draft.id, storeId, revision: expectedRevision, status: 'DRAFT' },
