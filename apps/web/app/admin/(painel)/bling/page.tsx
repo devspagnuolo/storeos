@@ -21,6 +21,7 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
       {params.conectado && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Bling conectado com sucesso.</p>}
       {params.erro && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">Não foi possível concluir a conexão. Tente de novo pelo botão abaixo.</p>}
 
+      {!status.connected && <p className="mt-4 rounded-xl bg-violet-50 p-3 text-sm text-violet-900">Para escolher e importar produtos do Bling, conecte a conta abaixo. Depois de conectar, a lista dos seus produtos aparece aqui mesmo, com caixinhas para marcar.</p>}
       <section className="card mt-6 p-6">
         <h2 className="text-lg font-bold">Conexão</h2>
         {!status.appConfigured && (
@@ -44,6 +45,11 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
 
       {status.connected && (
         <>
+          <section id="importar" className="card mt-6 scroll-mt-6 p-6">
+            <h2 className="text-lg font-bold">Escolher e importar produtos do Bling</h2>
+            <p className="mb-4 mt-1 text-sm text-slate-500">Importação sob demanda do catálogo ativo do Bling para a loja: variações, preço, estoque, imagens e categorias. O SKU faz a reconciliação. Esta versão não sincroniza alterações do catálogo em tempo real; importe novamente após mudanças no ERP.</p>
+            <BlingImport initial={status.import} />
+          </section>
           <section className="card mt-6 p-6">
             <h2 className="text-lg font-bold">Atualizações do Bling por webhook</h2>
             <p className="mt-1 text-sm text-slate-500">Use esta URL na configuração de servidores do aplicativo Bling. A assinatura é validada com o Client Secret e cada evento é associado à empresa autorizada.</p>
@@ -60,11 +66,6 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
             {!status.companyLinked && <p role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">A empresa ainda não foi vinculada para roteamento dos webhooks. Inclua a permissão de leitura de dados da empresa no app Bling e reconecte.</p>}
           </section>
 
-          <section className="card mt-6 p-6">
-            <h2 className="text-lg font-bold">Importar produtos</h2>
-            <p className="mb-4 mt-1 text-sm text-slate-500">Importação sob demanda do catálogo ativo do Bling para a loja: variações, preço, estoque, imagens e categorias. O SKU faz a reconciliação. Esta versão não sincroniza alterações do catálogo em tempo real; importe novamente após mudanças no ERP.</p>
-            <BlingImport initial={status.import} />
-          </section>
 
           <section className="card mt-6 p-6">
             <h2 className="text-lg font-bold">Conferência e estoque</h2>
