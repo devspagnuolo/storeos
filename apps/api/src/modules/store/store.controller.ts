@@ -36,13 +36,14 @@ export class StoreController {
   async publicInfo(@Param('slug') slug: string) {
     const store = await this.prisma.store.findUnique({
       where: { slug },
-      select: { slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, whatsappNumber: true, whatsappMessage: true, marketingConfig: true, storefrontOpen: true },
+      select: { slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, themeEnginePublications: { orderBy: { version: 'desc' }, take: 1, select: { version: true, document: true, documentHash: true, installation: { select: { release: { select: { manifest: true, version: true, package: { select: { key: true, name: true } } } } } } } }, whatsappNumber: true, whatsappMessage: true, marketingConfig: true, storefrontOpen: true },
     });
     if (!store) throw new NotFoundException('Loja não encontrada');
     const primary = await this.prisma.storeDomain.findFirst({ where: { store: { slug }, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } });
-    const { marketingConfig, storefrontOpen, ...rest } = store;
+    const { marketingConfig, storefrontOpen, themeEnginePublications, ...rest } = store;
     // Os IDs de rastreamento e os textos da página inicial já são públicos no HTML da vitrine.
-    return { ...rest, open: storefrontOpen, marketing: readMarketingConfig(marketingConfig), primaryDomain: primary?.hostname ?? null };
+    const activeTheme = themeEnginePublications[0];
+    return { ...rest, publishedTheme: activeTheme ? { version: activeTheme.version, document: activeTheme.document, documentHash: activeTheme.documentHash, release: activeTheme.installation.release } : null, open: storefrontOpen, marketing: readMarketingConfig(marketingConfig), primaryDomain: primary?.hostname ?? null };
   }
 
   @Get()
