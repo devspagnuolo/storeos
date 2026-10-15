@@ -678,6 +678,18 @@ export async function importBlingAction(_: FormState, form: FormData): Promise<F
   return { ok: 'Importação iniciada. Acompanhe o andamento abaixo.' };
 }
 
+export async function importBlingSelectedAction(ids: number[], mode: 'new' | 'update'): Promise<FormState> {
+  if (!ids.length) return { error: 'Marque pelo menos um produto.' };
+  try {
+    await adminFetch('/bling/import', { method: 'POST', body: { ids, mode } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/bling');
+  return { ok: `Importando ${ids.length} produto(s). Acompanhe o andamento abaixo.` };
+}
+
 export async function resendBlingOrderAction(form: FormData) {
   await adminFetch(`/bling/orders/${encodeURIComponent(String(form.get('number')))}/send`, { method: 'POST', body: {} });
   revalidatePath('/admin/bling');

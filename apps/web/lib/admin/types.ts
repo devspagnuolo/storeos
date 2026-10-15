@@ -129,3 +129,6 @@ export type WarehouseMatrix = {
   items: { productId: string; variantId: string | null; name: string; sku: string; variation: string; quantity: number; reserved: number; byWarehouse: Record<string, number> }[];
 };
 export type WarehouseTransferRow = { id: string; fromWarehouse: string; toWarehouse: string; quantity: number; reason: string | null; productId: string; variantId: string | null; createdAt: string };
+
+export type BlingCatalogItem = { id: number; sku: string | null; name: string; price: number; stock: number; hasVariations: boolean; imageUrl: string | null; inStore: boolean };
+export type BlingCatalogPage = { items: BlingCatalogItem[]; page: number; pageSize: number; hasMore: boolean };

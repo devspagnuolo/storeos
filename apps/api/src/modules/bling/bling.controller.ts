@@ -6,6 +6,7 @@ import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { BlingAuthService } from './bling-auth.service';
+import { BlingCatalogService } from './bling-catalog.service';
 import { BlingImportService, parseImportMode } from './bling-import.service';
 import { BlingInvoicesService } from './bling-invoices.service';
 import { BlingTrackingService } from './bling-tracking.service';
@@ -19,7 +20,7 @@ const webOrigin = () => (process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localh
 @ApiTags('Bling')
 @Controller('bling')
 export class BlingController {
-  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService, private readonly invoices: BlingInvoicesService, private readonly webhooks: BlingWebhookService, private readonly stock: BlingStockService, private readonly tracking: BlingTrackingService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService, private readonly invoices: BlingInvoicesService, private readonly webhooks: BlingWebhookService, private readonly stock: BlingStockService, private readonly tracking: BlingTrackingService, private readonly catalog: BlingCatalogService) {}
 
   @Get('status') @RequirePermissions(Permissions.SETTINGS_WRITE)
   async status(@CurrentStore() storeId: string) {
@@ -63,7 +64,14 @@ export class BlingController {
   disconnect(@CurrentStore() storeId: string) { return this.auth.disconnect(storeId); }
 
   @Post('import') @HttpCode(202) @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
-  startImport(@CurrentStore() storeId: string, @Body('mode') mode?: unknown) { return this.imports.start(storeId, false, parseImportMode(mode)); }
+  startImport(@CurrentStore() storeId: string, @Body('mode') mode?: unknown, @Body('ids') ids?: unknown) {
+    if (ids !== undefined && (!Array.isArray(ids) || ids.some(id => typeof id !== 'number'))) throw new BadRequestException('Informe ids como lista de números');
+    return this.imports.start(storeId, false, parseImportMode(mode), ids as number[] | undefined);
+  }
+
+  /** Cadastros ativos do Bling, para escolher o que importar. */
+  @Get('products') @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
+  products(@CurrentStore() storeId: string, @Query('page') page?: string, @Query('q') q?: string) { return this.catalog.list(storeId, { page: Math.min(Math.max(Number(page) || 1, 1), 200), q }); }
 
   @Get('orders') @RequirePermissions(Permissions.ORDERS_READ)
   listOrders(@CurrentStore() storeId: string, @Query('status') status?: string) {

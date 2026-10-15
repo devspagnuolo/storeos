@@ -1,5 +1,7 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { createHmac } from 'node:crypto';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sharp: typeof import('sharp').default = require('sharp');
 import { resolveJwtSecret } from '../src/shared/auth/jwt-secret';
 import { encryptSecret } from '../src/shared/auth/totp';
 import { makeState } from '../src/modules/bling/bling-auth.service';
@@ -7,6 +9,7 @@ import { BlingOrdersService } from '../src/modules/bling/bling-orders.service';
 import { BlingInvoicesService } from '../src/modules/bling/bling-invoices.service';
 import { BlingWebhookService } from '../src/modules/bling/bling-webhook.service';
 import { BlingClient } from '../src/modules/bling/bling.client';
+import { RemoteImageService } from '../src/modules/media/remote-image.service';
 import { OrderLifecycleService } from '../src/modules/orders/order-lifecycle.service';
 import { checkoutBody, cleanup, createStore, login, prisma, startApp } from './helpers';
 
@@ -34,7 +37,12 @@ class FakeBling {
     if (url.pathname === '/empresas/me/dados-basicos') return { data: { id: 777 } };
     if (url.pathname.startsWith('/situacoes/')) return { data: { id: 42, nome: 'Em aberto' } };
     if (url.pathname === '/categorias/produtos') return { data: [{ id: 1, descricao: 'Blusas' }, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }] };
-    if (url.pathname === '/produtos' && url.searchParams.has('criterio')) return { data: Object.values(this.products).map(p => ({ id: (p as { id: number }).id })) };
+    if (url.pathname === '/produtos' && url.searchParams.has('criterio')) {
+      const q = url.searchParams.get('nome')?.toLowerCase();
+      return { data: Object.values(this.products as Record<number, { id: number; nome: string; codigo?: string; preco?: number; situacao?: string; formato?: string; estoque?: { saldoVirtualTotal?: number } }>)
+        .filter(p => !q || p.nome.toLowerCase().includes(q)).map(p => ({ id: p.id, nome: p.nome, codigo: p.codigo, preco: p.preco, situacao: p.situacao, formato: p.formato, imagemURL: 'https://cdn.test/capa.jpg', estoque: p.estoque })) };
+    }
+    if (url.pathname === '/estoques/saldos') return { data: url.searchParams.getAll('idsProdutos[]').map(id => ({ produto: { id: Number(id) }, saldoVirtualTotal: (this.products[Number(id)] as { estoque?: { saldoVirtualTotal?: number } })?.estoque?.saldoVirtualTotal ?? 0 })) };
     if (url.pathname === '/produtos' && url.searchParams.has('codigos[]')) return { data: [{ id: 555, codigo: 'VASO-1' }] };
     if (url.pathname.startsWith('/produtos/')) return { data: this.products[Number(url.pathname.split('/')[2])] };
     if (url.pathname === '/pedidos/vendas' && method === 'GET') { const id = this.salesOrders.get(url.searchParams.get('numerosLojas[]')!); return { data: id ? [{ id, numero: id + 100 }] : [] }; }
@@ -53,6 +61,8 @@ class FakeBling {
 }
 
 const bling = new FakeBling();
+// Foto larga de 1600×900, bem diferente do padrão da loja, para provar que a importação ajusta o tamanho.
+const images = { downloaded: [] as string[], download: async (url: string) => { images.downloaded.push(url); return sharp({ create: { width: 1600, height: 900, channels: 3, background: '#cc3366' } }).png().toBuffer(); } };
 let app: NestExpressApplication;
 let api: Awaited<ReturnType<typeof startApp>>['api'];
 let baseUrl: string;
@@ -60,7 +70,7 @@ let baseUrl: string;
 beforeAll(async () => {
   process.env.WEB_ORIGIN = 'https://painel.test';
   process.env.BLING_CLIENT_SECRET = 'test-secret';
-  ({ app, api } = await startApp(builder => builder.overrideProvider(BlingClient).useValue(bling)));
+  ({ app, api } = await startApp(builder => builder.overrideProvider(BlingClient).useValue(bling).overrideProvider(RemoteImageService).useValue(images)));
   baseUrl = (await app.getUrl()).replace('[::1]', 'localhost');
 });
 afterAll(async () => { delete process.env.WEB_ORIGIN; delete process.env.BLING_CLIENT_SECRET; await cleanup(app); });
@@ -112,7 +122,10 @@ describe('importação de produtos do Bling', () => {
     const blusa = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'BR-1' }, include: { variants: true, images: true, categories: { include: { category: true } }, inventory: true } });
     expect(blusa).toMatchObject({ name: 'Blusa de Renda', status: 'ACTIVE', description: 'Linda blusa' });
     expect(blusa.variants.map(v => v.sku).sort()).toEqual(['BR-1-G', 'BR-1-P']);
-    expect(blusa.images.map(i => i.url)).toEqual(['https://cdn.test/br.jpg']);
+    expect(blusa.images).toHaveLength(1);
+    expect(blusa.images[0].url).toMatch(/\/api\/v1\/media\/[0-9a-f-]{36}$/);
+    const asset = await prisma.mediaAsset.findFirstOrThrow({ where: { id: blusa.images[0].url.split('/').pop() } });
+    expect([asset.width, asset.height, asset.mime]).toEqual([1000, 1250, 'image/jpeg']);
     expect(blusa.categories.map(c => c.category.name).sort()).toEqual(['Blusas', 'Manga Longa', 'Renda']);
     expect(blusa.inventory.reduce((sum, i) => sum + i.quantity, 0)).toBe(6);
     const calca = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'CP-1' }, include: { inventory: true } });
@@ -139,6 +152,31 @@ describe('importação de produtos do Bling', () => {
     expect(calcaNow.name).toBe('Calça Nova');
     expect(calcaNow.price.toString()).toBe(priceBefore);
     expect(await quantityOf()).toBe(7);
+  });
+});
+
+describe('importação escolhendo produtos', () => {
+  it('lista os ativos do Bling, importa só os escolhidos, padroniza as fotos e liga o estoque', async () => {
+    const { store } = await createStore();
+    await connect(store.id);
+    const token = await login(api, store, ['catalog.write', 'settings.write']);
+    images.downloaded = [];
+
+    const list = await api('/bling/products', { token });
+    expect(list.status).toBe(200);
+    expect(list.body.items.map((i: { sku: string | null }) => i.sku)).toEqual(['BR-1', 'CP-1', null]);
+    expect(list.body.items[0]).toMatchObject({ name: 'Blusa de Renda', hasVariations: true, inStore: false });
+    expect((await api('/bling/products?q=calça', { token })).body.items).toHaveLength(1);
+
+    expect((await api('/bling/import', { method: 'POST', token, body: { ids: [] } })).status).toBe(400);
+    expect((await api('/bling/import', { method: 'POST', token, body: { ids: ['x'] } })).status).toBe(400);
+    expect((await api('/bling/import', { method: 'POST', token, body: { ids: [2] } })).status).toBe(202);
+    const done = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING');
+    expect(done).toMatchObject({ status: 'DONE', total: 1, created: 1, failed: 0 });
+    expect(await prisma.product.count({ where: { storeId: store.id } })).toBe(3); // 2 do helper + o escolhido
+    expect(await prisma.product.count({ where: { storeId: store.id, sku: 'BR-1' } })).toBe(0);
+    expect((await prisma.blingConnection.findUniqueOrThrow({ where: { storeId: store.id } })).stockSyncEnabled).toBe(true);
+    expect((await api('/bling/products', { token })).body.items[1]).toMatchObject({ sku: 'CP-1', inStore: true });
   });
 });
 

@@ -1,6 +1,7 @@
 'use client';
 import { useActionState, useEffect, useState } from 'react';
 import { importBlingAction } from '../../app/admin/actions';
+import { BlingPicker } from './bling-picker';
 import type { BlingImportJob } from '../../lib/admin/types';
 
 /** Botão de importar + barra de andamento (consulta a cada 3 s enquanto roda). */
@@ -18,6 +19,7 @@ export function BlingImport({ initial }: { initial: BlingImportJob | null }) {
     return () => clearInterval(timer);
   }, [running]);
 
+  const started = () => setJob(current => ({ ...(current ?? { id: 'novo', total: 0, processed: 0, created: 0, updated: 0, failed: 0, errors: [], startedAt: new Date().toISOString(), finishedAt: null }), status: 'RUNNING' as const, processed: 0, total: 0, created: 0, updated: 0, failed: 0, skipped: 0, errors: [] }));
   const percent = job && job.total ? Math.round((job.processed / job.total) * 100) : 0;
   return (
     <div>
@@ -28,7 +30,7 @@ export function BlingImport({ initial }: { initial: BlingImportJob | null }) {
             <option value="update">Também atualizar nome, descrição, categorias e fotos dos que já existem</option>
           </select>
         </label>
-        <button className="button disabled:opacity-60" disabled={pending || job?.status === 'RUNNING'}>{job?.status === 'RUNNING' ? 'Importando…' : 'Importar produtos do Bling'}</button>
+        <button className="button disabled:opacity-60" disabled={pending || job?.status === 'RUNNING'}>{job?.status === 'RUNNING' ? 'Importando…' : 'Importar todos os produtos ativos do Bling'}</button>
         {state.error && <p role="alert" className="text-sm text-red-700">{state.error}</p>}
         {state.ok && job?.status !== 'RUNNING' && <p className="text-sm text-emerald-700">{state.ok}</p>}
       </form>
@@ -43,6 +45,7 @@ export function BlingImport({ initial }: { initial: BlingImportJob | null }) {
           {job.errors.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-red-700">{job.errors.slice(0, 8).map((e, i) => <li key={i}>{e.message}</li>)}</ul>}
         </div>
       )}
+      <BlingPicker disabled={job?.status === 'RUNNING'} onStarted={started} />
     </div>
   );
 }
