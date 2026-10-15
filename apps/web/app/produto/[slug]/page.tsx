@@ -6,7 +6,8 @@ import { Header } from '../../../components/header';
 import { ReviewsSection, Stars } from '../../../components/reviews-section';
 import { TrackView } from '../../../components/track-view';
 import { resolveSiteUrl } from '../../../lib/store-host';
-import { getProduct, getReviews } from '../../../lib/api';
+import { HomeSections } from '../../../components/storefront/home-sections';
+import { getProduct, getReviews, getStore } from '../../../lib/api';
 import { formatPrice } from '../../../lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const slug = (await params).slug;
-  const [product, reviews] = await Promise.all([getProduct(slug), getReviews(slug)]);
+  const [product, reviews, store] = await Promise.all([getProduct(slug), getReviews(slug), getStore()]);
   if (!product) notFound();
   const image = product.images?.[0];
   const siteUrl = await resolveSiteUrl();
@@ -57,6 +58,7 @@ export default async function ProductPage({ params }: Props) {
         <ReviewsSection productSlug={product.slug} reviews={reviews} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([jsonLd, breadcrumb]).replace(/</g, '\\u003c') }} />
       </main>
+      <HomeSections sections={store.themeConfig?.pages?.product?.sections ?? []} />
     </>
   );
 }

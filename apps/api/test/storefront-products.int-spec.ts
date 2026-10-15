@@ -26,5 +26,12 @@ describe('vitrine com produtos escolhidos', () => {
     expect(saved.status).toBe(200);
     const bad = await api('/store/storefront/draft', { method: 'PATCH', token: editor, body: { version: 1, config: { home: { sections: [{ id: 'dest', type: 'products', hidden: false, props: { productIds: ['nao-e-id'] } }] } } } });
     expect(bad.status).toBe(400);
+
+    const pages = await api('/store/storefront/draft', { method: 'PATCH', token: editor, body: { version: 1, config: { pages: { category: { sections: [{ id: 'aviso', type: 'text', hidden: false, props: { body: 'Frete grátis' } }] }, product: { sections: [{ id: 'rel', type: 'products', hidden: false, props: { productIds: [product.id] } }] } } } } });
+    expect(pages.status).toBe(200);
+    const state = await api('/store/storefront', { token: editor });
+    expect(state.body.draft.pages.category.sections[0].props.body).toBe('Frete grátis');
+    const wrongPage = await api('/store/storefront/draft', { method: 'PATCH', token: editor, body: { version: 2, config: { pages: { category: { sections: [{ id: 'h', type: 'hero', hidden: false, props: {} }] } } } } });
+    expect(wrongPage.status).toBe(400);
   });
 });

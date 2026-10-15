@@ -4,7 +4,8 @@ import { CategoryBanner } from '../../../components/category-banner';
 import { CategoryNav } from '../../../components/category-nav';
 import { Header } from '../../../components/header';
 import { ProductGrid } from '../../../components/product-grid';
-import { getCategories, getProducts } from '../../../lib/api';
+import { HomeSections } from '../../../components/storefront/home-sections';
+import { getCategories, getProducts, getStore } from '../../../lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +21,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 export default async function CategoryPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const page = Math.max(Number((await searchParams).page) || 1, 1);
-  const [categories, products] = await Promise.all([getCategories(), getProducts({ category: slug, page })]);
+  const [categories, products, store] = await Promise.all([getCategories(), getProducts({ category: slug, page }), getStore()]);
   const category = categories.find(c => c.slug === slug);
   if (!category) notFound();
-  return <><Header />{category.bannerUrl && <CategoryBanner category={category} />}<main className="shell py-12"><p className="text-sm font-semibold text-brand">CATEGORIA</p><h1 className="text-3xl font-bold">{category.name}</h1>{category.description && <p className="mt-2 text-slate-500">{category.description}</p>}<div className="mt-6"><CategoryNav categories={categories} active={slug} /></div><div className="mt-8"><ProductGrid page={products} basePath={`/categorias/${slug}`} empty="Nenhum produto nesta categoria ainda." /></div></main></>;
+  return <><Header />{category.bannerUrl && <CategoryBanner category={category} />}<main className="shell py-12"><p className="text-sm font-semibold text-brand">CATEGORIA</p><h1 className="text-3xl font-bold">{category.name}</h1>{category.description && <p className="mt-2 text-slate-500">{category.description}</p>}<div className="mt-6"><CategoryNav categories={categories} active={slug} /></div><div className="mt-8"><ProductGrid page={products} basePath={`/categorias/${slug}`} empty="Nenhum produto nesta categoria ainda." /></div></main><HomeSections sections={store.themeConfig?.pages?.category?.sections ?? []} /></>;
 }
