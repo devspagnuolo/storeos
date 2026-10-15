@@ -33,7 +33,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
 
     <section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
       <h2 className="font-bold">Sobre a instalação de temas</h2>
-      <p className="mt-1">A biblioteca e os rascunhos versionados já estão disponíveis. A edição visual e a publicação do novo Theme Engine ainda estão sendo conectadas ao preview e à vitrine pública. Por enquanto, use “Personalizar loja atual” para mudar o site que os clientes veem.</p>
+      <p className="mt-1">O editor do rascunho já permite configurar identidade, seções e campos do tema. A prévia e a publicação ainda não estão ligadas à vitrine pública; use “Personalizar loja atual” para mudar o site que os clientes veem.</p>
     </section>
 
     <section className="mt-10">
@@ -41,6 +41,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
       {library.length ? <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {library.map(theme => {
           const installed = installedReleaseIds.has(theme.id);
+          const installedItem = installations.find(item => item.releaseId === theme.id);
           const templateCount = theme.manifest.templates?.length ?? 0;
           return <article key={theme.id} className="overflow-hidden rounded-2xl border bg-surface shadow-sm">
             <div className="flex min-h-40 items-end bg-gradient-to-br from-violet-100 via-fuchsia-50 to-amber-50 p-5">
@@ -49,7 +50,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
             <div className="grid gap-4 p-5">
               <div><h3 className="text-lg font-bold">{theme.manifest.displayName}</h3><p className="mt-1 text-sm text-slate-600">{theme.package.description ?? 'Tema responsivo para sua loja virtual.'}</p></div>
               <div className="flex flex-wrap gap-2 text-xs text-slate-500"><span className="rounded-full bg-slate-100 px-2.5 py-1">Por {theme.manifest.author?.name ?? 'STOREOS'}</span><span className="rounded-full bg-slate-100 px-2.5 py-1">{templateCount} modelos de página</span></div>
-              {installed ? <div className="grid gap-2"><p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Instalado nesta loja · rascunho inativo</p><Link className="button-ghost text-center" href={'/painel/site/temas/' + installations.find(item => item.releaseId === theme.id)?.id}>Configurar rascunho</Link></div> : <form action={installThemeAction}><input type="hidden" name="releaseId" value={theme.id} /><button className="button w-full" type="submit">Instalar tema</button></form>}
+              {installed ? <div className="grid gap-2"><p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Instalado nesta loja · rascunho inativo</p><Link className="button-ghost text-center" href={'/painel/site/temas/' + (installedItem?.id ?? '')}>Configurar rascunho</Link></div> : <form action={installThemeAction}><input type="hidden" name="releaseId" value={theme.id} /><button className="button w-full" type="submit">Instalar tema</button></form>}
             </div>
           </article>;
         })}
