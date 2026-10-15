@@ -25,6 +25,14 @@ describe('seções da vitrine', () => {
     expect(() => sanitizeSections([section('products', { productIds: Array.from({ length: 25 }, (_, i) => `${String(i).padStart(8, '0')}-1111-4111-8111-111111111111`) })])).toThrow(BadRequestException);
   });
 
+  it('páginas de categoria e produto aceitam só alguns tipos de seção', () => {
+    const ok = sanitizeStorefrontConfig({ pages: { category: { sections: [section('text', { body: 'Frete grátis' })] }, product: { sections: [section('benefits', { items: [{ title: 'Troca fácil' }] })] } } });
+    expect(ok.pages?.category?.sections[0].type).toBe('text');
+    expect(() => sanitizeStorefrontConfig({ pages: { category: { sections: [section('hero', {})] } } })).toThrow(BadRequestException);
+    expect(() => sanitizeStorefrontConfig({ pages: { home: { sections: [] } } })).toThrow(BadRequestException);
+    expect(() => sanitizeStorefrontConfig({ pages: { product: { sections: [], extra: 1 } } })).toThrow(BadRequestException);
+  });
+
   it.each([
     ['tipo desconhecido', [section('html', { code: '<b>' })]],
     ['campo extra na seção', [{ ...section('text', { body: 'oi' }), onclick: 'x' }]],

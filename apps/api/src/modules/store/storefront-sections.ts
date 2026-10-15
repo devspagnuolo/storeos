@@ -11,6 +11,11 @@ export type HomeSection = { id: string; type: SectionType; hidden: boolean; prop
 
 export const MAX_SECTIONS = 30;
 
+/** Páginas além da inicial que aceitam seções (abaixo do conteúdo fixo) e os tipos permitidos em cada uma. */
+export const PAGE_KEYS = ['category', 'product'] as const;
+export type PageKey = (typeof PAGE_KEYS)[number];
+export const PAGE_SECTION_TYPES: readonly SectionType[] = ['image', 'carousel', 'text', 'products', 'benefits', 'testimonials', 'newsletter', 'video'];
+
 export const DESIGN_OPTIONS = {
   preset: ['classico', 'moderno', 'minimalista', 'vibrante'],
   font: ['sans', 'serif', 'rounded'],
@@ -149,9 +154,9 @@ const sanitizers: Record<SectionType, (props: Record<string, unknown>) => Record
   },
 };
 
-export function sanitizeSections(input: unknown): HomeSection[] {
+export function sanitizeSections(input: unknown, allowed: readonly SectionType[] = SECTION_TYPES): HomeSection[] {
   if (!Array.isArray(input)) return fail('As seções da página inicial precisam ser uma lista.');
-  if (input.length > MAX_SECTIONS) return fail(`A página inicial aceita até ${MAX_SECTIONS} seções.`);
+  if (input.length > MAX_SECTIONS) return fail(`Cada página aceita até ${MAX_SECTIONS} seções.`);
   const seen = new Set<string>();
   return input.map(raw => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fail('Seção inválida.');
@@ -161,7 +166,7 @@ export function sanitizeSections(input: unknown): HomeSection[] {
     if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(id) || seen.has(id)) return fail('Identificador de seção inválido ou repetido.');
     seen.add(id);
     const type = section.type as SectionType;
-    if (!SECTION_TYPES.includes(type)) return fail(`Tipo de seção não suportado: ${String(section.type)}.`);
+    if (!SECTION_TYPES.includes(type) || !allowed.includes(type)) return fail(`Tipo de seção não suportado nesta página: ${String(section.type)}.`);
     const props = section.props ?? {};
     if (typeof props !== 'object' || Array.isArray(props)) return fail('Configuração da seção inválida.');
     if (section.hidden !== undefined && typeof section.hidden !== 'boolean') return fail('Campo "oculta" inválido.');

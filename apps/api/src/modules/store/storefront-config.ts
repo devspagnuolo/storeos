@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { sanitizeDesign, sanitizeSections, type HomeSection, type StorefrontDesign } from './storefront-sections';
+import { PAGE_KEYS, PAGE_SECTION_TYPES, sanitizeDesign, sanitizeSections, type HomeSection, type PageKey, type StorefrontDesign } from './storefront-sections';
 
 export type StorefrontConfig = {
   announcementText?: string;
@@ -10,9 +10,11 @@ export type StorefrontConfig = {
   accentColor?: string;
   design?: StorefrontDesign;
   home?: { sections: HomeSection[] };
+  /** Seções extras que aparecem abaixo do conteúdo fixo das páginas de categoria e de produto. */
+  pages?: Partial<Record<PageKey, { sections: HomeSection[] }>>;
 };
 
-const allowedKeys = new Set(['announcementText', 'heroTitle', 'heroDescription', 'heroCta', 'heroImageUrl', 'accentColor', 'design', 'home']);
+const allowedKeys = new Set(['announcementText', 'heroTitle', 'heroDescription', 'heroCta', 'heroImageUrl', 'accentColor', 'design', 'home', 'pages']);
 const textLimits: Record<string, number> = {
   announcementText: 100,
   heroTitle: 120,
@@ -64,6 +66,17 @@ export function sanitizeStorefrontConfig(input: unknown): StorefrontConfig {
     const home = values.home as Record<string, unknown>;
     for (const key of Object.keys(home)) if (key !== 'sections') throw new BadRequestException(`Campo da página inicial não permitido: ${key}.`);
     result.home = { sections: sanitizeSections(home.sections) };
+  }
+  if (values.pages !== undefined) {
+    if (!values.pages || typeof values.pages !== 'object' || Array.isArray(values.pages)) throw new BadRequestException('Configuração das páginas inválida.');
+    const pages: NonNullable<StorefrontConfig['pages']> = {};
+    for (const [key, raw] of Object.entries(values.pages as Record<string, unknown>)) {
+      if (!(PAGE_KEYS as readonly string[]).includes(key)) throw new BadRequestException(`Página não permitida: ${key}.`);
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new BadRequestException('Configuração da página inválida.');
+      for (const inner of Object.keys(raw)) if (inner !== 'sections') throw new BadRequestException(`Campo da página não permitido: ${inner}.`);
+      pages[key as PageKey] = { sections: sanitizeSections((raw as Record<string, unknown>).sections, PAGE_SECTION_TYPES) };
+    }
+    result.pages = pages;
   }
   return result;
 }
