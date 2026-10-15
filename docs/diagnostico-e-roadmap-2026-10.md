@@ -1,5 +1,7 @@
 # StoreOS: diagnóstico, arquitetura alvo e roadmap
 
+> **Documento histórico.** Descreve o estado de outubro/2026 e parte das lacunas citadas aqui já foi entregue. Para o estado atual e as próximas entregas, consulte [estado-atual.md](estado-atual.md).
+
 Estado analisado: `main` no commit `0e10a09` (14/10/2026), com todo o código lido (API, vitrine, painel, banco, CI e deploy) e as telas exercitadas em navegador contra um banco local.
 
 **Restrição de partida:** nenhuma etapa deste plano altera dados de login existentes (usuário, senha, sessões). Mudanças de banco são aditivas (expandir, migrar, só depois contrair).

@@ -1,5 +1,7 @@
 # StoreOS: GAP vs Nuvemshop, roadmap, arquitetura alvo e backlog enterprise
 
+> **Documento histórico.** Descreve o estado de outubro/2026 e parte das lacunas citadas aqui já foi entregue. Para o estado atual e as próximas entregas, consulte [estado-atual.md](estado-atual.md).
+
 Complementa o [diagnóstico de outubro/2026](diagnostico-e-roadmap-2026-10.md), que continua valendo para achados técnicos, riscos e a ordem das fases. Este documento responde a outra pergunta: **o que falta para ser comparável a Nuvemshop, Shopify e Tray**, e em que ordem entregar.
 
 Legenda de status: ✅ pronto · 🟡 parcial · ❌ não existe. Tamanhos: P, M, G, GG (relativos). Nenhuma data é prometida.

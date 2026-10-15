@@ -1,5 +1,7 @@
 # Roadmap — operação substituta da Nuvemshop
 
+> **Documento histórico.** Descreve o estado de outubro/2026 e parte das lacunas citadas aqui já foi entregue. Para o estado atual e as próximas entregas, consulte [estado-atual.md](estado-atual.md).
+
 ## Fase 0 — concluir a fatia segura já em andamento
 
 1. Integrar pedidos: número STOREOS e número/ID Bling independentes, todos os pedidos enviados, sem duplicação após timeout.

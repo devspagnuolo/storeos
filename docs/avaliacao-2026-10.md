@@ -1,5 +1,7 @@
 # Avaliação técnica do StoreOS — outubro/2026
 
+> **Documento histórico.** Descreve o estado de outubro/2026 e parte das lacunas citadas aqui já foi entregue. Para o estado atual e as próximas entregas, consulte [estado-atual.md](estado-atual.md).
+
 Avaliação do estado do repositório em `main` (commit `09a7a59`), com o que foi verificado rodando `pnpm install`, `pnpm build`, `pnpm test`, `pnpm lint` e as migrations contra um PostgreSQL 16 local.
 
 ## Resumo
