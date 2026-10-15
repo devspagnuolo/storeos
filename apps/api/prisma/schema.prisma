@@ -183,6 +183,12 @@ model Product {
   widthCm        Int?
   heightCm       Int?
   lengthCm       Int?
+  /// Dados fiscais para a nota: NCM (8 dígitos), CEST (7), GTIN/EAN (8, 12, 13 ou 14), origem da mercadoria (0 a 8) e unidade.
+  ncm            String?
+  cest           String?
+  gtin           String?
+  taxOrigin      Int?
+  unit           String?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   store          Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -241,6 +247,7 @@ model ProductVariant {
   attributes Json
   position   Int         @default(0)
   active     Boolean     @default(true)
+  gtin       String?
   product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
   inventory  Inventory[]
 

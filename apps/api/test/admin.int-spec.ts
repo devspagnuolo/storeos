@@ -46,6 +46,14 @@ describe('gestão de produtos', () => {
     const token = await login(api, store, ['catalog.write']);
     const category = await prisma.category.findFirstOrThrow({ where: { storeId: store.id } });
     const created = await api('/catalog/products', { method: 'POST', token, body: { name: 'Caneca', slug: 'caneca', sku: 'CAN-1', price: 39.9, status: 'ACTIVE', stock: 12, imageUrl: 'https://cdn.example.com/caneca.jpg', categoryIds: [category.id] } });
+    const id = created.body.id as string;
+    const fiscal = await api(`/catalog/products/${id}`, { method: 'PATCH', token, body: { ncm: '6109.10.00', cest: '2803800', gtin: '7891000100103', taxOrigin: 0, unit: 'un' } });
+    expect(fiscal.status).toBe(200);
+    expect(fiscal.body).toMatchObject({ ncm: '61091000', cest: '2803800', gtin: '7891000100103', taxOrigin: 0, unit: 'UN' });
+    expect((await api(`/catalog/products/${id}`, { method: 'PATCH', token, body: { ncm: '123' } })).status).toBe(400);
+    expect((await api(`/catalog/products/${id}`, { method: 'PATCH', token, body: { gtin: '7891000100104' } })).status).toBe(400); // dígito verificador errado
+    expect((await api(`/catalog/products/${id}`, { method: 'PATCH', token, body: { taxOrigin: 9 } })).status).toBe(400);
+    expect((await api(`/catalog/products/${id}`, { method: 'PATCH', token, body: { ncm: null } })).body.ncm).toBeNull();
     expect(created.status).toBe(201);
     expect((await api(`/catalog/products/caneca?store=${store.slug}`)).body).toMatchObject({ available: 12, images: [{ url: 'https://cdn.example.com/caneca.jpg' }] });
 

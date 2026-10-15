@@ -66,6 +66,7 @@ export class ProductImportService {
       name: p.name, sku: p.sku, ...(p.description && { description: p.description }),
       ...(categoryIds.length && { categoryIds }), ...(brandId && { brandId }), ...(p.seoTitle && { seoTitle: p.seoTitle }), ...(p.seoDescription && { seoDescription: p.seoDescription }),
       ...(p.weightGrams && { weightGrams: p.weightGrams }), ...(p.widthCm && { widthCm: p.widthCm }), ...(p.heightCm && { heightCm: p.heightCm }), ...(p.lengthCm && { lengthCm: p.lengthCm }),
+      ...(p.ncm && { ncm: p.ncm }), ...(p.cest && { cest: p.cest }), ...(p.gtin && { gtin: p.gtin }), ...(p.taxOrigin !== undefined && { taxOrigin: p.taxOrigin }), ...(p.unit && { unit: p.unit }),
     };
     const commercial = { price: p.price, status: p.status === 'ACTIVE' ? ProductStatus.ACTIVE : ProductStatus.DRAFT };
     let productId = existingId;
@@ -82,7 +83,7 @@ export class ProductImportService {
     }
     if (p.variants.length && !keep) {
       const current = await this.prisma.productVariant.findMany({ where: { productId: id }, select: { id: true, sku: true } });
-      await this.catalog.replaceVariants(storeId, id, p.variants.map(v => ({ id: current.find(c => c.sku.toLowerCase() === v.sku.toLowerCase())?.id, sku: v.sku, attributes: v.attributes, price: v.price, stock: v.stock })));
+      await this.catalog.replaceVariants(storeId, id, p.variants.map(v => ({ id: current.find(c => c.sku.toLowerCase() === v.sku.toLowerCase())?.id, sku: v.sku, attributes: v.attributes, price: v.price, stock: v.stock, ...(v.gtin && { gtin: v.gtin }) })));
     }
   }
 

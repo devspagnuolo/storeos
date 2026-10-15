@@ -27,6 +27,11 @@ class CreateProductDto {
   @IsOptional() @IsInt() @Min(1) @Max(300) widthCm?: number;
   @IsOptional() @IsInt() @Min(1) @Max(300) heightCm?: number;
   @IsOptional() @IsInt() @Min(1) @Max(300) lengthCm?: number;
+  @IsOptional() @Matches(/^\d{4}\.?\d{2}\.?\d{2}$/, { message: 'NCM deve ter 8 dígitos' }) ncm?: string;
+  @IsOptional() @Matches(/^\d{2}\.?\d{3}\.?\d{2}$/, { message: 'CEST deve ter 7 dígitos' }) cest?: string;
+  @IsOptional() @Matches(/^\d{8}$|^\d{12,14}$/, { message: 'GTIN/EAN deve ter 8, 12, 13 ou 14 dígitos' }) gtin?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(8) taxOrigin?: number;
+  @IsOptional() @IsString() @MaxLength(6) unit?: string;
 }
 class UpdateProductDto {
   @IsOptional() @IsString() @Length(2, 160) name?: string;
@@ -49,6 +54,11 @@ class UpdateProductDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(300) widthCm?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(300) heightCm?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(1) @Max(300) lengthCm?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(/^\d{4}\.?\d{2}\.?\d{2}$/, { message: 'NCM deve ter 8 dígitos' }) ncm?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(/^\d{2}\.?\d{3}\.?\d{2}$/, { message: 'CEST deve ter 7 dígitos' }) cest?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(/^\d{8}$|^\d{12,14}$/, { message: 'GTIN/EAN deve ter 8, 12, 13 ou 14 dígitos' }) gtin?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsInt() @Min(0) @Max(8) taxOrigin?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(6) unit?: string | null;
 }
 class CreateCategoryDto { @IsString() name!: string; @Matches(SLUG) slug!: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @IsString() parentId?: string | null; @IsOptional() @IsString() @MaxLength(500) bannerUrl?: string; @IsOptional() @IsString() @MaxLength(500) bannerMobileUrl?: string; }
 class UpdateCategoryDto { @IsOptional() @IsString() @Length(2, 80) name?: string; @IsOptional() @Matches(SLUG) slug?: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsInt() position?: number; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() parentId?: string | null; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(500) bannerUrl?: string | null; @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(500) bannerMobileUrl?: string | null; }
@@ -56,6 +66,7 @@ class VariantAttributeDto { @IsString() @Length(1, 40) name!: string; @IsString(
 class VariantDto {
   @IsOptional() @IsString() id?: string;
   @IsString() @Length(1, 64) sku!: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(/^\d{8}$|^\d{12,14}$/, { message: 'GTIN/EAN deve ter 8, 12, 13 ou 14 dígitos' }) gtin?: string | null;
   @IsArray() @ArrayMaxSize(3) @ValidateNested({ each: true }) @Type(() => VariantAttributeDto) attributes!: VariantAttributeDto[];
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) price?: number | null;
   @IsInt() @Min(0) @Max(1_000_000) stock!: number;

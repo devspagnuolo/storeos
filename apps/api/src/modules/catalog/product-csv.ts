@@ -1,10 +1,11 @@
 /** Leitura de planilhas de produtos (formato de exportação da Nuvemshop e o do próprio StoreOS). Tudo aqui é puro, sem banco. */
 
-export interface ImportVariant { sku: string; attributes: { name: string; value: string }[]; price: number | null; stock: number }
+export interface ImportVariant { sku: string; attributes: { name: string; value: string }[]; price: number | null; stock: number; gtin?: string }
 export interface ImportProduct {
   line: number; slug: string; name: string; sku: string; price: number; description?: string; status: 'ACTIVE' | 'DRAFT';
   categories: string[][]; brand?: string; weightGrams?: number; widthCm?: number; heightCm?: number; lengthCm?: number;
   stock: number; seoTitle?: string; seoDescription?: string; imageUrls: string[]; variants: ImportVariant[];
+  ncm?: string; cest?: string; gtin?: string; taxOrigin?: number; unit?: string;
 }
 export interface ImportError { line: number; message: string }
 export interface ParsedProducts { products: ImportProduct[]; errors: ImportError[]; rows: number }

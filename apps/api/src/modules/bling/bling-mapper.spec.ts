@@ -1,4 +1,4 @@
-import { BlingCategory, blingText, categoryPath, contactPayload, OrderForBling, parseVariation, salesOrderPayload, toImportProduct } from './bling-mapper';
+import { BlingCategory, blingText, normalizeVariants, categoryPath, contactPayload, OrderForBling, parseVariation, salesOrderPayload, toImportProduct } from './bling-mapper';
 
 const categories = new Map<number, BlingCategory>([[1, { id: 1, descricao: 'Blusas' }], [2, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }], [3, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }]]);
 
@@ -32,6 +32,25 @@ describe('bling-mapper', () => {
       imageUrls: ['https://cdn.test/a.jpg'],
       variants: [{ sku: 'BR-1-P', price: null, stock: 4, attributes: [{ name: 'Tamanho', value: 'P' }] }, { sku: 'BR-1-G', price: 109.9, stock: 0 }],
     });
+  });
+
+  it('traz NCM, CEST, origem, GTIN e unidade; descarta o que está fora do formato', () => {
+    const base = { id: 1, nome: 'Blusa', codigo: 'B-1', preco: 10, situacao: 'A' };
+    expect(toImportProduct({ ...base, gtin: '7891000100103', unidade: 'un', tributacao: { ncm: '6109.10.00', cest: '28.038.00', origem: 0 } }, categories, 1)).toMatchObject({ ncm: '61091000', cest: '2803800', taxOrigin: 0, gtin: '7891000100103', unit: 'UN' });
+    const bad = toImportProduct({ ...base, gtin: '123', tributacao: { ncm: '12', origem: '9' } }, categories, 1);
+    expect(bad).not.toHaveProperty('ncm');
+    expect(bad).not.toHaveProperty('gtin');
+    expect(bad).not.toHaveProperty('taxOrigin');
+  });
+
+  it('normaliza variações: rótulo ausente, atributos diferentes e combinações repetidas', () => {
+    const v = (sku: string, label?: string, name?: string) => ({ sku, label, name, price: null, stock: 1 });
+    // sem rótulo: usa o nome da variação sem o do produto
+    expect(normalizeVariants('Blusa', [v('B-P', undefined, 'Blusa P'), v('B-M', undefined, 'Blusa M')]).map(x => x.attributes)).toEqual([[{ name: 'Opção', value: 'P' }], [{ name: 'Opção', value: 'M' }]]);
+    // atributos diferentes entre variações viram uma opção só
+    expect(normalizeVariants('Blusa', [v('1', 'Cor:Azul;Tamanho:M'), v('2', 'Tamanho:G')]).map(x => x.attributes[0].value)).toEqual(['Azul / M', 'G']);
+    // combinação repetida ganha o SKU
+    expect(normalizeVariants('Blusa', [v('1', 'Cor:Azul'), v('2', 'Cor:Azul')]).map(x => x.attributes[0].value)).toEqual(['Azul', 'Azul (2)']);
   });
 
   it('recusa produto sem SKU e desambigua slug repetido', () => {
