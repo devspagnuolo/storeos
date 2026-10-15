@@ -1,5 +1,18 @@
 # Theme Engine STOREOS — arquitetura e plano de evolução
 
+## Estado da implementação nesta PR
+
+A fundação desta PR inclui contratos compartilhados com validação estrutural/defensiva, validação JSON Schema de configurações globais e por seção na API, tabelas versionadas para pacotes/releases/instalações/rascunhos/publicações, e endpoints autenticados para catálogo, instalação e edição concorrente de rascunhos.
+
+Rotas atuais sob `/api/v1/themes`:
+- `GET /library`: releases publicadas do catálogo curado.
+- `GET /installations`: instalações da loja autenticada.
+- `POST /installations`: instala uma release como inativa e cria rascunho inicial.
+- `GET /installations/:id/draft` e `PATCH /installations/:id/draft`: carrega/salva layout, exigindo revisão esperada para evitar sobrescrita concorrente.
+
+Publicação e renderização ainda não estão expostas: o storefront atual consome o modelo legado. Ativar/publicar um documento novo antes de completar seu runtime poderia quebrar a loja. A próxima fase precisa implementar registry de componentes/renderização e preview, integrar a vitrine com snapshots publicados e então habilitar publicação/rollback. A PR não deve ser considerada pronta para produção até CI, geração/migração Prisma e testes integrados passarem.
+
+
 Status: proposta técnica para evoluir o editor atual sem substituí-lo.  
 Branch de trabalho: `codex/theme-engine-architecture`.
 
