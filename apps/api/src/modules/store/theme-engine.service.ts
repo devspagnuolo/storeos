@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import Ajv, { ValidateFunction } from 'ajv';
 import { ThemeDocument, ThemeDocumentIssue, ThemeReleaseManifest, validateThemeDocument } from '@storeos/contracts';
@@ -142,4 +143,55 @@ export class ThemeEngineService {
     if (updated.count !== 1) throw new ConflictException('O rascunho mudou em outra sessão. Recarregue antes de salvar.');
     return this.prisma.themeDraft.findUniqueOrThrow({ where: { id: current.draft.id } });
   }
+ 
+  async publish(storeId: string, installationId: string, expectedRevision: number, actorId: string) {
+    const current = await this.getDraft(storeId, installationId);
+    if (current.draft.revision !== expectedRevision) {
+      throw new ConflictException('O rascunho mudou em outra sessão. Recarregue antes de publicar.');
+    }
+    const manifest = current.installation.release.manifest as unknown as ThemeReleaseManifest;
+    const issues = settingsIssues(current.draft.document, manifest);
+    if (issues.length) {
+      throw new UnprocessableEntityException({ message: 'Revise o layout antes de publicar.', issues });
+    }
+    const serialized = JSON.stringify(current.draft.document);
+    const documentHash = createHash('sha256').update(serialized).digest('hex');
+
+    return this.prisma.$transaction(async tx => {
+      const latestDraft = await tx.themeDraft.findFirst({
+        where: { id: current.draft.id, storeId, installationId, status: 'DRAFT', revision: expectedRevision },
+        select: { id: true },
+      });
+      if (!latestDraft) throw new ConflictException('O rascunho mudou em outra sessão. Recarregue antes de publicar.');
+
+      const previous = await tx.themeEnginePublication.findFirst({
+        where: { storeId }, orderBy: { version: 'desc' }, select: { version: true },
+      });
+      const version = (previous?.version ?? 0) + 1;
+      const publication = await tx.themeEnginePublication.create({
+        data: {
+          storeId,
+          installationId,
+          version,
+          document: current.draft.document as Prisma.InputJsonValue,
+          documentHash,
+          actorId,
+        },
+      });
+      await tx.themeInstallation.updateMany({
+        where: { storeId, status: 'ACTIVE', id: { not: installationId } },
+        data: { status: 'INACTIVE' },
+      });
+      await tx.themeInstallation.update({
+        where: { id_storeId: { id: installationId, storeId } },
+        data: { status: 'ACTIVE' },
+      });
+      await tx.themeDraft.update({
+        where: { id: current.draft.id },
+        data: { status: 'PUBLISHED' },
+      });
+      return publication;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
 }
