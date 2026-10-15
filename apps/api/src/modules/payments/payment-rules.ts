@@ -29,8 +29,8 @@ export function maxFreeInstallments(value: unknown = process.env.MERCADOPAGO_MAX
 
 /** Piso em reais por parcela sem juros. */
 export function minFreeInstallment(value: unknown = process.env.MERCADOPAGO_MIN_FREE_INSTALLMENT) {
-  const parsed = Number(value ?? 70);
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 100_000) : 70;
+  const parsed = Number(value ?? 80);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 100_000) : 80;
 }
 
 /** Limite sem juros aplicável a um pedido, respeitando valor mínimo e limite de parcelas da loja. */
