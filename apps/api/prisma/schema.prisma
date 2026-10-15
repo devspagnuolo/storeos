@@ -63,6 +63,9 @@ model Store {
   storefrontVersion      Int                     @default(0)
   storefrontPublishedAt  DateTime?
   storefrontPublications StorefrontPublication[]
+  themeInstallations     ThemeInstallation[]
+  themeDrafts            ThemeDraft[]
+  themeEnginePublications ThemeEnginePublication[]
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   users                  User[]
@@ -477,6 +480,112 @@ model StorefrontPublication {
   actorId   String?
   createdAt DateTime @default(now())
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, version])
+  @@index([storeId, createdAt])
+}
+
+
+enum ThemePackageStatus {
+  DRAFT
+  LISTED
+  DEPRECATED
+}
+
+enum ThemeReleaseStatus {
+  DRAFT
+  PUBLISHED
+  DEPRECATED
+}
+
+enum ThemeInstallationStatus {
+  ACTIVE
+  INACTIVE
+  REMOVED
+}
+
+enum ThemeDraftStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// Curated theme identity. Releases are immutable and global; tenant content is stored separately.
+model ThemePackage {
+  id          String            @id @default(uuid())
+  key         String            @unique
+  name        String
+  description String?           @db.Text
+  status      ThemePackageStatus @default(DRAFT)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  releases    ThemeRelease[]
+}
+
+/// Immutable, versioned manifest for an installable theme package.
+model ThemeRelease {
+  id          String             @id @default(uuid())
+  packageId   String
+  version     String
+  manifest    Json
+  manifestHash String
+  status      ThemeReleaseStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime           @default(now())
+  package     ThemePackage       @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  installations ThemeInstallation[]
+
+  @@unique([packageId, version])
+  @@index([packageId, status])
+}
+
+/// A store-scoped installation of one immutable release. Switching the active installation is
+/// enforced in a serializable application transaction, preserving single-active-theme semantics.
+model ThemeInstallation {
+  id        String                  @id @default(uuid())
+  storeId   String
+  releaseId String
+  status    ThemeInstallationStatus @default(INACTIVE)
+  installedAt DateTime              @default(now())
+  updatedAt DateTime                @updatedAt
+  store     Store                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  release   ThemeRelease            @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  drafts    ThemeDraft[]
+  publications ThemeEnginePublication[]
+
+  @@unique([storeId, releaseId])
+  @@index([storeId, status])
+}
+
+/// Mutable tenant draft with optimistic revision control. It does not replace Store.draftThemeConfig.
+model ThemeDraft {
+  id             String          @id @default(uuid())
+  storeId        String
+  installationId String
+  revision       Int             @default(1)
+  document       Json
+  status         ThemeDraftStatus @default(DRAFT)
+  updatedBy      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  installation   ThemeInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, installationId, updatedAt])
+}
+
+/// Immutable publication snapshots for the new engine; legacy storefront snapshots remain readable.
+model ThemeEnginePublication {
+  id             String   @id @default(uuid())
+  storeId        String
+  installationId String
+  version        Int
+  document       Json
+  documentHash   String
+  actorId        String?
+  createdAt      DateTime @default(now())
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  installation   ThemeInstallation @relation(fields: [installationId], references: [id], onDelete: Restrict)
 
   @@unique([storeId, version])
   @@index([storeId, createdAt])
