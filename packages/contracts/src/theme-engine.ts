@@ -97,6 +97,12 @@ export type ThemeTemplateDefinition = {
   required: boolean;
 };
 
+export type ThemeBlockDefinition = {
+  type: string;
+  title: string;
+  settingsSchema: Record<string, unknown>;
+};
+
 export type ThemeSectionDefinition = {
   type: ThemeComponentType;
   title: string;
@@ -105,6 +111,7 @@ export type ThemeSectionDefinition = {
   maxBlocks: number;
   settingsSchema: Record<string, unknown>;
   blockTypes: string[];
+  blockDefinitions?: ThemeBlockDefinition[];
   required?: boolean;
 };
 
