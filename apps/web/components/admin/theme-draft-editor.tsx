@@ -12,7 +12,8 @@ export type ThemeDocument = {
   global: { designTokens: { colors?: Record<string, string>; typography?: Record<string, string | number>; spacing?: Record<string, string | number>; shape?: Record<string, string | number> }; settings: Record<string, JsonValue> };
 };
 type FieldSchema = { title?: string; type?: string; enum?: (string | number)[]; maxLength?: number; minimum?: number; maximum?: number };
-type BlockDefinition = { type: string; title: string; settingsSchema: { properties?: Record<string, FieldSchema> } };\ntype SectionDefinition = { type: string; title: string; description: string; maxBlocks: number; blockTypes: string[]; blockDefinitions?: BlockDefinition[]; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
+type BlockDefinition = { type: string; title: string; settingsSchema: { properties?: Record<string, FieldSchema> } };
+type SectionDefinition = { type: string; title: string; description: string; maxBlocks: number; blockTypes: string[]; blockDefinitions?: BlockDefinition[]; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
 export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[]; globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
 
 function labelFor(key: string, schema: FieldSchema) {
