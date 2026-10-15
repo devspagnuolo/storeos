@@ -3,7 +3,8 @@ import { CouponType, LoyaltyEntryType } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { money } from '../../shared/money/money';
-import { REAL_PER_POINT, tierFor } from './tiers';
+import { loadRules } from './rules-store';
+import { DEFAULT_RULES, LoyaltyRules, tierFor, tiersOf, validateRules } from './tiers';
 
 @Injectable()
 export class LoyaltyService {
@@ -18,7 +19,26 @@ export class LoyaltyService {
     ]);
     const sum = (...types: LoyaltyEntryType[]) => sums.filter(row => types.includes(row.type)).reduce((total, row) => total + (row._sum.points ?? 0), 0);
     const balance = sum('EARN', 'REVERSAL', 'REDEEM', 'ADJUST');
-    return { balance, lifetime: sum('EARN', 'REVERSAL'), tier: tierFor(sum('EARN', 'REVERSAL')), valuePerPoint: REAL_PER_POINT, entries };
+    const rules = await loadRules(this.prisma, storeId);
+    return { balance, lifetime: sum('EARN', 'REVERSAL'), tier: tierFor(sum('EARN', 'REVERSAL'), rules), valuePerPoint: rules.realPerPoint, minRedeem: rules.minRedeem, enabled: rules.enabled, entries };
+  }
+
+  async config(storeId: string) {
+    const rules = await loadRules(this.prisma, storeId);
+    return { ...rules, customized: (await this.prisma.loyaltyConfig.count({ where: { storeId } })) > 0, tiers: tiersOf(rules), defaults: DEFAULT_RULES };
+  }
+
+  async saveConfig(storeId: string, input: LoyaltyRules) {
+    const error = validateRules(input);
+    if (error) throw new BadRequestException(error);
+    const data = { ...input, minRedeem: Math.max(1, Math.floor(input.minRedeem)) };
+    await this.prisma.loyaltyConfig.upsert({ where: { storeId }, create: { storeId, ...data }, update: data });
+    return this.config(storeId);
+  }
+
+  async resetConfig(storeId: string) {
+    await this.prisma.loyaltyConfig.deleteMany({ where: { storeId } });
+    return this.config(storeId);
   }
 
   /** Ajuste manual (positivo ou negativo) com justificativa; o saldo nunca fica negativo. */
@@ -35,16 +55,18 @@ export class LoyaltyService {
 
   /** Troca pontos por um cupom pessoal de uso único (valor fixo). O cliente recebe o código do lojista. */
   async redeem(storeId: string, customerId: string, points: number, actorId: string) {
-    const code = await this.prisma.$transaction(async tx => {
+    const result = await this.prisma.$transaction(async tx => {
       const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Customer" WHERE "id" = ${customerId} AND "storeId" = ${storeId} FOR UPDATE`;
       if (!locked.length) throw new NotFoundException('Cliente não encontrado');
+      const rules = await loadRules(tx, storeId);
+      if (points < rules.minRedeem) throw new BadRequestException(`O resgate mínimo é de ${rules.minRedeem} pontos`);
       const balance = (await tx.loyaltyEntry.aggregate({ where: { customerId }, _sum: { points: true } }))._sum.points ?? 0;
       if (points > balance) throw new BadRequestException(`Saldo insuficiente (${balance} pontos)`);
       const coupon = `PONTOS-${randomBytes(4).toString('hex').toUpperCase()}`;
-      await tx.coupon.create({ data: { storeId, code: coupon, description: `Resgate de ${points} pontos`, type: CouponType.FIXED, value: money(points * REAL_PER_POINT), maxUses: 1 } });
+      await tx.coupon.create({ data: { storeId, code: coupon, description: `Resgate de ${points} pontos`, type: CouponType.FIXED, value: money(points * rules.realPerPoint), maxUses: 1 } });
       await tx.loyaltyEntry.create({ data: { storeId, customerId, type: LoyaltyEntryType.REDEEM, points: -points, note: `Resgate em cupom ${coupon}`, actorId } });
-      return coupon;
+      return { coupon, value: money(points * rules.realPerPoint).toFixed(2) };
     });
-    return { code, value: money(points * REAL_PER_POINT).toFixed(2), ...(await this.summary(storeId, customerId)) };
+    return { code: result.coupon, value: result.value, ...(await this.summary(storeId, customerId)) };
   }
 }

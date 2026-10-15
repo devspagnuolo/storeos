@@ -46,3 +46,38 @@ describe('fidelidade', () => {
     expect((await api(`/loyalty/customers/${customerId}/adjust`, { method: 'POST', token: await login(api, store, ['orders.read']), body: { points: 1, note: 'abc' } })).status).toBe(403);
   });
 });
+
+describe('regras de fidelidade da loja', () => {
+  it('personaliza pontos, nível e resgate mínimo, e volta ao padrão', async () => {
+    const { store, product } = await createStore(20);
+    const admin = await login(api, store, ['orders.read', 'orders.write', 'marketing.write']);
+    const reader = await login(api, store, ['orders.read']);
+    expect((await api('/loyalty/config', { token: reader })).status).toBe(403);
+    expect((await api('/loyalty/config', { token: admin })).body).toMatchObject({ customized: false, pointsPerReal: 1, realPerPoint: 0.05 });
+
+    const rules = { enabled: true, pointsPerReal: 2, realPerPoint: 0.1, minRedeem: 100, silverFrom: 100, goldFrom: 2000, diamondFrom: 5000, silverPct: 150, goldPct: 150, diamondPct: 200 };
+    expect((await api('/loyalty/config', { method: 'PUT', token: admin, body: { ...rules, goldFrom: 50 } })).status).toBe(400);
+    expect((await api('/loyalty/config', { method: 'PUT', token: admin, body: rules })).body).toMatchObject({ customized: true, pointsPerReal: 2 });
+
+    const pay = async () => {
+      const order = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }], 'BOLETO') });
+      await api(`/orders/${order.body.number}/confirm-payment`, { method: 'POST', token: admin, body: {} });
+    };
+    const customerId = async () => (await api('/customers', { token: admin })).body.items[0].id;
+    await pay(); // 99,80 x 2 pts = 199 no nível Bronze (sem bônus)
+    const id = await customerId();
+    const first = await api(`/loyalty/customers/${id}`, { token: admin });
+    expect(first.body).toMatchObject({ balance: 199, tier: { key: 'SILVER', pct: 150 }, valuePerPoint: 0.1, minRedeem: 100 });
+    await pay(); // já é Prata: 199,6 x 1,5 = 299
+    expect((await api(`/loyalty/customers/${id}`, { token: admin })).body.balance).toBe(199 + 299);
+
+    expect((await api(`/loyalty/customers/${id}/redeem`, { method: 'POST', token: admin, body: { points: 50 } })).status).toBe(400);
+    expect((await api(`/loyalty/customers/${id}/redeem`, { method: 'POST', token: admin, body: { points: 100 } })).body).toMatchObject({ value: '10.00', balance: 398 });
+
+    await api('/loyalty/config', { method: 'PUT', token: admin, body: { ...rules, enabled: false } });
+    await pay();
+    expect((await api(`/loyalty/customers/${id}`, { token: admin })).body.balance).toBe(398);
+
+    expect((await api('/loyalty/config', { method: 'DELETE', token: admin })).body).toMatchObject({ customized: false, pointsPerReal: 1 });
+  });
+});
