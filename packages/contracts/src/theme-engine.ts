@@ -177,844 +177,104 @@ function isSafeUrl(value: string): boolean {
  * A validação completa dos settings por JSON Schema é feita pelo serviço da API
  * com os schemas do manifesto; esta camada impede tipos, URLs e estruturas perigosas.
  */
+
 export function validateThemeDocument(input: unknown, manifest: ThemeReleaseManifest): ThemeDocumentIssue[] {
   const issues: ThemeDocumentIssue[] = [];
-  if (!isRecord(input)) {
-    return [{ path: '
+  const add = (path: string, code: ThemeDocumentIssue['code'], message: string) => issues.push({ path, code, message });
+
+  if (!isRecord(input)) return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto JSON.' }];
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(input);
+  } catch {
+    return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa conter apenas dados JSON.' }];
+  }
+  if (typeof serialized !== 'string') return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa conter apenas dados JSON.' }];
+  if (new TextEncoder().encode(serialized).byteLength > THEME_DOCUMENT_MAX_BYTES) {
     return [{ path: '$', code: 'DOCUMENT_TOO_LARGE', message: 'O layout excede o limite permitido.' }];
   }
 
   let nodeCount = 0;
   const inspect = (value: unknown, path: string): void => {
-    nodeCount++;
+    nodeCount += 1;
     if (nodeCount > THEME_MAX_TREE_NODES) return;
     if (Array.isArray(value)) {
       value.forEach((item, index) => inspect(item, `${path}[${index}]`));
       return;
     }
     if (!isRecord(value)) {
-      if (typeof value === 'string' && /(?:url|href|src)$/i.test(path.slice(path.lastIndexOf('.') + 1)) && !isSafeUrl(value)) {
-        issues.push({ path, code: 'UNSAFE_URL', message: 'Use uma URL HTTPS ou um caminho da própria loja.' });
+      const key = path.slice(path.lastIndexOf('.') + 1).replace(/\[\d+\]$/, '');
+      if (typeof value === 'string' && /(?:url|href|src)$/i.test(key) && !isSafeUrl(value)) {
+        add(path, 'UNSAFE_URL', 'Use uma URL HTTPS ou um caminho da própria loja.');
       }
       return;
     }
     for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKeys.has(key.toLowerCase())) {
-        issues.push({ path: `${path}.${key}`, code: 'UNSAFE_PROPERTY', message: 'Este campo não é permitido em temas.' });
-      }
+      if (forbiddenKeys.has(key.toLowerCase())) add(`${path}.${key}`, 'UNSAFE_PROPERTY', 'Este campo não é permitido em temas.');
       inspect(child, `${path}.${key}`);
     }
   };
+  inspect(input, '$');
+  if (nodeCount > THEME_MAX_TREE_NODES) add('$', 'TREE_TOO_COMPLEX', 'O layout possui elementos demais.');
 
-  inspect(input, '
-  if (nodeCount > THEME_MAX_TREE_NODES) {
-    issues.push({ path: '$', code: 'TREE_TOO_COMPLEX', message: 'O layout possui elementos demais.' });
-  }
-
-  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) {
-    issues.push({ path: '$.schemaVersion', code: 'INVALID_SCHEMA_VERSION', message: 'A versão do layout não é compatível.' });
-  }
-  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) {
-    issues.push({ path: '$.themeRelease', code: 'RELEASE_MISMATCH', message: 'O layout e o tema instalado não correspondem.' });
-  }
-
-  if (!isRecord(input.templates)) {
-    issues.push({ path: '$.templates', code: 'INVALID_OBJECT', message: 'O layout precisa conter templates.' });
-  }
+  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) add('$.schemaVersion', 'INVALID_SCHEMA_VERSION', 'A versão do layout não é compatível.');
+  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) add('$.themeRelease', 'RELEASE_MISMATCH', 'O layout e o tema instalado não correspondem.');
+  if (!isRecord(input.templates)) add('$.templates', 'INVALID_OBJECT', 'O layout precisa conter templates.');
   if (!isRecord(input.global) || !isRecord(input.global.designTokens) || !isRecord(input.global.settings)) {
-    issues.push({ path: '$.global', code: 'INVALID_OBJECT', message: 'As configurações globais do tema estão incompletas.' });
+    add('$.global', 'INVALID_OBJECT', 'As configurações globais do tema estão incompletas.');
   }
 
   const templates = isRecord(input.templates) ? input.templates : {};
   const allowedTemplates = new Set(manifest.templates.map(template => template.pageType));
-  const requiredTemplates = manifest.templates.filter(template => template.required);
-  for (const template of requiredTemplates) {
-    if (!Object.hasOwn(templates, template.pageType)) {
-      issues.push({ path: `$.templates.${template.pageType}`, code: 'MISSING_REQUIRED_TEMPLATE', message: 'Este tema exige um template para esta página.' });
-    }
+  for (const template of manifest.templates.filter(template => template.required)) {
+    if (!Object.hasOwn(templates, template.pageType)) add(`$.templates.${template.pageType}`, 'MISSING_REQUIRED_TEMPLATE', 'Este tema exige um template para esta página.');
   }
   for (const [pageType, value] of Object.entries(templates)) {
     const path = `$.templates.${pageType}`;
     if (!knownPageTypes.has(pageType) || !allowedTemplates.has(pageType as ThemePageType)) {
-      issues.push({ path, code: 'UNKNOWN_TEMPLATE', message: 'O tema não oferece este tipo de página.' });
+      add(path, 'UNKNOWN_TEMPLATE', 'O tema não oferece este tipo de página.');
       continue;
     }
     if (!isRecord(value) || !Array.isArray(value.sections)) {
-      issues.push({ path, code: 'INVALID_OBJECT', message: 'O template precisa conter uma lista de seções.' });
+      add(path, 'INVALID_OBJECT', 'O template precisa conter uma lista de seções.');
       continue;
     }
-    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) {
-      issues.push({ path: `${path}.sections`, code: 'SECTION_LIMIT', message: 'O template excede o limite de seções.' });
-    }
-
+    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) add(`${path}.sections`, 'SECTION_LIMIT', 'O template excede o limite de seções.');
     const ids = new Set<string>();
-    for (const [index, rawSection] of value.sections.entries()) {
+    for (const [index, section] of value.sections.entries()) {
       const sectionPath = `${path}.sections[${index}]`;
-      if (!isRecord(rawSection)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção está malformada.' });
+      if (!isRecord(section)) { add(sectionPath, 'INVALID_SECTION', 'A seção está malformada.'); continue; }
+      if (!validId(section.id)) add(`${sectionPath}.id`, 'INVALID_SECTION', 'A seção precisa de um identificador válido.');
+      else if (ids.has(section.id)) add(`${sectionPath}.id`, 'DUPLICATE_ID', 'Identificadores devem ser únicos no template.');
+      else ids.add(section.id);
+      if (typeof section.enabled !== 'boolean' || !isRecord(section.settings) || !Array.isArray(section.blocks)) {
+        add(sectionPath, 'INVALID_SECTION', 'A seção precisa ter estado, configurações e blocos válidos.');
+      }
+      if (typeof section.type !== 'string' || !knownComponentTypes.has(section.type)) {
+        add(`${sectionPath}.type`, 'UNKNOWN_COMPONENT', 'Este componente não pertence ao runtime do STOREOS.');
         continue;
       }
-      if (typeof rawSection.enabled !== 'boolean' || !isRecord(rawSection.settings)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção precisa ter estado e configurações válidas.' });
-      }
-      if (!validId(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'INVALID_SECTION', message: 'A seção precisa de um identificador válido.' });
-      } else if (ids.has(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de seção devem ser únicos no template.' });
-      } else {
-        ids.add(rawSection.id);
-      }
-      if (typeof rawSection.type !== 'string' || !knownComponentTypes.has(rawSection.type)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'UNKNOWN_COMPONENT', message: 'Este componente não pertence ao runtime do STOREOS.' });
-        continue;
-      }
-      const definition = manifest.sections.find(section => section.type === rawSection.type);
+      const definition = manifest.sections.find(item => item.type === section.type);
       if (!definition || !definition.allowedPageTypes.includes(pageType as ThemePageType)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este componente não está habilitado neste template.' });
+        add(`${sectionPath}.type`, 'COMPONENT_NOT_ALLOWED', 'Este componente não está habilitado neste template.');
       }
-      if (!Array.isArray(rawSection.blocks)) {
-        issues.push({ path: `${sectionPath}.blocks`, code: 'INVALID_SECTION', message: 'A seção precisa conter uma lista de blocos.' });
-      } else {
-        const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
-        if (rawSection.blocks.length > maxBlocks) {
-          issues.push({ path: `${sectionPath}.blocks`, code: 'BLOCK_LIMIT', message: 'A seção excede o limite de blocos.' });
+      if (!Array.isArray(section.blocks)) continue;
+      const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
+      if (section.blocks.length > maxBlocks) add(`${sectionPath}.blocks`, 'BLOCK_LIMIT', 'A seção excede o limite de blocos.');
+      const blockIds = new Set<string>();
+      for (const [blockIndex, block] of section.blocks.entries()) {
+        const blockPath = `${sectionPath}.blocks[${blockIndex}]`;
+        if (!isRecord(block) || !validId(block.id) || typeof block.type !== 'string' ||
+            typeof block.enabled !== 'boolean' || !isRecord(block.settings)) {
+          add(blockPath, 'INVALID_SECTION', 'O bloco está malformado.');
+          continue;
         }
-        const blockIds = new Set<string>();
-        for (const [blockIndex, rawBlock] of rawSection.blocks.entries()) {
-          const blockPath = `${sectionPath}.blocks[${blockIndex}]`;
-          if (!isRecord(rawBlock) || !validId(rawBlock.id) || typeof rawBlock.type !== 'string' || typeof rawBlock.enabled !== 'boolean' || !isRecord(rawBlock.settings)) {
-            issues.push({ path: blockPath, code: 'INVALID_SECTION', message: 'O bloco está malformado.' });
-            continue;
-          }
-          if (blockIds.has(rawBlock.id)) {
-            issues.push({ path: `${blockPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de bloco devem ser únicos na seção.' });
-          }
-          blockIds.add(rawBlock.id);
-          if (!definition?.blockTypes.includes(rawBlock.type)) {
-            issues.push({ path: `${blockPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este bloco não está habilitado nesta seção.' });
-          }
-        }
+        if (blockIds.has(block.id)) add(`${blockPath}.id`, 'DUPLICATE_ID', 'Identificadores de bloco devem ser únicos na seção.');
+        blockIds.add(block.id);
+        if (!definition?.blockTypes.includes(block.type)) add(`${blockPath}.type`, 'COMPONENT_NOT_ALLOWED', 'Este tipo de bloco não está habilitado nesta seção.');
       }
     }
   }
-
-  return issues;
-}
-
-export function isThemeDocumentValid(input: unknown, manifest: ThemeReleaseManifest): input is ThemeDocument {
-  return validateThemeDocument(input, manifest).length === 0;
-}
-, code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto.' }];
-  }
-
-  let serialized: string | undefined;
-  try {
-    serialized = JSON.stringify(input);
-  } catch {
-    return [{ path: '
-    return [{ path: '$', code: 'DOCUMENT_TOO_LARGE', message: 'O layout excede o limite permitido.' }];
-  }
-
-  let nodeCount = 0;
-  const inspect = (value: unknown, path: string): void => {
-    nodeCount++;
-    if (nodeCount > THEME_MAX_TREE_NODES) return;
-    if (Array.isArray(value)) {
-      value.forEach((item, index) => inspect(item, `${path}[${index}]`));
-      return;
-    }
-    if (!isRecord(value)) {
-      if (typeof value === 'string' && /(?:url|href|src)$/i.test(path.split('.').at(-1) ?? '') && !isSafeUrl(value)) {
-        issues.push({ path, code: 'UNSAFE_URL', message: 'Use uma URL HTTPS ou um caminho da própria loja.' });
-      }
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKeys.has(key.toLowerCase())) {
-        issues.push({ path: `${path}.${key}`, code: 'UNSAFE_PROPERTY', message: 'Este campo não é permitido em temas.' });
-      }
-      inspect(child, `${path}.${key}`);
-    }
-  };
-
-  if (!isRecord(input)) {
-    return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto.' }];
-  }
-
-  inspect(input, '$');
-  if (nodeCount > THEME_MAX_TREE_NODES) {
-    issues.push({ path: '$', code: 'TREE_TOO_COMPLEX', message: 'O layout possui elementos demais.' });
-  }
-
-  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) {
-    issues.push({ path: '$.schemaVersion', code: 'INVALID_SCHEMA_VERSION', message: 'A versão do layout não é compatível.' });
-  }
-  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) {
-    issues.push({ path: '$.themeRelease', code: 'RELEASE_MISMATCH', message: 'O layout e o tema instalado não correspondem.' });
-  }
-
-  const templates = isRecord(input.templates) ? input.templates : {};
-  const allowedTemplates = new Set(manifest.templates.map(template => template.pageType));
-  const requiredTemplates = manifest.templates.filter(template => template.required);
-  for (const template of requiredTemplates) {
-    if (!Object.hasOwn(templates, template.pageType)) {
-      issues.push({ path: `$.templates.${template.pageType}`, code: 'MISSING_REQUIRED_TEMPLATE', message: 'Este tema exige um template para esta página.' });
-    }
-  }
-  for (const [pageType, value] of Object.entries(templates)) {
-    const path = `$.templates.${pageType}`;
-    if (!knownPageTypes.has(pageType) || !allowedTemplates.has(pageType as ThemePageType)) {
-      issues.push({ path, code: 'UNKNOWN_TEMPLATE', message: 'O tema não oferece este tipo de página.' });
-      continue;
-    }
-    if (!isRecord(value) || !Array.isArray(value.sections)) {
-      issues.push({ path, code: 'INVALID_OBJECT', message: 'O template precisa conter uma lista de seções.' });
-      continue;
-    }
-    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) {
-      issues.push({ path: `${path}.sections`, code: 'SECTION_LIMIT', message: 'O template excede o limite de seções.' });
-    }
-
-    const ids = new Set<string>();
-    for (const [index, rawSection] of value.sections.entries()) {
-      const sectionPath = `${path}.sections[${index}]`;
-      if (!isRecord(rawSection)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção está malformada.' });
-        continue;
-      }
-      if (!validId(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'INVALID_SECTION', message: 'A seção precisa de um identificador válido.' });
-      } else if (ids.has(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de seção devem ser únicos no template.' });
-      } else {
-        ids.add(rawSection.id);
-      }
-      if (typeof rawSection.type !== 'string' || !knownComponentTypes.has(rawSection.type)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'UNKNOWN_COMPONENT', message: 'Este componente não pertence ao runtime do STOREOS.' });
-        continue;
-      }
-      const definition = manifest.sections.find(section => section.type === rawSection.type);
-      if (!definition || !definition.allowedPageTypes.includes(pageType as ThemePageType)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este componente não está habilitado neste template.' });
-      }
-      if (!Array.isArray(rawSection.blocks)) {
-        issues.push({ path: `${sectionPath}.blocks`, code: 'INVALID_SECTION', message: 'A seção precisa conter uma lista de blocos.' });
-      } else {
-        const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
-        if (rawSection.blocks.length > maxBlocks) {
-          issues.push({ path: `${sectionPath}.blocks`, code: 'BLOCK_LIMIT', message: 'A seção excede o limite de blocos.' });
-        }
-      }
-    }
-  }
-
-  return issues;
-}
-
-export function isThemeDocumentValid(input: unknown, manifest: ThemeReleaseManifest): input is ThemeDocument {
-  return validateThemeDocument(input, manifest).length === 0;
-}
-, code: 'INVALID_OBJECT', message: 'O documento não é serializável.' }];
-  }
-  if (typeof serialized !== 'string') {
-    return [{ path: '
-    return [{ path: '$', code: 'DOCUMENT_TOO_LARGE', message: 'O layout excede o limite permitido.' }];
-  }
-
-  let nodeCount = 0;
-  const inspect = (value: unknown, path: string): void => {
-    nodeCount++;
-    if (nodeCount > THEME_MAX_TREE_NODES) return;
-    if (Array.isArray(value)) {
-      value.forEach((item, index) => inspect(item, `${path}[${index}]`));
-      return;
-    }
-    if (!isRecord(value)) {
-      if (typeof value === 'string' && /(?:url|href|src)$/i.test(path.split('.').at(-1) ?? '') && !isSafeUrl(value)) {
-        issues.push({ path, code: 'UNSAFE_URL', message: 'Use uma URL HTTPS ou um caminho da própria loja.' });
-      }
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKeys.has(key.toLowerCase())) {
-        issues.push({ path: `${path}.${key}`, code: 'UNSAFE_PROPERTY', message: 'Este campo não é permitido em temas.' });
-      }
-      inspect(child, `${path}.${key}`);
-    }
-  };
-
-  if (!isRecord(input)) {
-    return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto.' }];
-  }
-
-  inspect(input, '$');
-  if (nodeCount > THEME_MAX_TREE_NODES) {
-    issues.push({ path: '$', code: 'TREE_TOO_COMPLEX', message: 'O layout possui elementos demais.' });
-  }
-
-  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) {
-    issues.push({ path: '$.schemaVersion', code: 'INVALID_SCHEMA_VERSION', message: 'A versão do layout não é compatível.' });
-  }
-  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) {
-    issues.push({ path: '$.themeRelease', code: 'RELEASE_MISMATCH', message: 'O layout e o tema instalado não correspondem.' });
-  }
-
-  const templates = isRecord(input.templates) ? input.templates : {};
-  const allowedTemplates = new Set(manifest.templates.map(template => template.pageType));
-  const requiredTemplates = manifest.templates.filter(template => template.required);
-  for (const template of requiredTemplates) {
-    if (!Object.hasOwn(templates, template.pageType)) {
-      issues.push({ path: `$.templates.${template.pageType}`, code: 'MISSING_REQUIRED_TEMPLATE', message: 'Este tema exige um template para esta página.' });
-    }
-  }
-  for (const [pageType, value] of Object.entries(templates)) {
-    const path = `$.templates.${pageType}`;
-    if (!knownPageTypes.has(pageType) || !allowedTemplates.has(pageType as ThemePageType)) {
-      issues.push({ path, code: 'UNKNOWN_TEMPLATE', message: 'O tema não oferece este tipo de página.' });
-      continue;
-    }
-    if (!isRecord(value) || !Array.isArray(value.sections)) {
-      issues.push({ path, code: 'INVALID_OBJECT', message: 'O template precisa conter uma lista de seções.' });
-      continue;
-    }
-    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) {
-      issues.push({ path: `${path}.sections`, code: 'SECTION_LIMIT', message: 'O template excede o limite de seções.' });
-    }
-
-    const ids = new Set<string>();
-    for (const [index, rawSection] of value.sections.entries()) {
-      const sectionPath = `${path}.sections[${index}]`;
-      if (!isRecord(rawSection)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção está malformada.' });
-        continue;
-      }
-      if (!validId(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'INVALID_SECTION', message: 'A seção precisa de um identificador válido.' });
-      } else if (ids.has(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de seção devem ser únicos no template.' });
-      } else {
-        ids.add(rawSection.id);
-      }
-      if (typeof rawSection.type !== 'string' || !knownComponentTypes.has(rawSection.type)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'UNKNOWN_COMPONENT', message: 'Este componente não pertence ao runtime do STOREOS.' });
-        continue;
-      }
-      const definition = manifest.sections.find(section => section.type === rawSection.type);
-      if (!definition || !definition.allowedPageTypes.includes(pageType as ThemePageType)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este componente não está habilitado neste template.' });
-      }
-      if (!Array.isArray(rawSection.blocks)) {
-        issues.push({ path: `${sectionPath}.blocks`, code: 'INVALID_SECTION', message: 'A seção precisa conter uma lista de blocos.' });
-      } else {
-        const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
-        if (rawSection.blocks.length > maxBlocks) {
-          issues.push({ path: `${sectionPath}.blocks`, code: 'BLOCK_LIMIT', message: 'A seção excede o limite de blocos.' });
-        }
-      }
-    }
-  }
-
-  return issues;
-}
-
-export function isThemeDocumentValid(input: unknown, manifest: ThemeReleaseManifest): input is ThemeDocument {
-  return validateThemeDocument(input, manifest).length === 0;
-}
-, code: 'INVALID_OBJECT', message: 'O documento precisa ser um objeto JSON.' }];
-  }
-
-  if (new TextEncoder().encode(serialized).byteLength > THEME_DOCUMENT_MAX_BYTES) {
-    return [{ path: '$', code: 'DOCUMENT_TOO_LARGE', message: 'O layout excede o limite permitido.' }];
-  }
-
-  let nodeCount = 0;
-  const inspect = (value: unknown, path: string): void => {
-    nodeCount++;
-    if (nodeCount > THEME_MAX_TREE_NODES) return;
-    if (Array.isArray(value)) {
-      value.forEach((item, index) => inspect(item, `${path}[${index}]`));
-      return;
-    }
-    if (!isRecord(value)) {
-      if (typeof value === 'string' && /(?:url|href|src)$/i.test(path.split('.').at(-1) ?? '') && !isSafeUrl(value)) {
-        issues.push({ path, code: 'UNSAFE_URL', message: 'Use uma URL HTTPS ou um caminho da própria loja.' });
-      }
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKeys.has(key.toLowerCase())) {
-        issues.push({ path: `${path}.${key}`, code: 'UNSAFE_PROPERTY', message: 'Este campo não é permitido em temas.' });
-      }
-      inspect(child, `${path}.${key}`);
-    }
-  };
-
-  if (!isRecord(input)) {
-    return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto.' }];
-  }
-
-  inspect(input, '$');
-  if (nodeCount > THEME_MAX_TREE_NODES) {
-    issues.push({ path: '$', code: 'TREE_TOO_COMPLEX', message: 'O layout possui elementos demais.' });
-  }
-
-  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) {
-    issues.push({ path: '$.schemaVersion', code: 'INVALID_SCHEMA_VERSION', message: 'A versão do layout não é compatível.' });
-  }
-  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) {
-    issues.push({ path: '$.themeRelease', code: 'RELEASE_MISMATCH', message: 'O layout e o tema instalado não correspondem.' });
-  }
-
-  const templates = isRecord(input.templates) ? input.templates : {};
-  const allowedTemplates = new Set(manifest.templates.map(template => template.pageType));
-  const requiredTemplates = manifest.templates.filter(template => template.required);
-  for (const template of requiredTemplates) {
-    if (!Object.hasOwn(templates, template.pageType)) {
-      issues.push({ path: `$.templates.${template.pageType}`, code: 'MISSING_REQUIRED_TEMPLATE', message: 'Este tema exige um template para esta página.' });
-    }
-  }
-  for (const [pageType, value] of Object.entries(templates)) {
-    const path = `$.templates.${pageType}`;
-    if (!knownPageTypes.has(pageType) || !allowedTemplates.has(pageType as ThemePageType)) {
-      issues.push({ path, code: 'UNKNOWN_TEMPLATE', message: 'O tema não oferece este tipo de página.' });
-      continue;
-    }
-    if (!isRecord(value) || !Array.isArray(value.sections)) {
-      issues.push({ path, code: 'INVALID_OBJECT', message: 'O template precisa conter uma lista de seções.' });
-      continue;
-    }
-    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) {
-      issues.push({ path: `${path}.sections`, code: 'SECTION_LIMIT', message: 'O template excede o limite de seções.' });
-    }
-
-    const ids = new Set<string>();
-    for (const [index, rawSection] of value.sections.entries()) {
-      const sectionPath = `${path}.sections[${index}]`;
-      if (!isRecord(rawSection)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção está malformada.' });
-        continue;
-      }
-      if (!validId(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'INVALID_SECTION', message: 'A seção precisa de um identificador válido.' });
-      } else if (ids.has(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de seção devem ser únicos no template.' });
-      } else {
-        ids.add(rawSection.id);
-      }
-      if (typeof rawSection.type !== 'string' || !knownComponentTypes.has(rawSection.type)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'UNKNOWN_COMPONENT', message: 'Este componente não pertence ao runtime do STOREOS.' });
-        continue;
-      }
-      const definition = manifest.sections.find(section => section.type === rawSection.type);
-      if (!definition || !definition.allowedPageTypes.includes(pageType as ThemePageType)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este componente não está habilitado neste template.' });
-      }
-      if (!Array.isArray(rawSection.blocks)) {
-        issues.push({ path: `${sectionPath}.blocks`, code: 'INVALID_SECTION', message: 'A seção precisa conter uma lista de blocos.' });
-      } else {
-        const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
-        if (rawSection.blocks.length > maxBlocks) {
-          issues.push({ path: `${sectionPath}.blocks`, code: 'BLOCK_LIMIT', message: 'A seção excede o limite de blocos.' });
-        }
-      }
-    }
-  }
-
-  return issues;
-}
-
-export function isThemeDocumentValid(input: unknown, manifest: ThemeReleaseManifest): input is ThemeDocument {
-  return validateThemeDocument(input, manifest).length === 0;
-}
-);
-  if (nodeCount > THEME_MAX_TREE_NODES) {
-    issues.push({ path: '$', code: 'TREE_TOO_COMPLEX', message: 'O layout possui elementos demais.' });
-  }
-
-  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) {
-    issues.push({ path: '$.schemaVersion', code: 'INVALID_SCHEMA_VERSION', message: 'A versão do layout não é compatível.' });
-  }
-  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) {
-    issues.push({ path: '$.themeRelease', code: 'RELEASE_MISMATCH', message: 'O layout e o tema instalado não correspondem.' });
-  }
-
-  const templates = isRecord(input.templates) ? input.templates : {};
-  const allowedTemplates = new Set(manifest.templates.map(template => template.pageType));
-  const requiredTemplates = manifest.templates.filter(template => template.required);
-  for (const template of requiredTemplates) {
-    if (!Object.hasOwn(templates, template.pageType)) {
-      issues.push({ path: `$.templates.${template.pageType}`, code: 'MISSING_REQUIRED_TEMPLATE', message: 'Este tema exige um template para esta página.' });
-    }
-  }
-  for (const [pageType, value] of Object.entries(templates)) {
-    const path = `$.templates.${pageType}`;
-    if (!knownPageTypes.has(pageType) || !allowedTemplates.has(pageType as ThemePageType)) {
-      issues.push({ path, code: 'UNKNOWN_TEMPLATE', message: 'O tema não oferece este tipo de página.' });
-      continue;
-    }
-    if (!isRecord(value) || !Array.isArray(value.sections)) {
-      issues.push({ path, code: 'INVALID_OBJECT', message: 'O template precisa conter uma lista de seções.' });
-      continue;
-    }
-    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) {
-      issues.push({ path: `${path}.sections`, code: 'SECTION_LIMIT', message: 'O template excede o limite de seções.' });
-    }
-
-    const ids = new Set<string>();
-    for (const [index, rawSection] of value.sections.entries()) {
-      const sectionPath = `${path}.sections[${index}]`;
-      if (!isRecord(rawSection)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção está malformada.' });
-        continue;
-      }
-      if (!validId(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'INVALID_SECTION', message: 'A seção precisa de um identificador válido.' });
-      } else if (ids.has(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de seção devem ser únicos no template.' });
-      } else {
-        ids.add(rawSection.id);
-      }
-      if (typeof rawSection.type !== 'string' || !knownComponentTypes.has(rawSection.type)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'UNKNOWN_COMPONENT', message: 'Este componente não pertence ao runtime do STOREOS.' });
-        continue;
-      }
-      const definition = manifest.sections.find(section => section.type === rawSection.type);
-      if (!definition || !definition.allowedPageTypes.includes(pageType as ThemePageType)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este componente não está habilitado neste template.' });
-      }
-      if (!Array.isArray(rawSection.blocks)) {
-        issues.push({ path: `${sectionPath}.blocks`, code: 'INVALID_SECTION', message: 'A seção precisa conter uma lista de blocos.' });
-      } else {
-        const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
-        if (rawSection.blocks.length > maxBlocks) {
-          issues.push({ path: `${sectionPath}.blocks`, code: 'BLOCK_LIMIT', message: 'A seção excede o limite de blocos.' });
-        }
-      }
-    }
-  }
-
-  return issues;
-}
-
-export function isThemeDocumentValid(input: unknown, manifest: ThemeReleaseManifest): input is ThemeDocument {
-  return validateThemeDocument(input, manifest).length === 0;
-}
-, code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto.' }];
-  }
-
-  let serialized: string | undefined;
-  try {
-    serialized = JSON.stringify(input);
-  } catch {
-    return [{ path: '
-    return [{ path: '$', code: 'DOCUMENT_TOO_LARGE', message: 'O layout excede o limite permitido.' }];
-  }
-
-  let nodeCount = 0;
-  const inspect = (value: unknown, path: string): void => {
-    nodeCount++;
-    if (nodeCount > THEME_MAX_TREE_NODES) return;
-    if (Array.isArray(value)) {
-      value.forEach((item, index) => inspect(item, `${path}[${index}]`));
-      return;
-    }
-    if (!isRecord(value)) {
-      if (typeof value === 'string' && /(?:url|href|src)$/i.test(path.split('.').at(-1) ?? '') && !isSafeUrl(value)) {
-        issues.push({ path, code: 'UNSAFE_URL', message: 'Use uma URL HTTPS ou um caminho da própria loja.' });
-      }
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKeys.has(key.toLowerCase())) {
-        issues.push({ path: `${path}.${key}`, code: 'UNSAFE_PROPERTY', message: 'Este campo não é permitido em temas.' });
-      }
-      inspect(child, `${path}.${key}`);
-    }
-  };
-
-  if (!isRecord(input)) {
-    return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto.' }];
-  }
-
-  inspect(input, '$');
-  if (nodeCount > THEME_MAX_TREE_NODES) {
-    issues.push({ path: '$', code: 'TREE_TOO_COMPLEX', message: 'O layout possui elementos demais.' });
-  }
-
-  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) {
-    issues.push({ path: '$.schemaVersion', code: 'INVALID_SCHEMA_VERSION', message: 'A versão do layout não é compatível.' });
-  }
-  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) {
-    issues.push({ path: '$.themeRelease', code: 'RELEASE_MISMATCH', message: 'O layout e o tema instalado não correspondem.' });
-  }
-
-  const templates = isRecord(input.templates) ? input.templates : {};
-  const allowedTemplates = new Set(manifest.templates.map(template => template.pageType));
-  const requiredTemplates = manifest.templates.filter(template => template.required);
-  for (const template of requiredTemplates) {
-    if (!Object.hasOwn(templates, template.pageType)) {
-      issues.push({ path: `$.templates.${template.pageType}`, code: 'MISSING_REQUIRED_TEMPLATE', message: 'Este tema exige um template para esta página.' });
-    }
-  }
-  for (const [pageType, value] of Object.entries(templates)) {
-    const path = `$.templates.${pageType}`;
-    if (!knownPageTypes.has(pageType) || !allowedTemplates.has(pageType as ThemePageType)) {
-      issues.push({ path, code: 'UNKNOWN_TEMPLATE', message: 'O tema não oferece este tipo de página.' });
-      continue;
-    }
-    if (!isRecord(value) || !Array.isArray(value.sections)) {
-      issues.push({ path, code: 'INVALID_OBJECT', message: 'O template precisa conter uma lista de seções.' });
-      continue;
-    }
-    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) {
-      issues.push({ path: `${path}.sections`, code: 'SECTION_LIMIT', message: 'O template excede o limite de seções.' });
-    }
-
-    const ids = new Set<string>();
-    for (const [index, rawSection] of value.sections.entries()) {
-      const sectionPath = `${path}.sections[${index}]`;
-      if (!isRecord(rawSection)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção está malformada.' });
-        continue;
-      }
-      if (!validId(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'INVALID_SECTION', message: 'A seção precisa de um identificador válido.' });
-      } else if (ids.has(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de seção devem ser únicos no template.' });
-      } else {
-        ids.add(rawSection.id);
-      }
-      if (typeof rawSection.type !== 'string' || !knownComponentTypes.has(rawSection.type)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'UNKNOWN_COMPONENT', message: 'Este componente não pertence ao runtime do STOREOS.' });
-        continue;
-      }
-      const definition = manifest.sections.find(section => section.type === rawSection.type);
-      if (!definition || !definition.allowedPageTypes.includes(pageType as ThemePageType)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este componente não está habilitado neste template.' });
-      }
-      if (!Array.isArray(rawSection.blocks)) {
-        issues.push({ path: `${sectionPath}.blocks`, code: 'INVALID_SECTION', message: 'A seção precisa conter uma lista de blocos.' });
-      } else {
-        const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
-        if (rawSection.blocks.length > maxBlocks) {
-          issues.push({ path: `${sectionPath}.blocks`, code: 'BLOCK_LIMIT', message: 'A seção excede o limite de blocos.' });
-        }
-      }
-    }
-  }
-
-  return issues;
-}
-
-export function isThemeDocumentValid(input: unknown, manifest: ThemeReleaseManifest): input is ThemeDocument {
-  return validateThemeDocument(input, manifest).length === 0;
-}
-, code: 'INVALID_OBJECT', message: 'O documento não é serializável.' }];
-  }
-  if (typeof serialized !== 'string') {
-    return [{ path: '
-    return [{ path: '$', code: 'DOCUMENT_TOO_LARGE', message: 'O layout excede o limite permitido.' }];
-  }
-
-  let nodeCount = 0;
-  const inspect = (value: unknown, path: string): void => {
-    nodeCount++;
-    if (nodeCount > THEME_MAX_TREE_NODES) return;
-    if (Array.isArray(value)) {
-      value.forEach((item, index) => inspect(item, `${path}[${index}]`));
-      return;
-    }
-    if (!isRecord(value)) {
-      if (typeof value === 'string' && /(?:url|href|src)$/i.test(path.split('.').at(-1) ?? '') && !isSafeUrl(value)) {
-        issues.push({ path, code: 'UNSAFE_URL', message: 'Use uma URL HTTPS ou um caminho da própria loja.' });
-      }
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKeys.has(key.toLowerCase())) {
-        issues.push({ path: `${path}.${key}`, code: 'UNSAFE_PROPERTY', message: 'Este campo não é permitido em temas.' });
-      }
-      inspect(child, `${path}.${key}`);
-    }
-  };
-
-  if (!isRecord(input)) {
-    return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto.' }];
-  }
-
-  inspect(input, '$');
-  if (nodeCount > THEME_MAX_TREE_NODES) {
-    issues.push({ path: '$', code: 'TREE_TOO_COMPLEX', message: 'O layout possui elementos demais.' });
-  }
-
-  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) {
-    issues.push({ path: '$.schemaVersion', code: 'INVALID_SCHEMA_VERSION', message: 'A versão do layout não é compatível.' });
-  }
-  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) {
-    issues.push({ path: '$.themeRelease', code: 'RELEASE_MISMATCH', message: 'O layout e o tema instalado não correspondem.' });
-  }
-
-  const templates = isRecord(input.templates) ? input.templates : {};
-  const allowedTemplates = new Set(manifest.templates.map(template => template.pageType));
-  const requiredTemplates = manifest.templates.filter(template => template.required);
-  for (const template of requiredTemplates) {
-    if (!Object.hasOwn(templates, template.pageType)) {
-      issues.push({ path: `$.templates.${template.pageType}`, code: 'MISSING_REQUIRED_TEMPLATE', message: 'Este tema exige um template para esta página.' });
-    }
-  }
-  for (const [pageType, value] of Object.entries(templates)) {
-    const path = `$.templates.${pageType}`;
-    if (!knownPageTypes.has(pageType) || !allowedTemplates.has(pageType as ThemePageType)) {
-      issues.push({ path, code: 'UNKNOWN_TEMPLATE', message: 'O tema não oferece este tipo de página.' });
-      continue;
-    }
-    if (!isRecord(value) || !Array.isArray(value.sections)) {
-      issues.push({ path, code: 'INVALID_OBJECT', message: 'O template precisa conter uma lista de seções.' });
-      continue;
-    }
-    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) {
-      issues.push({ path: `${path}.sections`, code: 'SECTION_LIMIT', message: 'O template excede o limite de seções.' });
-    }
-
-    const ids = new Set<string>();
-    for (const [index, rawSection] of value.sections.entries()) {
-      const sectionPath = `${path}.sections[${index}]`;
-      if (!isRecord(rawSection)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção está malformada.' });
-        continue;
-      }
-      if (!validId(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'INVALID_SECTION', message: 'A seção precisa de um identificador válido.' });
-      } else if (ids.has(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de seção devem ser únicos no template.' });
-      } else {
-        ids.add(rawSection.id);
-      }
-      if (typeof rawSection.type !== 'string' || !knownComponentTypes.has(rawSection.type)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'UNKNOWN_COMPONENT', message: 'Este componente não pertence ao runtime do STOREOS.' });
-        continue;
-      }
-      const definition = manifest.sections.find(section => section.type === rawSection.type);
-      if (!definition || !definition.allowedPageTypes.includes(pageType as ThemePageType)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este componente não está habilitado neste template.' });
-      }
-      if (!Array.isArray(rawSection.blocks)) {
-        issues.push({ path: `${sectionPath}.blocks`, code: 'INVALID_SECTION', message: 'A seção precisa conter uma lista de blocos.' });
-      } else {
-        const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
-        if (rawSection.blocks.length > maxBlocks) {
-          issues.push({ path: `${sectionPath}.blocks`, code: 'BLOCK_LIMIT', message: 'A seção excede o limite de blocos.' });
-        }
-      }
-    }
-  }
-
-  return issues;
-}
-
-export function isThemeDocumentValid(input: unknown, manifest: ThemeReleaseManifest): input is ThemeDocument {
-  return validateThemeDocument(input, manifest).length === 0;
-}
-, code: 'INVALID_OBJECT', message: 'O documento precisa ser um objeto JSON.' }];
-  }
-
-  if (new TextEncoder().encode(serialized).byteLength > THEME_DOCUMENT_MAX_BYTES) {
-    return [{ path: '$', code: 'DOCUMENT_TOO_LARGE', message: 'O layout excede o limite permitido.' }];
-  }
-
-  let nodeCount = 0;
-  const inspect = (value: unknown, path: string): void => {
-    nodeCount++;
-    if (nodeCount > THEME_MAX_TREE_NODES) return;
-    if (Array.isArray(value)) {
-      value.forEach((item, index) => inspect(item, `${path}[${index}]`));
-      return;
-    }
-    if (!isRecord(value)) {
-      if (typeof value === 'string' && /(?:url|href|src)$/i.test(path.split('.').at(-1) ?? '') && !isSafeUrl(value)) {
-        issues.push({ path, code: 'UNSAFE_URL', message: 'Use uma URL HTTPS ou um caminho da própria loja.' });
-      }
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKeys.has(key.toLowerCase())) {
-        issues.push({ path: `${path}.${key}`, code: 'UNSAFE_PROPERTY', message: 'Este campo não é permitido em temas.' });
-      }
-      inspect(child, `${path}.${key}`);
-    }
-  };
-
-  if (!isRecord(input)) {
-    return [{ path: '$', code: 'INVALID_OBJECT', message: 'O layout precisa ser um objeto.' }];
-  }
-
-  inspect(input, '$');
-  if (nodeCount > THEME_MAX_TREE_NODES) {
-    issues.push({ path: '$', code: 'TREE_TOO_COMPLEX', message: 'O layout possui elementos demais.' });
-  }
-
-  if (input.schemaVersion !== THEME_DOCUMENT_SCHEMA_VERSION) {
-    issues.push({ path: '$.schemaVersion', code: 'INVALID_SCHEMA_VERSION', message: 'A versão do layout não é compatível.' });
-  }
-  if (input.themeRelease !== `${manifest.slug}@${manifest.version}`) {
-    issues.push({ path: '$.themeRelease', code: 'RELEASE_MISMATCH', message: 'O layout e o tema instalado não correspondem.' });
-  }
-
-  const templates = isRecord(input.templates) ? input.templates : {};
-  const allowedTemplates = new Set(manifest.templates.map(template => template.pageType));
-  const requiredTemplates = manifest.templates.filter(template => template.required);
-  for (const template of requiredTemplates) {
-    if (!Object.hasOwn(templates, template.pageType)) {
-      issues.push({ path: `$.templates.${template.pageType}`, code: 'MISSING_REQUIRED_TEMPLATE', message: 'Este tema exige um template para esta página.' });
-    }
-  }
-  for (const [pageType, value] of Object.entries(templates)) {
-    const path = `$.templates.${pageType}`;
-    if (!knownPageTypes.has(pageType) || !allowedTemplates.has(pageType as ThemePageType)) {
-      issues.push({ path, code: 'UNKNOWN_TEMPLATE', message: 'O tema não oferece este tipo de página.' });
-      continue;
-    }
-    if (!isRecord(value) || !Array.isArray(value.sections)) {
-      issues.push({ path, code: 'INVALID_OBJECT', message: 'O template precisa conter uma lista de seções.' });
-      continue;
-    }
-    if (value.sections.length > THEME_MAX_SECTIONS_PER_TEMPLATE) {
-      issues.push({ path: `${path}.sections`, code: 'SECTION_LIMIT', message: 'O template excede o limite de seções.' });
-    }
-
-    const ids = new Set<string>();
-    for (const [index, rawSection] of value.sections.entries()) {
-      const sectionPath = `${path}.sections[${index}]`;
-      if (!isRecord(rawSection)) {
-        issues.push({ path: sectionPath, code: 'INVALID_SECTION', message: 'A seção está malformada.' });
-        continue;
-      }
-      if (!validId(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'INVALID_SECTION', message: 'A seção precisa de um identificador válido.' });
-      } else if (ids.has(rawSection.id)) {
-        issues.push({ path: `${sectionPath}.id`, code: 'DUPLICATE_ID', message: 'Identificadores de seção devem ser únicos no template.' });
-      } else {
-        ids.add(rawSection.id);
-      }
-      if (typeof rawSection.type !== 'string' || !knownComponentTypes.has(rawSection.type)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'UNKNOWN_COMPONENT', message: 'Este componente não pertence ao runtime do STOREOS.' });
-        continue;
-      }
-      const definition = manifest.sections.find(section => section.type === rawSection.type);
-      if (!definition || !definition.allowedPageTypes.includes(pageType as ThemePageType)) {
-        issues.push({ path: `${sectionPath}.type`, code: 'COMPONENT_NOT_ALLOWED', message: 'Este componente não está habilitado neste template.' });
-      }
-      if (!Array.isArray(rawSection.blocks)) {
-        issues.push({ path: `${sectionPath}.blocks`, code: 'INVALID_SECTION', message: 'A seção precisa conter uma lista de blocos.' });
-      } else {
-        const maxBlocks = Math.min(definition?.maxBlocks ?? 0, THEME_MAX_BLOCKS_PER_SECTION);
-        if (rawSection.blocks.length > maxBlocks) {
-          issues.push({ path: `${sectionPath}.blocks`, code: 'BLOCK_LIMIT', message: 'A seção excede o limite de blocos.' });
-        }
-      }
-    }
-  }
-
   return issues;
 }
 
