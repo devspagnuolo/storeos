@@ -40,16 +40,24 @@ export class BlingAuthService {
     if (!storeId) throw new BadRequestException('Autorização expirada ou inválida. Comece a conexão de novo pelo painel.');
     const tokens = await this.client.token({ grant_type: 'authorization_code', code });
     await this.save(storeId, tokens);
-    try {
-      const company = await this.client.request<{ data?: { id?: number | string } }>(tokens.access_token, '/empresas/me');
-      if (company.data?.id === undefined || company.data?.id === null) throw new Error('ID da empresa ausente');
-      await this.prisma.blingConnection.update({ where: { storeId }, data: { companyId: String(company.data.id), lastError: null } });
-    } catch {
-      await this.prisma.blingConnection.update({
-        where: { storeId },
-        data: { companyId: null, lastError: 'Conectado, mas o Bling não liberou a leitura dos dados da empresa. Isso não impede enviar pedidos; os avisos do Bling são ligados sozinhos quando o primeiro chegar. Para resolver agora, marque a permissão de leitura da empresa no aplicativo Bling e reconecte.' },
-      });
+    let reason = '';
+    let companyId: string | null = null;
+    // O Bling v3 expõe os dados da empresa em /empresas/me/dados-basicos; a rota curta fica de reserva.
+    for (const path of ['/empresas/me/dados-basicos', '/empresas/me']) {
+      try {
+        const company = await this.client.request<{ data?: { id?: number | string } }>(tokens.access_token, path);
+        if (company.data?.id !== undefined && company.data?.id !== null) { companyId = String(company.data.id); break; }
+        reason = 'resposta sem o ID da empresa';
+      } catch (error) {
+        reason = (error as Error).message;
+      }
     }
+    await this.prisma.blingConnection.update({
+      where: { storeId },
+      data: companyId
+        ? { companyId, lastError: null }
+        : { companyId: null, lastError: `Conectado, mas não foi possível ler os dados da empresa no Bling (${reason}). Isso não impede enviar pedidos: os avisos do Bling são ligados sozinhos quando o primeiro chegar. Se a permissão de dados da empresa já estiver marcada no aplicativo, pode ignorar.` },
+    });
     return storeId;
   }
 
