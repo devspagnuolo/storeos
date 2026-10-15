@@ -5,7 +5,7 @@ export const CARRIER_QUOTES = Symbol('CARRIER_QUOTES');
 export type CarrierPackage = { id: string; widthCm: number; heightCm: number; lengthCm: number; weightKg: number; unitValue: number; quantity: number };
 export type CarrierOffer = { id: string; name: string; price: Money; minDays: number; maxDays: number };
 
-/** Cotação de frete em transportadoras (Melhor Envio). Quem não está configurado devolve `enabled = false`. */
+/** Cotação de frete em transportadoras. `enabled` = credenciais configuradas no servidor; o CEP de origem é por loja. */
 export interface CarrierQuotes {
   readonly enabled: boolean;
   readonly provider: string;

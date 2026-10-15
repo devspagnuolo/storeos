@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ShippingTest } from '../../../../components/admin/shipping-test';
 import { adminFetch } from '../../../../lib/admin/session';
-import type { Diagnostics } from '../../../../lib/admin/types';
+import type { Diagnostics, EnvironmentReport } from '../../../../lib/admin/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,9 @@ const STATUS = {
 } as const;
 
 export default async function DiagnosticsPage() {
-  const report = await adminFetch<Diagnostics>('/diagnostics');
+  const [report, env] = await Promise.all([adminFetch<Diagnostics>('/diagnostics'), adminFetch<EnvironmentReport>('/diagnostics/environment')]);
+  const groups = [...new Set(env.variables.map(v => v.group))];
+  const missing = env.variables.filter(v => !v.set && v.importance !== 'optional');
   const areas = [...new Set(report.checks.map(check => check.area))];
   return (
     <>
@@ -33,6 +35,18 @@ export default async function DiagnosticsPage() {
           </li>)}
         </ul>
       </section>)}
+      <section className="card mt-6 p-6" aria-label="Variáveis do servidor">
+        <h2 className="font-semibold">Variáveis do servidor (API)</h2>
+        <p className="mb-4 mt-1 text-sm text-slate-500">Mostra só os nomes e se estão preenchidas; os valores nunca aparecem. “Não reconhecidas” são variáveis cadastradas na Render que o código não usa: podem ser sobra antiga ou erro de digitação.</p>
+        {env.unrecognized.length > 0 && <div role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><strong>Não reconhecidas pelo código:</strong>
+          <ul className="mt-1 list-disc pl-5">{env.unrecognized.map(v => <li key={v.name}><code>{v.name}</code>{v.suggestion ? <> — você quis dizer <code>{v.suggestion}</code>?</> : ' — nenhuma parte do sistema lê esta variável.'}</li>)}</ul></div>}
+        {missing.length > 0 && <div role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-800"><strong>Faltam (obrigatórias ou recomendadas):</strong> {missing.map(v => v.name).join(', ')}</div>}
+        {groups.map(group => <details key={group} className="border-t py-3 first:border-t-0">
+          <summary className="cursor-pointer font-medium">{group} <span className="text-xs font-normal text-slate-500">({env.variables.filter(v => v.group === group && v.set).length}/{env.variables.filter(v => v.group === group).length} definidas)</span></summary>
+          <ul className="mt-2 space-y-1 text-sm">{env.variables.filter(v => v.group === group).map(v => <li key={v.name} className="flex flex-wrap gap-x-3"><span className={v.set ? 'text-emerald-700' : v.importance === 'optional' ? 'text-slate-400' : 'text-red-700'}>{v.set ? '✓' : '○'}</span><code>{v.name}</code><span className="text-slate-500">{v.description}</span></li>)}</ul>
+        </details>)}
+        <p className="mt-4 text-xs text-slate-500">O site (storeos-nexo-web) tem as próprias variáveis, que esta tela não enxerga: NEXT_PUBLIC_API_URL, NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_STORE_SLUG, API_INTERNAL_URL e NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY.</p>
+      </section>
       <section className="card mt-6 p-6" aria-label="Teste de frete">
         <h2 className="font-semibold">Testar cotação de frete</h2>
         <p className="mb-4 mt-1 text-sm text-slate-500">Faz uma cotação real com o primeiro produto ativo e mostra o que o cliente veria no checkout.</p>

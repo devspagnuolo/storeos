@@ -67,7 +67,13 @@ services:
         sync: false
       - key: MELHOR_ENVIO_TOKEN
         sync: false
+      # CEP de origem de reserva: o de cada loja é cadastrado no painel (Frete) e tem prioridade.
       - key: SHIPPING_ORIGIN_ZIP
+        sync: false
+      # Links dos e-mails (carrinho abandonado) e destino do CNAME de domínio próprio.
+      - key: PUBLIC_SITE_URL
+        sync: false
+      - key: STOREOS_CNAME_TARGET
         sync: false
       - key: SWAGGER_ENABLED
         value: "false"

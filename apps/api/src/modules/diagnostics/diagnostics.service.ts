@@ -3,6 +3,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { MercadoPagoClient } from '../payments/mercado-pago.client';
 import { ShippingService } from '../shipping/shipping.service';
 import { buildChecks, summarize } from './diagnostics-rules';
+import { environmentReport } from './env-registry';
 
 const env = (name: string) => Boolean(process.env[name]?.trim());
 
@@ -19,7 +20,7 @@ export class DiagnosticsService {
       this.prisma.blingOrderSync.count({ where: { storeId, status: 'FAILED' } }),
       this.prisma.payment.count({ where: { order: { storeId }, status: { in: ['FAILED', 'CANCELLED'] }, createdAt: { gte: new Date(Date.now() - 86_400_000) } } }).catch(() => 0),
     ]);
-    const carrier = this.shipping.carrierStatus();
+    const carrier = await this.shipping.carrierStatus(storeId);
     const oldest = outbox?._min.occurredAt;
     const checks = buildChecks({
       apiPublicUrl: process.env.API_PUBLIC_URL?.trim(), webOrigin: process.env.WEB_ORIGIN?.trim(), dbOk,
@@ -31,6 +32,10 @@ export class DiagnosticsService {
       failedPayments24h: failedPayments,
     });
     return { checkedAt: new Date().toISOString(), summary: summarize(checks), checks };
+  }
+
+  environment() {
+    return environmentReport(process.env);
   }
 
   /** Cotação real com o primeiro produto ativo da loja, para validar CEP de origem e credenciais da transportadora. */

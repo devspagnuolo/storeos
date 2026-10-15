@@ -63,8 +63,9 @@ export class CheckoutService {
     if (state !== input.shippingAddress.state) throw new BadRequestException('O CEP não corresponde ao estado informado');
 
     // A cotação nas transportadoras é uma chamada externa: fica fora da transação, que não deve segurar locks.
-    const carrierOptions = this.shipping.carrierEnabled
-      ? await this.shipping.carrierOptions(input.shippingAddress.zipCode, items, await productsForPricing(this.prisma, store.id, items), await this.shipping.hasActiveRules(this.prisma, store.id))
+    const carrierOn = await this.shipping.carrierEnabledFor(store.id);
+    const carrierOptions = carrierOn
+      ? await this.shipping.carrierOptions(store.id, input.shippingAddress.zipCode, items, await productsForPricing(this.prisma, store.id, items), await this.shipping.hasActiveRules(this.prisma, store.id))
       : [];
 
     const order = await this.prisma.$transaction(async tx => {
@@ -73,7 +74,7 @@ export class CheckoutService {
       // O frete é recalculado aqui a partir das regras da loja; o cliente só escolhe a opção.
       let shipping = money(0);
       let shippingMethod: string | null = null;
-      if ((await this.shipping.hasActiveRules(tx, store.id)) || this.shipping.carrierEnabled) {
+      if ((await this.shipping.hasActiveRules(tx, store.id)) || carrierOn) {
         const options = [...(await this.shipping.optionsFor(tx, store.id, state, subtotal)), ...carrierOptions];
         if (!options.length) throw new BadRequestException('Ainda não entregamos neste CEP');
         const chosen = options.find(option => option.id === input.shippingRuleId);

@@ -19,12 +19,10 @@ describe('MelhorEnvioClient', () => {
   const original = { ...process.env };
   afterEach(() => { process.env = { ...original }; jest.restoreAllMocks(); });
 
-  it('só fica ativo com token e CEP de origem', () => {
-    delete process.env.MELHOR_ENVIO_TOKEN; delete process.env.SHIPPING_ORIGIN_ZIP;
+  it('fica ativo com o token; o CEP de origem é decidido por loja', () => {
+    delete process.env.MELHOR_ENVIO_TOKEN;
     expect(new MelhorEnvioClient().enabled).toBe(false);
     process.env.MELHOR_ENVIO_TOKEN = 't';
-    expect(new MelhorEnvioClient().enabled).toBe(false);
-    process.env.SHIPPING_ORIGIN_ZIP = '09015-000';
     expect(new MelhorEnvioClient().enabled).toBe(true);
   });
 

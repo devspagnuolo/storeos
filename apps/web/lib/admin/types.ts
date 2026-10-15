@@ -93,3 +93,9 @@ export type AbandonedCartRow = { id: string; email: string; name: string | null;
 export type AbandonedCartList = { items: AbandonedCartRow[]; stats: { open: number; reminded: number; recovered: number; optedOut: number; recoveredValue: string; pendingValue: string }; delayMinutes: number; siteConfigured: boolean };
 
 export type EmailTemplateRow = { key: string; label: string; description: string; variables: { name: string; description: string }[]; defaultSubject: string; defaultBody: string; subject: string; body: string; enabled: boolean; customized: boolean };
+
+export type CarrierStatus = { enabled: boolean; credentials: boolean; provider: string; originZip: string | null; originSource: 'store' | 'server' | null };
+export type EnvironmentReport = {
+  variables: { name: string; group: string; importance: 'required' | 'recommended' | 'optional'; description: string; set: boolean }[];
+  unrecognized: { name: string; suggestion: string | null }[];
+};

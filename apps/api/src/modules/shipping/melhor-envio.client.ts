@@ -8,7 +8,7 @@ type MelhorEnvioService = {
 };
 
 /**
- * Cotação pela API do Melhor Envio. Precisa de `MELHOR_ENVIO_TOKEN` e `SHIPPING_ORIGIN_ZIP` (CEP de onde a loja despacha);
+ * Cotação pela API do Melhor Envio. Precisa de `MELHOR_ENVIO_TOKEN`; o CEP de origem vem do cadastro da loja (ou, na falta dele, de `SHIPPING_ORIGIN_ZIP`);
  * `MELHOR_ENVIO_SANDBOX=true` usa o ambiente de testes deles.
  */
 @Injectable()
@@ -17,7 +17,7 @@ export class MelhorEnvioClient implements CarrierQuotes {
   private readonly logger = new Logger(MelhorEnvioClient.name);
 
   get enabled() {
-    return Boolean(process.env.MELHOR_ENVIO_TOKEN && originZip());
+    return Boolean(process.env.MELHOR_ENVIO_TOKEN);
   }
 
   async quote({ fromZip, toZip, packages }: { fromZip: string; toZip: string; packages: CarrierPackage[] }): Promise<CarrierOffer[]> {
@@ -54,4 +54,5 @@ export class MelhorEnvioClient implements CarrierQuotes {
   }
 }
 
-export const originZip = () => (process.env.SHIPPING_ORIGIN_ZIP ?? '').replace(/\D/g, '');
+/** CEP de origem definido no servidor: vale só para lojas que não cadastraram o próprio no painel. */
+export const envOriginZip = () => (process.env.SHIPPING_ORIGIN_ZIP ?? '').replace(/\D/g, '');

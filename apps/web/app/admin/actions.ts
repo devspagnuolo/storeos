@@ -786,3 +786,16 @@ export async function restoreEmailTemplateAction(_: TemplateFormState, form: For
   revalidatePath('/admin/emails');
   return { ok: 'Voltou ao texto padrão.' };
 }
+
+export async function saveShippingOriginAction(_: FormState, form: FormData): Promise<FormState> {
+  const zip = String(form.get('zipCode') ?? '').trim();
+  try {
+    await adminFetch('/shipping/origin', { method: 'PUT', body: { zipCode: zip ? zip : null } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/frete');
+  revalidatePath('/admin/diagnostico');
+  return { ok: zip ? 'CEP de origem salvo.' : 'CEP da loja removido. Vale o do servidor, se houver.' };
+}
