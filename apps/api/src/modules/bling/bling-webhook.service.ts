@@ -45,7 +45,8 @@ export class BlingWebhookService {
     }
 
     const companyId = String(payload.companyId);
-    const connections = await this.prisma.blingConnection.count({ where: { companyId } });
+    let connections = await this.prisma.blingConnection.count({ where: { companyId } });
+    if (!connections) connections = await this.linkSoleConnection(companyId);
     if (!connections) return { received: true, ignored: true };
 
     const eventId = payload.eventId?.trim() || createHash('sha256').update(rawBody).digest('hex');
@@ -63,6 +64,17 @@ export class BlingWebhookService {
     });
 
     return { received: true, ignored: false, queued: result.count === 1, duplicate: result.count === 0 };
+  }
+
+  /**
+   * Conexão feita sem a permissão de leitura da empresa fica sem `companyId`. Como o webhook já veio assinado
+   * com o segredo do nosso aplicativo, se existe exatamente uma conexão sem empresa, o ID vem do próprio evento.
+   */
+  private async linkSoleConnection(companyId: string) {
+    const unlinked = await this.prisma.blingConnection.findMany({ where: { companyId: null }, select: { storeId: true }, take: 2 });
+    if (unlinked.length !== 1) return 0;
+    const done = await this.prisma.blingConnection.updateMany({ where: { storeId: unlinked[0].storeId, companyId: null }, data: { companyId, lastError: null } });
+    return done.count;
   }
 
   @Interval(2_000)
