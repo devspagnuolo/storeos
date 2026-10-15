@@ -49,8 +49,9 @@ async function ThemeHomeSection({ section, store, products, categories, primary,
   const settings = section.settings;
   switch (section.type) {
     case 'storeos.announcement.v1': {
-      const message = text(settings.text, text(globalSettings.announcementText));
-      if (!message || globalSettings.showAnnouncement === false) return null;
+      // O aviso geral já aparece na faixa do topo de todas as páginas; aqui só um texto próprio desta seção.
+      const message = text(settings.text);
+      if (!message || message === text(globalSettings.announcementText) || globalSettings.showAnnouncement === false) return null;
       return <div className="px-4 py-2 text-center text-sm font-medium text-white" style={{ backgroundColor: primary }}>
         {settings.linkUrl ? <Link href={text(settings.linkUrl, '/')} className="underline underline-offset-2">{message}</Link> : message}
       </div>;

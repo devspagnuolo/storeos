@@ -341,8 +341,8 @@ export function StorefrontBuilder({ state, hasBanners, institutional }: { state:
             {doc.design.faviconUrl && <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><span className="flex items-center gap-2 rounded-t-lg bg-surface px-3 py-1.5 text-xs shadow-sm"><img src={doc.design.faviconUrl} alt="Favicon atual" className="h-4 w-4 object-contain" />Sua loja</span><button type="button" className="ml-auto text-sm text-slate-500 underline hover:text-red-700" onClick={() => setDesign({ faviconUrl: null })}>Remover</button></div>}
             <ImageUploader kind="other" label="Enviar favicon (quadrado, 64 × 64 px ou maior)" onUploaded={urls => setDesign({ faviconUrl: urls[0] })} />
           </Card>
-          <Card title="Faixa de aviso" help="Uma frase curta no topo de todas as páginas. Deixe vazio para não mostrar.">
-            <label className="text-sm font-medium">Mensagem no topo da loja<input className="input" maxLength={100} placeholder="Frete grátis acima de R$ 299" value={doc.announcementText} onChange={e => update({ announcementText: e.currentTarget.value })} /></label>
+          <Card title="Faixa de aviso" help="Fica no topo de todas as páginas. O frete grátis aparece ali sozinho, a partir das suas regras de frete; use este campo para outro recado.">
+            <label className="text-sm font-medium">Mensagem no topo da loja<input className="input" maxLength={100} placeholder="Troca fácil em até 30 dias" value={doc.announcementText} onChange={e => update({ announcementText: e.currentTarget.value })} /></label>
             {doc.announcementText && <p aria-hidden className="truncate rounded-lg px-3 py-2 text-center text-xs font-semibold" style={{ backgroundColor: doc.accentColor, color: accentFg }}>{doc.announcementText}</p>}
           </Card>
         </div>}
