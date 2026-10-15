@@ -1,4 +1,5 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { AnalyticsService } from '../src/modules/analytics/analytics.service';
 import { checkoutBody, cleanup, createStore, login, startApp } from './helpers';
 
 let app: NestExpressApplication;
@@ -31,6 +32,18 @@ describe('analytics de vendas', () => {
     expect(report.body.topProducts[0]).toMatchObject({ sku: 'VASO-1', quantity: 3 });
     expect(report.body.funnel).toEqual([{ stage: 'Pedidos criados', count: 3 }, { stage: 'Pagos', count: 2 }, { stage: 'Enviados', count: 0 }, { stage: 'Entregues', count: 0 }]);
     expect(report.body.coupons).toEqual([{ code: 'PROMO', uses: 1, discount: '10.00' }]);
+
+    expect(report.body.byPayment).toEqual([{ method: 'BOLETO', orders: 2, revenue: '139.70' }]);
+    expect(report.body.byState).toEqual([{ state: 'SP', orders: 2, revenue: '139.70' }]);
+    expect(report.body.byCategory).toEqual([{ name: 'Casa', quantity: 3, revenue: '149.70' }]);
+    expect(report.body.buyerKinds).toEqual({ firstTime: 1, returning: 0 });
+    expect(report.body.previous).toMatchObject({ revenue: '0.00', orders: 0 });
+
+    const csv = await app.get(AnalyticsService).ordersCsv(store.id);
+    const lines = csv.trim().split('\r\n');
+    expect(lines).toHaveLength(4); // cabeçalho + 3 pedidos
+    expect(lines[0]).toContain('Pedido;Data;Situação');
+    expect(lines.join('\n')).toContain('PROMO');
 
     expect((await api('/analytics/sales?from=2026-10-10&to=2026-10-01', { token: admin })).status).toBe(400);
     expect((await api('/analytics/sales?from=abc', { token: admin })).status).toBe(400);

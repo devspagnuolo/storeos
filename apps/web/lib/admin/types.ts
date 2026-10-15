@@ -38,6 +38,11 @@ export type CustomerProfile = {
 export type SalesReport = {
   from: string; to: string;
   totals: { revenue: string; orders: number; averageTicket: string; discount: string; shipping: string; buyers: number; newCustomers: number };
+  previous: { from: string; to: string; revenue: string; orders: number; averageTicket: string };
+  byPayment: { method: string; orders: number; revenue: string }[];
+  byState: { state: string; orders: number; revenue: string }[];
+  byCategory: { name: string; quantity: number; revenue: string }[];
+  buyerKinds: { firstTime: number; returning: number };
   series: { day: string; revenue: string; orders: number }[];
   topProducts: { sku: string; name: string; quantity: number; revenue: string }[];
   funnel: { stage: string; count: number }[];

@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IsOptional, Matches } from 'class-validator';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
@@ -10,5 +10,6 @@ class RangeQuery { @IsOptional() @Matches(DATE) from?: string; @IsOptional() @Ma
 
 @ApiTags('Analytics') @Controller('analytics') export class AnalyticsController {
   constructor(private readonly analytics: AnalyticsService) {}
+  @Get('orders.csv') @Header('Content-Type', 'text/csv; charset=utf-8') @Header('Content-Disposition', 'attachment; filename="pedidos.csv"') @RequirePermissions(Permissions.ORDERS_READ) ordersCsv(@CurrentStore() storeId: string, @Query() { from, to }: RangeQuery) { return this.analytics.ordersCsv(storeId, from, to); }
   @Get('sales') @RequirePermissions(Permissions.ORDERS_READ) sales(@CurrentStore() storeId: string, @Query() { from, to }: RangeQuery) { return this.analytics.sales(storeId, from, to); }
 }
