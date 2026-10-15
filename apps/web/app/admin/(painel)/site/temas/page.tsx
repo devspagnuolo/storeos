@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { installThemeAction } from '../../../actions';
+import { deactivateThemeAction, installThemeAction } from '../../../actions';
 import { ReadyThemeGallery, type ReadyThemeCard } from '../../../../../components/admin/ready-themes';
 import { adminFetch } from '../../../../../lib/admin/session';
 
@@ -69,7 +69,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
       <h2 className="text-xl font-bold">Instalados nesta loja</h2>
       {installations.length ? <div className="mt-4 grid gap-3">{installations.map(item => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-surface p-4">
         <div><h3 className="font-semibold">{item.release.manifest.displayName}</h3><p className="mt-1 text-sm text-slate-500">Versão {item.release.version} · instalado em {new Date(item.installedAt).toLocaleDateString('pt-BR')} · rascunho {item.drafts[0]?.revision ?? '—'}</p></div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</span>
+        <div className="flex items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</span>{item.status === 'ACTIVE' && <form action={deactivateThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button-ghost" type="submit">Desativar e voltar ao editor</button></form>}</div>
       </article>)}</div> : <p className="mt-3 rounded-xl border border-dashed p-6 text-sm text-slate-500">Você ainda não instalou um tema.</p>}
     </section>
   </>;

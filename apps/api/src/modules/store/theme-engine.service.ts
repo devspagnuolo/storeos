@@ -210,4 +210,13 @@ export class ThemeEngineService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
+  /** Desativa o tema do motor: a página inicial volta a obedecer ao editor da loja. Publicações ficam no histórico. */
+  async deactivate(storeId: string, installationId: string) {
+    const result = await this.prisma.themeInstallation.updateMany({
+      where: { id: installationId, storeId, status: 'ACTIVE' },
+      data: { status: 'INACTIVE' },
+    });
+    if (result.count !== 1) throw new NotFoundException('Nenhum tema ativo com este identificador.');
+    return { ok: true };
+  }
 }

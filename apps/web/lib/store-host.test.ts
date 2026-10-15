@@ -12,5 +12,7 @@ describe('subdomínio da plataforma', () => {
     expect(platformSlug('-vivi.lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBeNull();
     expect(platformSlug('lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBeNull();
     expect(platformSlug('vivi.lojas.exemplo.com.br', '')).toBeNull();
+    expect(platformSlug('www.lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBeNull();
+    expect(platformSlug('mail.lojas.exemplo.com.br', 'lojas.exemplo.com.br')).toBeNull();
   });
 });
