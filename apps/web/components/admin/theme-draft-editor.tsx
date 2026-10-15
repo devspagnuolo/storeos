@@ -12,7 +12,7 @@ export type ThemeDocument = {
   global: { designTokens: { colors?: Record<string, string>; typography?: Record<string, string | number>; spacing?: Record<string, string | number>; shape?: Record<string, string | number> }; settings: Record<string, JsonValue> };
 };
 type FieldSchema = { title?: string; type?: string; enum?: (string | number)[]; maxLength?: number; minimum?: number; maximum?: number };
-type SectionDefinition = { type: string; title: string; description: string; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
+type BlockDefinition = { type: string; title: string; settingsSchema: { properties?: Record<string, FieldSchema> } };\ntype SectionDefinition = { type: string; title: string; description: string; maxBlocks: number; blockTypes: string[]; blockDefinitions?: BlockDefinition[]; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
 export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[]; globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
 
 function labelFor(key: string, schema: FieldSchema) {
@@ -62,6 +62,17 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
       ordered.splice(nextIndex, 0, item);
       return { ...current, templates: { ...current.templates, [templateKey]: { ...current.templates[templateKey], sections: ordered } } };
     });
+  }
+
+  function addBlock(sectionId: string, definition: BlockDefinition) {
+    const id = crypto.randomUUID();
+    const settings = Object.fromEntries(Object.entries(definition.settingsSchema.properties ?? {}).map(([key, schema]) => [
+      key,
+      schema.type === 'boolean' ? false : schema.type === 'integer' || schema.type === 'number' ? schema.minimum ?? 0 : '',
+    ])) as Record<string, JsonValue>;
+    updateSection(sectionId, section => section.blocks.length >= (manifest.sections.find(item => item.type === section.type)?.maxBlocks ?? 0)
+      ? section
+      : { ...section, blocks: [...section.blocks, { id, type: definition.type, enabled: true, settings }] });
   }
 
   function save() {
@@ -137,7 +148,20 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
             <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2">
               {Object.entries(definition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} name={labelFor(key, schema)} schema={schema} value={section.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, settings: { ...current.settings, [key]: value } }))} />)}
               {!Object.keys(definition.settingsSchema.properties ?? {}).length && <p className="text-sm text-slate-500">Esta seção não tem opções configuráveis nesta versão.</p>}
-              {section.blocks.length > 0 && <p className="text-xs text-slate-500 sm:col-span-2">Os blocos deste tema serão editáveis quando o manifesto declarar seus campos para o editor.</p>}
+              {definition.blockDefinitions?.map(blockDefinition => {
+                const blockInstances = section.blocks.filter(block => block.type === blockDefinition.type);
+                return <div key={blockDefinition.type} className="grid gap-3 border-t pt-4 sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="text-sm font-semibold">{blockDefinition.title}</h4><p className="text-xs text-slate-500">{blockInstances.length} de {definition.maxBlocks} blocos</p></div>
+                    <button type="button" className="rounded-lg border px-3 py-2 text-sm font-semibold" disabled={section.blocks.length >= definition.maxBlocks} onClick={() => addBlock(section.id, blockDefinition)}>+ Adicionar bloco</button>
+                  </div>
+                  {blockInstances.map((block, blockIndex) => <fieldset key={block.id} className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
+                    <legend className="px-1 text-xs font-medium text-slate-500">{blockDefinition.title} {blockIndex + 1}</legend>
+                    {Object.entries(blockDefinition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} name={labelFor(key, schema)} schema={schema} value={block.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, blocks: current.blocks.map(item => item.id === block.id ? { ...item, settings: { ...item.settings, [key]: value } } : item) }))} />)}
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={block.enabled} onChange={event => { const enabled = event.currentTarget.checked; updateSection(section.id, current => ({ ...current, blocks: current.blocks.map(item => item.id === block.id ? { ...item, enabled } : item) })); }} />Visível</label>
+                    <button type="button" className="justify-self-start text-sm font-semibold text-red-700 underline" onClick={() => updateSection(section.id, current => ({ ...current, blocks: current.blocks.filter(item => item.id !== block.id) }))}>Remover bloco</button>
+                  </fieldset>)}
+                </div>;
+              })}
             </div>
           </article>;
         })}
@@ -195,6 +219,7 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
               <div>{settings.eyebrow ? <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: primary }}>{String(settings.eyebrow)}</p> : null}
                 <h3 className="text-2xl font-bold">{String(settings.title ?? '')}</h3><p className="mt-2 text-sm">{String(settings.subtitle ?? '')}</p>
                 {settings.ctaLabel ? <span className="mt-4 inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: primary }}>{String(settings.ctaLabel)}</span> : null}
+                {section.blocks.some(block => block.enabled) && <ul className="mt-4 flex flex-wrap gap-2">{section.blocks.filter(block => block.enabled).map(block => <li key={block.id} className="rounded-full border px-3 py-1 text-xs">{String(block.settings.title ?? '')}{block.settings.text ? ` · ${String(block.settings.text)}` : ''}</li>)}</ul>}
               </div>
               <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed bg-white/70 text-xs text-slate-500">{settings.imageUrl ? 'Imagem do banner configurada' : 'Espaço do banner'}</div>
             </section>;
