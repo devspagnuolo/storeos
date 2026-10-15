@@ -22,6 +22,7 @@ import { MediaModule } from './modules/media/media.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 import { RedirectsModule } from './modules/redirects/redirects.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SeoModule } from './modules/seo/seo.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { AutomationsModule } from './modules/automations/automations.module';
@@ -50,6 +51,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     AutomationsModule,
     SeoModule,
     RedirectsModule,
+    ReviewsModule,
     MediaModule,
     BlingModule,
     NotificationsModule,

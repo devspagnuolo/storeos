@@ -71,3 +71,10 @@ export function defaultMenu(categories: Category[]): MenuLink[] {
 
 export type BannerSlide = { id: string; imageUrl: string; mobileImageUrl: string | null; title: string | null; subtitle: string | null; ctaLabel: string | null; linkUrl: string | null };
 export const getBanners = () => get<BannerSlide[]>(store => `/engagement/banners?store=${encodeURIComponent(store)}`, []);
+
+export type ReviewSummary = { count: number; average: number; distribution: Record<1 | 2 | 3 | 4 | 5, number> };
+export type PublicReview = { id: string; author: string; rating: number; title: string | null; body: string; reply: string | null; createdAt: string; verified: boolean };
+export type ProductReviews = { summary: ReviewSummary; items: PublicReview[] };
+const noReviews: ProductReviews = { summary: { count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } }, items: [] };
+
+export const getReviews = (productSlug: string) => get<ProductReviews>(store => `/reviews/public?store=${encodeURIComponent(store)}&product=${encodeURIComponent(productSlug)}`, noReviews);

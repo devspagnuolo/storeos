@@ -157,3 +157,6 @@ export type FeedStatus = {
 };
 
 export type AdminRedirect = { id: string; fromPath: string; toPath: string; hits: number; lastHitAt: string | null };
+
+export type AdminReview = { id: string; authorName: string; rating: number; title: string | null; body: string; status: 'PENDING' | 'APPROVED' | 'REJECTED'; reply: string | null; createdAt: string; product: { id: string; name: string; slug: string } };
+export type AdminReviewPage = { items: AdminReview[]; total: number; page: number; pageSize: number; counts: Record<'PENDING' | 'APPROVED' | 'REJECTED', number> };

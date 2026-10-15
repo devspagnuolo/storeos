@@ -157,7 +157,7 @@ export class CustomersService {
   async anonymize(storeId: string, id: string) {
     const done = await this.prisma.$transaction(async tx => {
       const result = await tx.customer.updateMany({ where: { id, storeId, anonymizedAt: null }, data: { name: 'Cliente anonimizado', email: `anonimo-${id}@removido.invalid`, phone: null, notes: null, tags: [], marketingOptIn: false, anonymizedAt: new Date() } });
-      if (result.count) { await tx.address.deleteMany({ where: { customerId: id } }); await tx.customerNote.deleteMany({ where: { customerId: id } }); }
+      if (result.count) { await tx.address.deleteMany({ where: { customerId: id } }); await tx.customerNote.deleteMany({ where: { customerId: id } }); await tx.productReview.updateMany({ where: { customerId: id }, data: { authorName: 'Cliente', customerId: null } }); }
       return result.count;
     });
     if (!done) throw new NotFoundException('Cliente não encontrado ou já anonimizado');

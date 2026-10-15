@@ -93,6 +93,7 @@ model Store {
   emailCampaigns EmailCampaign[]
   warehouses     Warehouse[]
   loyaltyConfig LoyaltyConfig?
+  productReviews ProductReview[]
   redirects Redirect[]
   automationRules AutomationRule[]
 }
@@ -202,6 +203,7 @@ model Product {
   categories     ProductCategory[]
   brand          Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
   collections    CollectionProduct[]
+  reviews        ProductReview[]
 
   @@unique([storeId, slug])
   @@unique([storeId, sku])
@@ -1211,4 +1213,34 @@ model Redirect {
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, fromPath])
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Avaliação de produto feita por quem comprou (pedido pago); só aparece na loja depois de aprovada pelo lojista.
+model ProductReview {
+  id         String       @id @default(uuid())
+  storeId    String
+  productId  String
+  orderId    String
+  customerId String?
+  authorName String
+  rating     Int
+  title      String?
+  body       String
+  status     ReviewStatus @default(PENDING)
+  reply      String?
+  repliedAt  DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  product    Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store      Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, productId])
+  @@index([storeId, status, createdAt])
+  @@index([productId, status])
 }
