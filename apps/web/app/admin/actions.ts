@@ -715,3 +715,23 @@ export async function refundOrderAction(_: FormState, form: FormData): Promise<F
   revalidatePath('/admin', 'layout');
   return { ok: 'Reembolso registrado.' };
 }
+
+export type ManualOrderLine = { productId: string; variantId?: string; quantity: number; unitPrice?: string };
+export type ManualOrderPayload = {
+  customer: { name: string; email: string; phone?: string; document?: string };
+  shippingAddress?: { zipCode: string; street: string; number: string; complement?: string; district?: string; city: string; state: string };
+  items: ManualOrderLine[]; paymentMethod: 'PIX' | 'BOLETO' | 'CREDIT_CARD'; paid: boolean; discount?: string; shipping?: string; shippingMethod?: string; note?: string;
+};
+
+/** Cria a venda manual; em sucesso o painel segue para o pedido. */
+export async function createManualOrderAction(payload: ManualOrderPayload): Promise<{ error?: string }> {
+  let number: string;
+  try {
+    number = (await adminFetch<{ number: string }>('/orders/manual', { method: 'POST', body: payload })).number;
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin', 'layout');
+  redirect(`/admin/pedidos/${encodeURIComponent(number)}`);
+}
