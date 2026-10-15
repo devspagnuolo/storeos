@@ -33,7 +33,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
 
     <section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
       <h2 className="font-bold">Sobre a instalação de temas</h2>
-      <p className="mt-1">O editor do rascunho já permite configurar identidade, seções e campos do tema. A prévia e a publicação ainda não estão ligadas à vitrine pública; use “Personalizar loja atual” para mudar o site que os clientes veem.</p>
+      <p className="mt-1">Instalar cria um rascunho e não muda o site. Ao publicar um tema desta biblioteca, ele passa a desenhar a <strong>página inicial</strong> e o editor “Personalizar loja atual” deixa de controlar essa página. Para ajustar a loja que os clientes veem hoje, use “Personalizar loja atual”.</p>
     </section>
 
     <section className="mt-10">
