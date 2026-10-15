@@ -20,7 +20,7 @@ class CheckoutDto {
   @IsEnum(PaymentMethod) paymentMethod!: PaymentMethod;
   @IsOptional() @IsString() shippingRuleId?: string;
   @IsOptional() @IsString() @MaxLength(32) couponCode?: string;
-  @IsOptional() @IsString() @MaxLength(20) cpf?: string;
+  @IsString() @Length(11, 14) cpf!: string;
   @IsOptional() @ValidateNested() @Type(() => CardDto) card?: CardDto;
 }
 @ApiTags('Checkout') @Controller('checkout') export class CheckoutController { constructor(private readonly checkoutService: CheckoutService) {} @Post() @Throttle({ default: { limit: 10, ttl: 60_000 } }) checkout(@Body() dto: CheckoutDto) { return this.checkoutService.checkout(dto); } }
