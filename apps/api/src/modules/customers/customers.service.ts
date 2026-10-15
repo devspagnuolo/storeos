@@ -112,9 +112,8 @@ export class CustomersService {
       ...noteRows.map(n => ({ at: n.createdAt, kind: 'NOTE' as const, title: `Anotação de ${n.authorName}`, detail: n.body })),
     ];
 
-    const { noteEntries: _unused, ...rest } = customer as typeof customer & { noteEntries?: unknown };
     return {
-      ...rest,
+      ...customer,
       noteEntries: noteRows,
       newsletter: subscriber ? { subscribed: !subscriber.unsubscribedAt, since: subscriber.createdAt, unsubscribedAt: subscriber.unsubscribedAt } : null,
       favoriteCategories: favorites.map(f => ({ name: f.name, quantity: Number(f.quantity) })),
