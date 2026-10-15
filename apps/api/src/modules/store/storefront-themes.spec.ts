@@ -10,6 +10,13 @@ describe('temas prontos', () => {
     }
   });
 
+  it('os 12 temas têm identidade própria (visual e layout) e contraste suficiente', () => {
+    expect(READY_THEMES.length).toBeGreaterThanOrEqual(12);
+    const signature = (t: (typeof READY_THEMES)[number]) => JSON.stringify([t.config.accentColor, t.config.design?.preset, t.config.design?.cardStyle, t.config.design?.heroTone, t.config.design?.mode]);
+    expect(new Set(READY_THEMES.map(signature)).size).toBe(READY_THEMES.length);
+    expect(READY_THEMES.some(t => t.config.design?.mode === 'dark')).toBe(true);
+  });
+
   it('troca {loja} pelo nome e não deixa o token no resultado', () => {
     const config = buildThemeConfig(findReadyTheme('elegante')!, 'Vivi Moda', null);
     expect(JSON.stringify(config)).not.toContain('{loja}');

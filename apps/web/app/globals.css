@@ -61,7 +61,18 @@
   color-scheme: dark;
   }
   body { @apply bg-slate-50 text-slate-900 antialiased; }
+  h1, h2, h3 { font-family: var(--heading-font, inherit); letter-spacing: var(--heading-tracking, normal); }
   :focus-visible { @apply outline-2 outline-offset-2 outline-brand; }
   @media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 }
-@layer components { .shell { @apply mx-auto px-4 sm:px-6 lg:px-8; max-width: var(--container, 80rem); } .card { @apply rounded-2xl border border-slate-200 bg-surface shadow-sm; } .input { @apply mt-1 w-full rounded-xl border border-slate-300 bg-surface px-3 py-2 font-normal; } .badge { @apply inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold; } .button-ghost { @apply inline-flex items-center justify-center border border-slate-300 bg-surface px-4 py-2.5 font-medium transition hover:border-brand; border-radius: var(--btn-radius, .75rem); } .button { @apply inline-flex items-center justify-center bg-brand px-4 py-2.5 font-medium text-brand-fg transition hover:opacity-90; border-radius: var(--btn-radius, .75rem); } }
+@layer components { .shell { @apply mx-auto px-4 sm:px-6 lg:px-8; max-width: var(--container, 80rem); } .card { @apply border border-slate-200 bg-surface; border-radius: var(--card-radius, 1rem); border-width: var(--card-border-width, 1px); box-shadow: var(--card-shadow, 0 1px 2px 0 rgb(0 0 0 / 0.05)); background-color: var(--card-bg, rgb(var(--surface))); } .input { @apply mt-1 w-full rounded-xl border border-slate-300 bg-surface px-3 py-2 font-normal; } .badge { @apply inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold; } .button-ghost { @apply inline-flex items-center justify-center border border-slate-300 bg-surface px-4 py-2.5 font-medium transition hover:border-brand; border-radius: var(--btn-radius, .75rem); } .button { @apply inline-flex items-center justify-center bg-brand px-4 py-2.5 font-medium text-brand-fg transition hover:opacity-90; border-radius: var(--btn-radius, .75rem); } }
+/* Destaque da página inicial: o tom vem do tema (data-hero no body). */
+.hero { background: rgb(var(--ink, 17 24 39)); color: #fff; }
+body[data-hero='light'] .hero { background: rgb(var(--brand) / 0.09); color: rgb(var(--slate-900)); }
+body[data-hero='light'] .hero .hero-muted { color: rgb(var(--slate-600)); }
+body[data-hero='brand'] .hero { background: rgb(var(--brand)); color: rgb(var(--brand-fg)); }
+body[data-hero='brand'] .hero .hero-muted { color: rgb(var(--brand-fg) / 0.85); }
+body[data-hero='brand'] .hero .button { background: rgb(var(--brand-fg)); color: rgb(var(--brand)); }
+.hero .hero-muted { color: rgb(203 213 225); }
+.hero-overlay { color: #fff; }
+.hero-overlay .hero-muted { color: rgb(226 232 240); }

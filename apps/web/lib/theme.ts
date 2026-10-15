@@ -36,7 +36,25 @@ export function accentOf(config: StorefrontConfig) {
 }
 
 /** Variáveis CSS (e cores da página) derivadas da configuração; só números e listas fixas, nunca texto livre. */
-export function themeStyle(config: StorefrontConfig): Record<string, string> {
+const CARD_STYLES: Record<string, Record<string, string>> = {
+  soft: {},
+  flat: { '--card-border-width': '0px', '--card-shadow': 'none', '--card-radius': '0.5rem', '--card-bg': 'rgb(var(--slate-100))' },
+  outline: { '--card-border-width': '1px', '--card-shadow': 'none', '--card-radius': '0.375rem' },
+  elevated: { '--card-border-width': '0px', '--card-shadow': '0 10px 30px -12px rgb(15 23 42 / 0.25)', '--card-radius': '1.25rem' },
+};
+const HEADING_FONTS: Record<string, Record<string, string>> = {
+  same: {},
+  serif: { '--heading-font': 'ui-serif, Georgia, Cambria, "Times New Roman", serif', '--heading-tracking': '-0.01em' },
+  display: { '--heading-font': 'inherit', '--heading-tracking': '-0.03em' },
+};
+
+/** Só o que é seguro para a vitrine: valores vêm de listas fixas, nunca de texto livre. */
+export function themeAttributes(config: StorefrontConfig) {
+  const design = config.design ?? {};
+  return { dark: design.mode === 'dark', heroTone: ['dark', 'light', 'brand'].includes(design.heroTone ?? '') ? design.heroTone as string : 'dark' };
+}
+
+export function themeStyle(config: StorefrontConfig, { admin = false }: { admin?: boolean } = {}): Record<string, string> {
   const design = config.design ?? {};
   const preset = PRESETS[design.preset ?? 'classico'] ?? PRESETS.classico;
   const accent = accentOf(config);
@@ -48,6 +66,7 @@ export function themeStyle(config: StorefrontConfig): Record<string, string> {
     '--section-y': SPACING[design.spacing ?? preset.design.spacing],
     fontFamily: FONTS[design.font ?? preset.design.font],
   };
+  if (!admin) Object.assign(style, CARD_STYLES[design.cardStyle ?? 'soft'], HEADING_FONTS[design.headingFont ?? 'same']);
   if (design.backgroundColor) { style.backgroundColor = design.backgroundColor; style['--page-bg'] = hexToChannels(design.backgroundColor); }
   if (design.textColor) style.color = design.textColor;
   return style;

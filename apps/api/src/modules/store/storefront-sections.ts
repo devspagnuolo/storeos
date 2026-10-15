@@ -22,10 +22,15 @@ export const DESIGN_OPTIONS = {
   buttonRadius: ['none', 'sm', 'md', 'full'],
   containerWidth: ['narrow', 'normal', 'wide'],
   spacing: ['compact', 'normal', 'relaxed'],
+  cardStyle: ['soft', 'flat', 'outline', 'elevated'],
+  headingFont: ['same', 'serif', 'display'],
+  heroTone: ['dark', 'light', 'brand'],
+  mode: ['light', 'dark'],
 } as const;
 
 export type StorefrontDesign = {
   preset?: string; font?: string; buttonRadius?: string; containerWidth?: string; spacing?: string;
+  cardStyle?: string; headingFont?: string; heroTone?: string; mode?: string;
   logoUrl?: string | null; faviconUrl?: string | null; backgroundColor?: string; textColor?: string;
 };
 
@@ -58,6 +63,12 @@ function optionalUrl(value: unknown, label: string): string | null {
 function integer(value: unknown, label: string, min: number, max: number, fallback: number): number {
   if (value === undefined || value === null || value === '') return fallback;
   if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) return fail(`${label} precisa ser um número entre ${min} e ${max}.`);
+  return value;
+}
+
+function choice(value: unknown, allowed: readonly string[], fallback: string, label: string): string {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value !== 'string' || !allowed.includes(value)) return fail(`${label}: opção inválida.`);
   return value;
 }
 
@@ -96,11 +107,12 @@ export function parseVideo(input: unknown): { provider: 'youtube' | 'vimeo'; vid
 const sanitizers: Record<SectionType, (props: Record<string, unknown>) => Record<string, unknown>> = {
   banners: props => { onlyKeys(props, [], 'banners'); return {}; },
   hero: props => {
-    onlyKeys(props, ['title', 'description', 'cta', 'ctaHref', 'imageUrl', 'imageAlt'], 'hero');
+    onlyKeys(props, ['title', 'description', 'cta', 'ctaHref', 'imageUrl', 'imageAlt', 'layout'], 'hero');
     return {
       title: text(props.title, 'Título', 120, { required: true }), description: text(props.description, 'Texto de apoio', 300),
       cta: text(props.cta, 'Texto do botão', 40), ctaHref: props.ctaHref ? safeUrl(props.ctaHref, 'Link do botão') : '/categorias',
       imageUrl: optionalUrl(props.imageUrl, 'Imagem'), imageAlt: text(props.imageAlt, 'Texto alternativo', 140),
+      layout: choice(props.layout, ['split', 'centered', 'overlay'], 'split', 'Layout do destaque'),
     };
   },
   image: props => {
@@ -121,16 +133,16 @@ const sanitizers: Record<SectionType, (props: Record<string, unknown>) => Record
     return { heading: text(props.heading, 'Título', 120), body: text(props.body, 'Texto', 2000), align };
   },
   categories: props => {
-    onlyKeys(props, ['heading', 'limit'], 'categories');
-    return { heading: text(props.heading, 'Título', 80), limit: integer(props.limit, 'Quantidade', 1, 12, 6) };
+    onlyKeys(props, ['heading', 'limit', 'layout'], 'categories');
+    return { heading: text(props.heading, 'Título', 80), limit: integer(props.limit, 'Quantidade', 1, 12, 6), layout: choice(props.layout, ['cards', 'circles'], 'cards', 'Layout das categorias') };
   },
   products: props => {
-    onlyKeys(props, ['heading', 'subheading', 'limit', 'categorySlug', 'productIds'], 'products');
+    onlyKeys(props, ['heading', 'subheading', 'limit', 'categorySlug', 'productIds', 'columns'], 'products');
     const productIds = props.productIds === undefined || props.productIds === null ? [] : props.productIds;
     if (!Array.isArray(productIds) || productIds.length > 24 || productIds.some(id => typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) || new Set(productIds).size !== productIds.length) fail('Produtos escolhidos inválidos (até 24, sem repetir).');
     const slug = text(props.categorySlug, 'Categoria', 120);
     if (slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) fail('Categoria inválida.');
-    return { heading: text(props.heading, 'Título', 80), subheading: text(props.subheading, 'Subtítulo', 80), limit: integer(props.limit, 'Quantidade', 1, 24, 8), categorySlug: slug, productIds };
+    return { heading: text(props.heading, 'Título', 80), subheading: text(props.subheading, 'Subtítulo', 80), limit: integer(props.limit, 'Quantidade', 1, 24, 8), categorySlug: slug, productIds, columns: choice(props.columns, ['3', '4', '5'], '4', 'Colunas') };
   },
   benefits: props => {
     onlyKeys(props, ['items'], 'benefits');

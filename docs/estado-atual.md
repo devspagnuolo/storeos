@@ -29,7 +29,7 @@ Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao la
 | Escolha visual de produtos já cadastrados nas seções | ✅ | Guarda só os ids; até 24 por seção; produto despublicado some da loja |
 | Menus, banners, WhatsApp, páginas institucionais, newsletter | ✅ | |
 | Motor de temas (biblioteca, instalação, rascunho, publicar a página inicial) | 🟡 | Recurso avançado em `/painel/site/temas`; desenha só a página inicial e, quando publicado, substitui o editor nela. Veja `avaliacao-total-2026-10-15.md` |
-| Temas prontos (6: Essencial, Elegante, Vibrante, Natural, Tecnologia, Gourmet) | ✅ | Em `/painel/site/temas`; aplicam visual + seções de início, categoria e produto ao **rascunho** (logo preservada), sem publicar |
+| Temas prontos (12: Essencial, Elegante, Vibrante, Natural, Tecnologia, Gourmet, Aurora, Noir (escuro), Linho, Pop, Oceano, Rosé; com cantos, cartões, fonte de títulos e modo escuro configuráveis) | ✅ | Em `/painel/site/temas`; aplicam visual + seções de início, categoria e produto ao **rascunho** (logo preservada), sem publicar |
 | Assistente único de criação (`/painel/criar-minha-loja`): marca → tema → produtos → pagamento/entrega → publicar | ✅ | Reaproveita as telas e o estado do passo a passo; nada vai ao ar antes do último passo |
 | Loja sem domínio próprio via subdomínio (`slug.vivimodaplussize.com.br`) | 🟡 ⏳ | Código e variável `STORE_BASE_DOMAIN` prontos; exige DNS curinga `*` e o domínio curinga cadastrado no Render (web). Rótulos reservados (www, api, mail…) nunca viram loja |
 

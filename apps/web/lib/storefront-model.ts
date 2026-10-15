@@ -15,9 +15,10 @@ export const SECTION_CATALOG: Record<SectionType, { label: string; description: 
     fields: [
       { key: 'title', label: 'Título', kind: 'text', max: 120 }, { key: 'description', label: 'Texto de apoio', kind: 'textarea', max: 300 },
       { key: 'cta', label: 'Texto do botão', kind: 'text', max: 40 }, { key: 'ctaHref', label: 'Link do botão', kind: 'url', max: 500, placeholder: '/categorias' },
+      { key: 'layout', label: 'Layout', kind: 'select', options: [['split', 'Texto e imagem lado a lado'], ['centered', 'Centralizado'], ['overlay', 'Texto sobre a imagem']] },
       { key: 'imageUrl', label: 'Imagem', kind: 'image' }, { key: 'imageAlt', label: 'Descrição da imagem (acessibilidade)', kind: 'text', max: 140 },
     ],
-    defaults: { title: 'Nova coleção', description: 'Conheça as novidades da loja.', cta: 'Ver produtos', ctaHref: '/categorias', imageUrl: null, imageAlt: '' },
+    defaults: { layout: 'split', title: 'Nova coleção', description: 'Conheça as novidades da loja.', cta: 'Ver produtos', ctaHref: '/categorias', imageUrl: null, imageAlt: '' },
   },
   image: {
     label: 'Imagem', description: 'Uma imagem em largura total, com link opcional.',
@@ -41,8 +42,8 @@ export const SECTION_CATALOG: Record<SectionType, { label: string; description: 
   },
   categories: {
     label: 'Categorias', description: 'Grade com as categorias principais.',
-    fields: [{ key: 'heading', label: 'Título', kind: 'text', max: 80 }, { key: 'limit', label: 'Quantidade (1 a 12)', kind: 'number', min: 1, max: 12 }],
-    defaults: { heading: 'Compre por categoria', limit: 6 },
+    fields: [{ key: 'heading', label: 'Título', kind: 'text', max: 80 }, { key: 'limit', label: 'Quantidade (1 a 12)', kind: 'number', min: 1, max: 12 }, { key: 'layout', label: 'Estilo', kind: 'select', options: [['cards', 'Cartões'], ['circles', 'Círculos']] }],
+    defaults: { heading: 'Compre por categoria', limit: 6, layout: 'cards' },
   },
   products: {
     label: 'Produtos', description: 'Vitrine de produtos, de toda a loja ou de uma categoria.',
@@ -51,8 +52,9 @@ export const SECTION_CATALOG: Record<SectionType, { label: string; description: 
       { key: 'productIds', label: 'Produtos escolhidos', kind: 'products', max: 24, help: 'Escolha entre os produtos já cadastrados. Com produtos escolhidos, a categoria e a quantidade abaixo são ignoradas.' },
       { key: 'categorySlug', label: 'Categoria (código da URL, opcional)', kind: 'text', max: 120, placeholder: 'blusas', help: 'Deixe vazio para mostrar os produtos mais recentes.' },
       { key: 'limit', label: 'Quantidade (1 a 24)', kind: 'number', min: 1, max: 24 },
+      { key: 'columns', label: 'Colunas no computador', kind: 'select', options: [['3', '3 colunas'], ['4', '4 colunas'], ['5', '5 colunas']] },
     ],
-    defaults: { subheading: 'CURADORIA', heading: 'Mais desejados', categorySlug: '', limit: 8, productIds: [] },
+    defaults: { columns: '4', subheading: 'CURADORIA', heading: 'Mais desejados', categorySlug: '', limit: 8, productIds: [] },
   },
   benefits: {
     label: 'Benefícios', description: 'Até 6 destaques curtos (frete, pagamento…).',
