@@ -14,6 +14,9 @@ importers:
 
   apps/api:
     dependencies:
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
       '@storeos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
