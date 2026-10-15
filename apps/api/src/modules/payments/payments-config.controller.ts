@@ -17,7 +17,7 @@ export class PaymentsConfigController {
     const maxFree = maxFreeInstallments();
     // O boleto registrado só existe com o Mercado Pago; sem ele a loja segue com PIX manual.
     const boleto = this.client.configured;
-    if (gateway === 'rede') return { card: { provider: 'rede', maxInstallments, maxFreeInstallments: maxInstallments, minInstallment: Number(process.env.REDE_MIN_INSTALLMENT ?? 5) }, boleto };
+    if (gateway === 'rede') return { card: { provider: 'rede', maxInstallments: 12, maxFreeInstallments: 12, minInstallment: Number(process.env.REDE_MIN_INSTALLMENT ?? 5) }, boleto };
     return { card: gateway === 'mercadopago' ? { provider: 'mercadopago', publicKey: this.client.publicKey, maxInstallments, maxFreeInstallments: maxFree } : null, boleto };
   }
 }
