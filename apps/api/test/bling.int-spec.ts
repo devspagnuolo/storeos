@@ -23,7 +23,7 @@ class FakeBling {
   nextId = 9000;
   products: Record<number, unknown> = {
     1: { id: 1, nome: 'Blusa de Renda', codigo: 'BR-1', preco: 99.9, situacao: 'A', formato: 'V', descricaoComplementar: '<p>Linda blusa</p>', categoria: { id: 3 }, midia: { imagens: { externas: [{ link: 'https://cdn.test/br.jpg' }] } }, variacoes: [{ id: 11, codigo: 'BR-1-P', preco: 99.9, variacao: { nome: 'Tamanho:P' }, estoque: { saldoVirtualTotal: 4 } }, { id: 12, codigo: 'BR-1-G', preco: 109.9, variacao: { nome: 'Tamanho:G' }, estoque: { saldoVirtualTotal: 2 } }] },
-    2: { id: 2, nome: 'Calça Pantalona', codigo: 'CP-1', preco: 150, situacao: 'A', formato: 'S', estoque: { saldoVirtualTotal: 7 } },
+    2: { id: 2, nome: 'Calça Pantalona', codigo: 'CP-1', preco: 150, situacao: 'A', formato: 'S', estoque: { saldoVirtualTotal: 7 }, gtin: '7891000100103', unidade: 'UN', tributacao: { ncm: '6204.62.00', cest: '28.038.00', origem: 0 } },
     3: { id: 3, nome: 'Sem código', preco: 10, situacao: 'A' },
   };
 
@@ -130,6 +130,7 @@ describe('importação de produtos do Bling', () => {
     expect(blusa.inventory.reduce((sum, i) => sum + i.quantity, 0)).toBe(6);
     const calca = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'CP-1' }, include: { inventory: true } });
     expect(calca.inventory[0].quantity).toBe(7);
+    expect(calca).toMatchObject({ ncm: '62046200', cest: '2803800', gtin: '7891000100103', taxOrigin: 0, unit: 'UN' });
 
     const priceBefore = (await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'CP-1' } })).price.toString();
     (bling.products[2] as { preco: number; nome: string; estoque: { saldoVirtualTotal: number } }).preco = 160;

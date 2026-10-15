@@ -2,10 +2,11 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, ProductStatus, StockMovementType } from '@prisma/client';
 import { descendantIds, parentProblem } from './category-tree';
 import { recordMovement } from '../inventory/stock-ledger';
+import { cleanFiscal } from './fiscal-rules';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
 export type ProductQuery = { category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number };
-export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; imageUrls?: string[]; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null };
+export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; imageUrls?: string[]; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; ncm?: string | null; cest?: string | null; gtin?: string | null; taxOrigin?: number | null; unit?: string | null };
 export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string };
 export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
 export type CollectionInput = { name?: string; slug?: string; description?: string; active?: boolean; position?: number; skus?: string[] };
@@ -22,7 +23,7 @@ function assertImageUrls(dto: { bannerUrl?: string | null; bannerMobileUrl?: str
 }
 
 export type CreateCategoryInput = { name: string; slug: string; description?: string; position?: number; parentId?: string | null; bannerUrl?: string | null; bannerMobileUrl?: string | null };
-export type VariantInput = { id?: string; sku: string; attributes: { name: string; value: string }[]; price?: number | null; stock: number; active?: boolean };
+export type VariantInput = { id?: string; gtin?: string | null; sku: string; attributes: { name: string; value: string }[]; price?: number | null; stock: number; active?: boolean };
 export type UpdateCategoryInput = Partial<CreateCategoryInput>;
 
 const isUniqueViolation = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -205,6 +206,10 @@ export class CatalogService {
     }
   }
 
+  private fiscal<T extends { ncm?: string | null; cest?: string | null; gtin?: string | null; unit?: string | null }>(dto: T): T {
+    try { return cleanFiscal(dto); } catch (error) { throw new BadRequestException((error as Error).message); }
+  }
+
   private async assertCategories(storeId: string, categoryIds: string[]) {
     const unique = [...new Set(categoryIds)];
     const count = unique.length ? await this.prisma.category.count({ where: { storeId, id: { in: unique } } }) : 0;
@@ -212,7 +217,8 @@ export class CatalogService {
     return unique;
   }
 
-  async create(storeId: string, { categoryIds = [], stock = 0, imageUrl, imageUrls, status = ProductStatus.DRAFT, ...dto }: CreateProductInput) {
+  async create(storeId: string, { categoryIds = [], stock = 0, imageUrl, imageUrls, status = ProductStatus.DRAFT, ...raw }: CreateProductInput) {
+    const dto = this.fiscal(raw);
     const categories = await this.assertCategories(storeId, categoryIds);
     await this.assertBrand(storeId, dto.brandId);
     try {
@@ -230,7 +236,8 @@ export class CatalogService {
   }
 
   /** Atualiza dados, status, categorias, imagem principal e saldo físico (o reservado não muda aqui). */
-  async update(storeId: string, id: string, { categoryIds, stock, imageUrl, imageUrls, ...dto }: UpdateProductInput) {
+  async update(storeId: string, id: string, { categoryIds, stock, imageUrl, imageUrls, ...raw }: UpdateProductInput) {
+    const dto = this.fiscal(raw);
     const existing = await this.prisma.product.findFirst({ where: { id, storeId }, include: { inventory: true, _count: { select: { variants: true } } } });
     if (!existing) throw new NotFoundException('Produto não encontrado');
     const categories = categoryIds && await this.assertCategories(storeId, categoryIds);
@@ -323,7 +330,7 @@ export class CatalogService {
       await this.prisma.$transaction(async tx => {
         await tx.productVariant.deleteMany({ where: { productId, id: { notIn: [...keep] as string[] } } });
         for (const [position, entry] of input.entries()) {
-          const data = { sku: entry.sku.trim(), attributes: entry.attributes.map(a => ({ name: a.name.trim(), value: a.value.trim() })) as Prisma.InputJsonArray, price: entry.price ?? null, active: entry.active ?? true, position };
+          const data = { sku: entry.sku.trim(), attributes: entry.attributes.map(a => ({ name: a.name.trim(), value: a.value.trim() })) as Prisma.InputJsonArray, price: entry.price ?? null, active: entry.active ?? true, position, ...(entry.gtin !== undefined && { gtin: entry.gtin }) };
           const variant = entry.id ? await tx.productVariant.update({ where: { id: entry.id }, data }) : await tx.productVariant.create({ data: { ...data, productId } });
           const row = await tx.inventory.findFirst({ where: { storeId, productId, variantId: variant.id } });
           if (row) await tx.inventory.update({ where: { id: row.id }, data: { quantity: entry.stock } });

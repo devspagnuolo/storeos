@@ -32,6 +32,16 @@ export function ProductForm({ product, categories, brands, created }: { product?
             <label className="text-sm">Comprimento (cm)<input name="lengthCm" inputMode="numeric" defaultValue={product?.lengthCm ?? ''} placeholder="25" className="input" /></label>
           </div>
         </fieldset>
+        <fieldset className="sm:col-span-2">
+          <legend className="text-sm font-medium">Dados fiscais <span className="font-normal text-slate-400">(usados na nota fiscal; vêm do Bling quando o produto é importado)</span></legend>
+          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <label className="text-sm">NCM<input name="ncm" inputMode="numeric" maxLength={10} defaultValue={product?.ncm ? `${product.ncm.slice(0, 4)}.${product.ncm.slice(4, 6)}.${product.ncm.slice(6)}` : ''} placeholder="6109.10.00" className="input" /></label>
+            <label className="text-sm">CEST<input name="cest" inputMode="numeric" maxLength={9} defaultValue={product?.cest ?? ''} placeholder="2803800" className="input" /></label>
+            <label className="text-sm">GTIN / EAN<input name="gtin" inputMode="numeric" maxLength={14} defaultValue={product?.gtin ?? ''} placeholder="7891000100103" className="input" /></label>
+            <label className="text-sm">Origem<select name="taxOrigin" defaultValue={product?.taxOrigin ?? ''} className="input"><option value="">Não informada</option><option value="0">0 · Nacional</option><option value="1">1 · Estrangeira (importação direta)</option><option value="2">2 · Estrangeira (mercado interno)</option><option value="3">3 · Nacional (importação 40% a 70%)</option><option value="4">4 · Nacional (processos básicos)</option><option value="5">5 · Nacional (importação até 40%)</option><option value="6">6 · Estrangeira (sem similar)</option><option value="7">7 · Estrangeira (mercado interno, sem similar)</option><option value="8">8 · Nacional (importação acima de 70%)</option></select></label>
+            <label className="text-sm">Unidade<input name="unit" maxLength={6} defaultValue={product?.unit ?? ''} placeholder="UN" className="input" /></label>
+          </div>
+        </fieldset>
         <label className="text-sm font-medium sm:col-span-2">Título para o Google <span className="font-normal text-slate-400">(até 70 caracteres)</span><input name="seoTitle" maxLength={70} defaultValue={product?.seoTitle ?? ''} className="input" /></label>
         <label className="text-sm font-medium sm:col-span-2">Descrição para o Google <span className="font-normal text-slate-400">(até 160)</span><textarea name="seoDescription" rows={2} maxLength={160} defaultValue={product?.seoDescription ?? ''} className="input" /></label>
         <div className="sm:col-span-2"><ImageUploader name="imageUrls" kind="product" multiple label="Fotos do produto" initial={product?.images.map(image => image.url) ?? []} /></div>

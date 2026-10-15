@@ -1,14 +1,17 @@
 /** Conversões entre o Bling (API v3) e o StoreOS. Tudo aqui é puro: sem rede nem banco. */
-import { ImportProduct, slugify } from '../catalog/product-csv';
+import { normalizeCest, normalizeGtin, normalizeNcm, normalizeOrigin, normalizeUnit } from '../catalog/fiscal-rules';
+import { ImportProduct, ImportVariant, slugify } from '../catalog/product-csv';
 
 export type BlingProductDetail = {
   id: number; nome: string; codigo?: string; preco?: number; situacao?: string; formato?: string;
   descricaoCurta?: string; descricaoComplementar?: string; marca?: string;
   pesoBruto?: number; pesoLiquido?: number; largura?: number; altura?: number; profundidade?: number;
   categoria?: { id?: number };
+  gtin?: string; gtinEmbalagem?: string; unidade?: string;
+  tributacao?: { ncm?: string; cest?: string; origem?: number | string };
   estoque?: { saldoVirtualTotal?: number };
   midia?: { imagens?: { externas?: { link?: string }[]; internas?: { link?: string }[] } };
-  variacoes?: { id: number; nome?: string; codigo?: string; preco?: number; variacao?: { nome?: string }; estoque?: { saldoVirtualTotal?: number } }[];
+  variacoes?: { id: number; nome?: string; codigo?: string; preco?: number; gtin?: string; variacao?: { nome?: string }; estoque?: { saldoVirtualTotal?: number } }[];
   seo?: { title?: string; description?: string };
 };
 export type BlingCategory = { id: number; descricao: string; categoriaPai?: { id?: number } };
@@ -51,6 +54,42 @@ const money = (value: unknown) => Math.max(0, Math.round(Number(value ?? 0) * 10
 const units = (value: unknown) => Math.max(0, Math.floor(Number(value ?? 0)));
 const links = (detail: BlingProductDetail) => [...new Set([...(detail.midia?.imagens?.externas ?? []), ...(detail.midia?.imagens?.internas ?? [])].map(i => i.link ?? '').filter(url => /^https:\/\/\S+$/.test(url)))].slice(0, 10);
 
+/** NCM, CEST, origem, GTIN e unidade do cadastro; o que vier fora do formato é ignorado (a nota é conferida no Bling). */
+function fiscalOf(detail: BlingProductDetail) {
+  const ncm = normalizeNcm(detail.tributacao?.ncm);
+  const cest = normalizeCest(detail.tributacao?.cest);
+  const taxOrigin = normalizeOrigin(detail.tributacao?.origem);
+  const gtin = normalizeGtin(detail.gtin) ?? normalizeGtin(detail.gtinEmbalagem);
+  const unit = normalizeUnit(detail.unidade);
+  return { ...(ncm && { ncm }), ...(cest && { cest }), ...(taxOrigin !== undefined && { taxOrigin }), ...(gtin && { gtin }), ...(unit && { unit }) };
+}
+
+type RawVariant = { sku: string; label?: string; name?: string; gtin?: string; price: number | null; stock: number };
+
+/**
+ * Variações do Bling num formato que a loja aceita: todas com os mesmos atributos e sem combinações repetidas.
+ * Sem rótulo ("Cor:Azul;Tamanho:M"), o valor sai do nome da variação sem o nome do produto, ou do próprio código.
+ */
+export function normalizeVariants(parentName: string, raw: RawVariant[]): ImportVariant[] {
+  const parsed = raw.map(v => {
+    let attributes = parseVariation(v.label);
+    if (!attributes.length) {
+      const fromName = (v.name ?? '').replace(parentName ?? '', '').replace(/^[\s\-–:/]+|[\s\-–:/]+$/g, '').trim();
+      attributes = [{ name: 'Opção', value: (fromName || v.sku).slice(0, 60) }];
+    }
+    return { ...v, attributes };
+  });
+  const shape = (v: { attributes: { name: string }[] }) => v.attributes.map(a => a.name.toLowerCase()).join('|');
+  if (new Set(parsed.map(shape)).size > 1) for (const v of parsed) v.attributes = [{ name: 'Opção', value: v.attributes.map(a => a.value).join(' / ').slice(0, 60) }];
+  const seen = new Set<string>();
+  return parsed.map(v => {
+    const key = v.attributes.map(a => a.value.toLowerCase()).join('|');
+    if (seen.has(key)) v.attributes = [...v.attributes.slice(0, -1), { ...v.attributes.at(-1)!, value: `${v.attributes.at(-1)!.value} (${v.sku})`.slice(0, 60) }];
+    seen.add(v.attributes.map(a => a.value.toLowerCase()).join('|'));
+    return { sku: v.sku, attributes: v.attributes, price: v.price, stock: v.stock, ...(v.gtin && { gtin: v.gtin }) };
+  });
+}
+
 /** Produto do Bling no formato que o importador do catálogo já entende. `takenSlug` evita colisão com outro SKU. */
 export function toImportProduct(detail: BlingProductDetail, categories: Map<number, BlingCategory>, line: number, takenSlug: (slug: string) => boolean = () => false): ImportProduct | { error: string } {
   const name = detail.nome?.trim();
@@ -59,9 +98,9 @@ export function toImportProduct(detail: BlingProductDetail, categories: Map<numb
   if (!sku) return { error: `${name}: sem código (SKU) no Bling` };
   let slug = slugify(name) || slugify(sku);
   if (takenSlug(slug)) slug = `${slug}-${slugify(sku)}`.slice(0, 160);
-  const variants = (detail.variacoes ?? []).filter(v => v.codigo?.trim()).map(v => ({
-    sku: v.codigo!.trim(), attributes: parseVariation(v.variacao?.nome), price: v.preco !== undefined && money(v.preco) !== money(detail.preco) ? money(v.preco) : null, stock: units(v.estoque?.saldoVirtualTotal),
-  }));
+  const variants = normalizeVariants(detail.nome, (detail.variacoes ?? []).filter(v => v.codigo?.trim()).map(v => ({
+    sku: v.codigo!.trim(), label: v.variacao?.nome, name: v.nome, gtin: normalizeGtin(v.gtin), price: v.preco !== undefined && money(v.preco) !== money(detail.preco) ? money(v.preco) : null, stock: units(v.estoque?.saldoVirtualTotal),
+  })));
   const path = categoryPath(detail.categoria?.id, categories);
   const description = [blingText(detail.descricaoComplementar), blingText(detail.descricaoCurta)].find(Boolean);
   const grams = detail.pesoBruto || detail.pesoLiquido;
@@ -76,6 +115,7 @@ export function toImportProduct(detail: BlingProductDetail, categories: Map<numb
     stock: units(detail.estoque?.saldoVirtualTotal),
     ...(detail.seo?.title && { seoTitle: detail.seo.title.slice(0, 70) }), ...(detail.seo?.description && { seoDescription: detail.seo.description.slice(0, 160) }),
     imageUrls: links(detail), variants,
+    ...fiscalOf(detail),
   };
 }
 

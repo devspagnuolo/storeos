@@ -297,6 +297,12 @@ export async function saveProductAction(_: FormState, form: FormData): Promise<F
     widthCm: text('widthCm') ? Number(text('widthCm')) : id ? null : undefined,
     heightCm: text('heightCm') ? Number(text('heightCm')) : id ? null : undefined,
     lengthCm: text('lengthCm') ? Number(text('lengthCm')) : id ? null : undefined,
+    // Dados fiscais para a nota; vazio remove na edição.
+    ncm: text('ncm') || (id ? null : undefined),
+    cest: text('cest') || (id ? null : undefined),
+    gtin: text('gtin').replace(/\s/g, '') || (id ? null : undefined),
+    taxOrigin: text('taxOrigin') !== '' ? Number(text('taxOrigin')) : id ? null : undefined,
+    unit: text('unit') || (id ? null : undefined),
   };
   if (!Number.isFinite(body.price) || body.price < 0) return { error: 'Preço inválido.' };
   if (!Number.isInteger(body.stock) || body.stock < 0) return { error: 'Estoque deve ser um número inteiro.' };
