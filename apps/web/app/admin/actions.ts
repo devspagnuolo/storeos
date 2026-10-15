@@ -827,3 +827,43 @@ export async function saveShippingOriginAction(_: FormState, form: FormData): Pr
   revalidatePath('/admin/diagnostico');
   return { ok: zip ? 'CEP de origem salvo.' : 'CEP da loja removido. Vale o do servidor, se houver.' };
 }
+
+export async function saveCampaignAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = String(form.get('id') ?? '');
+  const segment = String(form.get('segment') ?? '');
+  const audience = String(form.get('audience'));
+  const body = { name: String(form.get('name') ?? '').trim(), subject: String(form.get('subject') ?? '').trim(), body: String(form.get('body') ?? '').trim(), audience, segment: audience === 'NEWSLETTER' || !segment ? null : segment };
+  let createdId = '';
+  try {
+    if (id) await adminFetch(`/marketing/campaigns/${encodeURIComponent(id)}`, { method: 'PATCH', body });
+    else createdId = (await adminFetch<{ id: string }>('/marketing/campaigns', { method: 'POST', body })).id;
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/campanhas');
+  if (createdId) redirect(`/painel/campanhas/${createdId}`);
+  return { ok: 'Rascunho salvo.' };
+}
+
+async function campaignCommand(form: FormData, path: string, body: unknown, ok: string): Promise<FormState> {
+  const id = encodeURIComponent(String(form.get('id')));
+  try {
+    await adminFetch(`/marketing/campaigns/${id}/${path}`, { method: 'POST', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/campanhas');
+  revalidatePath(`/admin/campanhas/${String(form.get('id'))}`);
+  return { ok };
+}
+export const testCampaignAction = async (_: FormState, form: FormData) => campaignCommand(form, 'test', { email: String(form.get('email') ?? '').trim() }, 'Teste enviado. Confira a caixa de entrada (e o spam).');
+export const sendCampaignAction = async (_: FormState, form: FormData) => campaignCommand(form, 'send', {}, 'Envio iniciado. Os e-mails saem aos poucos.');
+export const cancelCampaignAction = async (_: FormState, form: FormData) => campaignCommand(form, 'cancel', {}, 'Envio cancelado.');
+
+export async function deleteCampaignAction(form: FormData) {
+  await adminFetch(`/marketing/campaigns/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
+  revalidatePath('/admin/campanhas');
+  redirect('/painel/campanhas');
+}

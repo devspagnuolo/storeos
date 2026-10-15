@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 export const MAIL_PROVIDER = Symbol('MAIL_PROVIDER');
-export type OutgoingMail = { to: string; subject: string; text: string; html: string; from: string };
+export type OutgoingMail = { to: string; subject: string; text: string; html: string; from: string; headers?: Record<string, string> };
 export type MailResult = { status: 'SENT' | 'SIMULATED'; providerId?: string };
 export interface MailProvider { send(mail: OutgoingMail): Promise<MailResult> }
 
@@ -22,7 +22,7 @@ export class ResendMailProvider implements MailProvider {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: mail.from, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }),
+      body: JSON.stringify({ from: mail.from, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.headers && { headers: mail.headers }) }),
       signal: AbortSignal.timeout(10_000),
     });
     const body = (await response.json().catch(() => ({}))) as { id?: string; message?: string };

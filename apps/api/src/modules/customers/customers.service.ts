@@ -35,6 +35,13 @@ export class CustomersService {
       )`;
   }
 
+  /** Clientes que aceitaram receber novidades (opt-in), opcionalmente de um segmento. */
+  async marketingAudience(storeId: string, segment?: string) {
+    if (segment && !SEGMENTS.includes(segment as Segment)) throw new BadRequestException('Segmento inválido');
+    const filter = segment ? Prisma.sql`AND segment = ${segment}` : Prisma.empty;
+    return this.prisma.$queryRaw<{ email: string; name: string }[]>`${this.base(storeId)} SELECT "email", "name" FROM seg WHERE "marketingOptIn" = true ${filter} ORDER BY "createdAt" ASC LIMIT 20000`;
+  }
+
   async list(storeId: string, { q, segment, page = 1, pageSize = 20 }: { q?: string; segment?: string; page?: number; pageSize?: number }) {
     if (segment && !SEGMENTS.includes(segment as Segment)) throw new BadRequestException('Segmento inválido');
     const filter = segment ? Prisma.sql`WHERE segment = ${segment}` : Prisma.empty;
