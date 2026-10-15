@@ -25,6 +25,14 @@ export class MediaService {
     return { files: results };
   }
 
+  /** Guarda uma imagem já tratada pelo servidor (ex.: importação de produtos) e devolve a URL pública. */
+  async saveProcessed(storeId: string, kind: MediaKind, file: { buffer: Buffer; mimetype: string; originalname?: string; width?: number; height?: number }) {
+    if (this.assets.configured) return this.assets.uploadImage(storeId, file, 'media');
+    const origin = (process.env.API_PUBLIC_URL ?? '').replace(/\/$/, '');
+    const asset = await this.prisma.mediaAsset.create({ data: { storeId, kind, mime: file.mimetype, size: file.buffer.length, width: file.width, height: file.height, name: file.originalname?.slice(0, 120), data: new Uint8Array(file.buffer) }, select: { id: true } });
+    return `${origin}/api/v1/media/${asset.id}`;
+  }
+
   async read(id: string) {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id }, select: { mime: true, data: true } }).catch(() => null);
     if (!asset) throw new NotFoundException('Imagem não encontrada');
