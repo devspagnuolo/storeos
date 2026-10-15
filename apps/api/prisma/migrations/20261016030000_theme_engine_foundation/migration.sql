@@ -43,6 +43,7 @@ CREATE TABLE "ThemeInstallation" (
 );
 CREATE UNIQUE INDEX "ThemeInstallation_storeId_releaseId_key" ON "ThemeInstallation"("storeId", "releaseId");
 CREATE INDEX "ThemeInstallation_storeId_status_idx" ON "ThemeInstallation"("storeId", "status");
+CREATE UNIQUE INDEX "ThemeInstallation_id_storeId_key" ON "ThemeInstallation"("id", "storeId");
 ALTER TABLE "ThemeInstallation" ADD CONSTRAINT "ThemeInstallation_storeId_fkey"
   FOREIGN KEY ("storeId") REFERENCES "Store"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "ThemeInstallation" ADD CONSTRAINT "ThemeInstallation_releaseId_fkey"
@@ -61,10 +62,8 @@ CREATE TABLE "ThemeDraft" (
   CONSTRAINT "ThemeDraft_pkey" PRIMARY KEY ("id")
 );
 CREATE INDEX "ThemeDraft_storeId_installationId_updatedAt_idx" ON "ThemeDraft"("storeId", "installationId", "updatedAt");
-ALTER TABLE "ThemeDraft" ADD CONSTRAINT "ThemeDraft_storeId_fkey"
-  FOREIGN KEY ("storeId") REFERENCES "Store"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "ThemeDraft" ADD CONSTRAINT "ThemeDraft_installationId_fkey"
-  FOREIGN KEY ("installationId") REFERENCES "ThemeInstallation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ThemeDraft" ADD CONSTRAINT "ThemeDraft_installationId_storeId_fkey"
+  FOREIGN KEY ("installationId", "storeId") REFERENCES "ThemeInstallation"("id", "storeId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 CREATE TABLE "ThemeEnginePublication" (
   "id" TEXT NOT NULL,
@@ -79,7 +78,5 @@ CREATE TABLE "ThemeEnginePublication" (
 );
 CREATE UNIQUE INDEX "ThemeEnginePublication_storeId_version_key" ON "ThemeEnginePublication"("storeId", "version");
 CREATE INDEX "ThemeEnginePublication_storeId_createdAt_idx" ON "ThemeEnginePublication"("storeId", "createdAt");
-ALTER TABLE "ThemeEnginePublication" ADD CONSTRAINT "ThemeEnginePublication_storeId_fkey"
-  FOREIGN KEY ("storeId") REFERENCES "Store"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "ThemeEnginePublication" ADD CONSTRAINT "ThemeEnginePublication_installationId_fkey"
-  FOREIGN KEY ("installationId") REFERENCES "ThemeInstallation"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ThemeEnginePublication" ADD CONSTRAINT "ThemeEnginePublication_installationId_storeId_fkey"
+  FOREIGN KEY ("installationId", "storeId") REFERENCES "ThemeInstallation"("id", "storeId") ON DELETE CASCADE ON UPDATE CASCADE;
