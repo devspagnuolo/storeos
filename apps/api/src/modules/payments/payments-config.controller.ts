@@ -17,7 +17,6 @@ export class PaymentsConfigController {
     const maxFree = maxFreeInstallments();
     const minFree = minFreeInstallment();
     const boleto = this.client.configured;
-    if (gateway === 'rede') return { card: { provider: 'rede', maxInstallments: 12, maxFreeInstallments: 12, minInstallment: Number(process.env.REDE_MIN_INSTALLMENT ?? 5) }, boleto };
     return { card: gateway === 'mercadopago' ? { provider: 'mercadopago', publicKey: this.client.publicKey, maxInstallments, maxFreeInstallments: maxFree, minFreeInstallment: minFree } : null, boleto };
   }
 }

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { InstallmentOffer } from './payment-rules';
 
 export type MercadoPagoPayment = {
   id: number;
@@ -91,6 +92,13 @@ export class MercadoPagoClient {
   /** Reembolso (total se `amount` não vier). A chave de idempotência impede devolver duas vezes se a chamada for repetida. */
   refund(paymentId: string, amount: number | undefined, idempotencyKey: string) {
     return this.request<{ id: number; status?: string }>(`/v1/payments/${encodeURIComponent(paymentId)}/refunds`, { method: 'POST', idempotencyKey, body: JSON.stringify(amount === undefined ? {} : { amount }) });
+  }
+
+  /** Opções reais de parcelamento (com e sem juros) para o cartão e o valor. Serve para validar o que o navegador pediu. */
+  async installmentOffers(input: { amount: number; bin: string; paymentMethodId: string; issuerId?: string }): Promise<InstallmentOffer[]> {
+    const query = new URLSearchParams({ amount: input.amount.toFixed(2), bin: input.bin, payment_method_id: input.paymentMethodId, ...(input.issuerId && { 'issuer.id': input.issuerId }) });
+    const result = await this.request<{ payer_costs?: InstallmentOffer[] }[]>(`/v1/payment_methods/installments?${query}`);
+    return result[0]?.payer_costs ?? [];
   }
 
   getPayment(id: string) {

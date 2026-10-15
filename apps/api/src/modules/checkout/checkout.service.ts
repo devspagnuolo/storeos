@@ -4,7 +4,8 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { generateOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from '../orders/order-lines';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
 import { CardPayment, ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
-import { clampInstallments, declineMessage, installmentCount, isValidCardNumber, isValidCpf, onlyDigits, redeDeclineMessage } from '../payments/payment-rules';
+import { clampInstallments, declineMessage, MAX_INSTALLMENTS, InstallmentOffer, installmentProblem, isValidCpf, onlyDigits } from '../payments/payment-rules';
+import { MercadoPagoClient } from '../payments/mercado-pago.client';
 import { CouponsService } from '../promotions/coupons.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { ShippingService } from '../shipping/shipping.service';
@@ -21,14 +22,25 @@ export type CheckoutInput = {
   couponCode?: string;
   /** CPF do pagador e dados do cartão já tokenizados no navegador; nada disso é gravado. */
   cpf?: string;
-  card?: { token?: string; paymentMethodId?: string; installments?: number; issuerId?: string; number?: string; holder?: string; expMonth?: number; expYear?: number; cvv?: string };
+  card?: { token?: string; paymentMethodId?: string; installments?: number; issuerId?: string; bin?: string };
 };
 
 @Injectable()
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
 
-  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService, private readonly promotions: PromotionsService) {}
+  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService, private readonly promotions: PromotionsService, private readonly mercadoPago: MercadoPagoClient) {}
+
+  /** Oferta real de parcelas do Mercado Pago para o cartão; se a consulta falhar, a regra cai no que é seguro sem juros. */
+  private async offersFor(card: CardPayment, bin: string | undefined, total: number): Promise<InstallmentOffer[] | undefined> {
+    if (!bin) return undefined;
+    try {
+      return await this.mercadoPago.installmentOffers({ amount: total, bin, paymentMethodId: card.paymentMethodId, issuerId: card.issuerId });
+    } catch (error) {
+      this.logger.warn(`Não foi possível consultar as parcelas no Mercado Pago: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
 
   async checkout(input: CheckoutInput) {
     if (this.payments.supports && !this.payments.supports(input.paymentMethod)) throw new BadRequestException('Este meio de pagamento não está disponível');
@@ -38,21 +50,15 @@ export class CheckoutService {
     // CPF válido acompanha o cliente para emissão fiscal e sincronização com o ERP. Não registramos números inválidos.
     const validCpf = cpf;
     if (isCard && !input.card) throw new BadRequestException('Dados do cartão ausentes');
-    const gateway = isCard ? this.payments.cardGateway?.() : null;
     let card: CardPayment | undefined;
+    let bin: string | undefined;
     if (isCard) {
+      // O cartão é tokenizado no navegador pelo Mercado Pago: aqui só chegam o token, a bandeira e o número de parcelas.
       const raw = input.card!;
-      const installments = clampInstallments(raw.installments);
-      if (gateway === 'rede') {
-        // A Rede não tokeniza no navegador: o cartão passa por aqui só em memória, direto para o adquirente.
-        const now = new Date();
-        const expired = !raw.expYear || !raw.expMonth || raw.expYear < now.getFullYear() || (raw.expYear === now.getFullYear() && raw.expMonth < now.getMonth() + 1);
-        if (!raw.number || !isValidCardNumber(raw.number) || !raw.holder?.trim() || !raw.cvv || expired) throw new BadRequestException('Confira os dados do cartão');
-        card = { installments, number: onlyDigits(raw.number), holder: raw.holder.trim().slice(0, 30), expMonth: raw.expMonth, expYear: raw.expYear, cvv: raw.cvv };
-      } else {
-        if (!raw.token || !raw.paymentMethodId) throw new BadRequestException('Dados do cartão ausentes');
-        card = { installments, token: raw.token, paymentMethodId: raw.paymentMethodId, issuerId: raw.issuerId };
-      }
+      if (!raw.token || !raw.paymentMethodId) throw new BadRequestException('Dados do cartão ausentes');
+      // Acima do máximo da loja o pedido é recusado em vez de reduzido em silêncio: o cliente pagaria um parcelamento diferente do que viu.
+      card = { installments: clampInstallments(raw.installments, MAX_INSTALLMENTS), token: raw.token, paymentMethodId: raw.paymentMethodId, issuerId: raw.issuerId };
+      bin = raw.bin && /^\d{6,8}$/.test(raw.bin) ? raw.bin : undefined;
     }
     const store = await this.prisma.store.findUnique({ where: { slug: input.storeSlug } });
     if (!store) throw new NotFoundException('Loja não encontrada');
@@ -132,7 +138,14 @@ export class CheckoutService {
     // A cobrança fica fora da transação: chamadas a gateways não devem segurar locks no banco.
     const [payment] = order.payments;
     let charge: ChargeResult;
-    if (card && gateway === 'rede') card.installments = Math.min(card.installments, installmentCount(Number(order.total), clampInstallments(12, 12)));
+    if (card && card.installments > 1) {
+      // A regra de parcelas vale no servidor, não só na tela: confere o pedido final com a oferta real do Mercado Pago para este cartão.
+      const problem = installmentProblem(card.installments, Number(order.total), await this.offersFor(card, bin, Number(order.total)));
+      if (problem) {
+        await this.lifecycle.cancel({ orderId: order.id }, { message: 'Parcelamento recusado pela regra da loja', paymentStatus: PaymentStatus.CANCELLED });
+        throw new BadRequestException(problem);
+      }
+    }
     try {
       charge = await this.payments.createCharge({ storeId: store.id, orderNumber: order.number, amount: order.total.toFixed(2), currency: order.currency, method: input.paymentMethod, expiresAt, customer: { name: input.customer.name, email, cpf, address: input.shippingAddress }, card });
     } catch (error) {
@@ -145,7 +158,7 @@ export class CheckoutService {
       // Cartão recusado na hora: libera o estoque e deixa o cliente tentar de novo com outro cartão.
       await this.prisma.payment.update({ where: { id: payment.id }, data: { provider: charge.provider, transactionId: charge.transactionId, status: charge.status } });
       await this.lifecycle.cancel({ orderId: order.id }, { message: `Cartão recusado (${charge.declineDetail ?? 'sem detalhe'})`, paymentStatus: charge.status });
-      throw new HttpException(charge.provider === 'rede' ? redeDeclineMessage(charge.declineDetail) : declineMessage(charge.declineDetail), HttpStatus.PAYMENT_REQUIRED);
+      throw new HttpException(declineMessage(charge.declineDetail), HttpStatus.PAYMENT_REQUIRED);
     }
     await this.prisma.payment.update({ where: { id: payment.id }, data: { provider: charge.provider, transactionId: charge.transactionId, status: charge.status, instructions: charge.instructions } });
     let orderStatus: OrderStatus = order.status;

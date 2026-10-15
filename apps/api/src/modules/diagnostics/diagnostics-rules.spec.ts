@@ -2,7 +2,7 @@ import { buildChecks, Facts, summarize } from './diagnostics-rules';
 
 const healthy: Facts = {
   apiPublicUrl: 'https://api.loja.com', webOrigin: 'https://loja.com', dbOk: true, outboxPending: 0, outboxOldestMinutes: null,
-  mp: { token: true, webhookSecret: true, publicKey: true, ping: 'ok' }, rede: { configured: false, sandbox: false },
+  mp: { token: true, webhookSecret: true, publicKey: true, ping: 'ok' },
   carrier: { enabled: true, provider: 'superfrete', originZip: '01310100' }, shippingRules: 0, email: { resend: true, from: true },
   bling: { appConfigured: true, connected: true, lastError: null, tokenExpired: false, companyLinked: true, failedOrders: 0 }, failedPayments24h: 0,
 };
@@ -21,7 +21,7 @@ describe('diagnóstico das integrações', () => {
     ['fila andando', { outboxPending: 3, outboxOldestMinutes: 1 }, 'outbox', 'warn'],
     ['token do MP recusado', { mp: { ...healthy.mp, ping: 'unauthorized' as const } }, 'mp-token', 'fail'],
     ['MP sem segredo de webhook', { mp: { ...healthy.mp, webhookSecret: false } }, 'mp-webhook', 'fail'],
-    ['Rede em sandbox', { rede: { configured: true, sandbox: true } }, 'card', 'warn'],
+    ['cartão sem chave pública', { mp: { ...healthy.mp, publicKey: false } }, 'card', 'off'],
     ['sem frete nenhum', { carrier: { enabled: false, originZip: null }, shippingRules: 0 }, 'carrier', 'fail'],
     ['só regras próprias', { carrier: { enabled: false, originZip: null }, shippingRules: 2 }, 'carrier', 'off'],
     ['e-mail simulado', { email: { resend: false, from: false } }, 'email', 'warn'],

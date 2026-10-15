@@ -1,20 +1,19 @@
 'use client';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { formatPrice } from '../lib/format';
-import { formatCardNumber, formatExpiry, installmentCount, isEligibleFreeInstallment, loadMercadoPago, onlyDigits, parseExpiry, PaymentConfig } from '../lib/payment';
+import { formatCardNumber, formatExpiry, isEligibleFreeInstallment, loadMercadoPago, onlyDigits, parseExpiry, PaymentConfig } from '../lib/payment';
 
-export type CardPayload = { installments: number; token?: string; paymentMethodId?: string; issuerId?: string; number?: string; holder?: string; expMonth?: number; expYear?: number; cvv?: string };
+export type CardPayload = { installments: number; token: string; paymentMethodId: string; issuerId?: string; bin: string };
 export type CardPaymentHandle = { tokenize(cpf: string): Promise<CardPayload> };
 type Option = { installments: number; label: string };
 
 const input = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal';
 
 export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<PaymentConfig['card']>; amount: number; cpf: string }>(function CardPayment({ config, amount, cpf }, ref) {
-  const isRede = config.provider === 'rede';
-  const publicKey = config.provider === 'mercadopago' ? config.publicKey : '';
+  const publicKey = config.publicKey;
   const maxInstallments = config.maxInstallments;
   const maxFreeInstallments = config.maxFreeInstallments;
-  const minFreeInstallment = config.provider === 'mercadopago' ? config.minFreeInstallment : 0;
+  const minFreeInstallment = config.minFreeInstallment;
   const [number, setNumber] = useState('');
   const [holder, setHolder] = useState('');
   const [expiry, setExpiry] = useState('');
@@ -26,10 +25,10 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
   const [sdkError, setSdkError] = useState<string>();
   const bin = onlyDigits(number).slice(0, 8);
 
-  useEffect(() => { if (isRede) return; loadMercadoPago(publicKey).then(instance => { sdk.current = instance; }).catch(e => setSdkError((e as Error).message)); }, [publicKey, isRede]);
+  useEffect(() => { loadMercadoPago(publicKey).then(instance => { sdk.current = instance; }).catch(e => setSdkError((e as Error).message)); }, [publicKey]);
 
   const refreshInstallments = useCallback(async () => {
-    if (isRede || !sdk.current || bin.length < 6) return;
+    if (!sdk.current || bin.length < 6) return;
     try {
       const methods = await sdk.current.getPaymentMethods({ bin: bin.slice(0, 6) });
       const found = methods.results[0];
@@ -48,7 +47,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
     } catch {
       // Sem as opções do gateway, o cliente ainda pode pagar à vista.
     }
-  }, [bin, amount, maxInstallments, maxFreeInstallments, minFreeInstallment, isRede]);
+  }, [bin, amount, maxInstallments, maxFreeInstallments, minFreeInstallment]);
 
   useEffect(() => { void refreshInstallments(); }, [refreshInstallments]);
 
@@ -56,7 +55,6 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
     async tokenize(cpfValue: string) {
       const valid = parseExpiry(expiry);
       if (onlyDigits(number).length < 13 || !holder.trim() || !valid || cvv.length < 3) throw new Error('Confira os dados do cartão.');
-      if (isRede) return { number: onlyDigits(number), holder: holder.trim(), expMonth: valid.month, expYear: valid.year, cvv, installments };
       if (!sdk.current) throw new Error(sdkError ?? 'O pagamento por cartão ainda está carregando. Tente de novo.');
       if (!method.current) await refreshInstallments();
       if (!method.current) throw new Error('Não reconhecemos este cartão. Confira o número.');
@@ -64,16 +62,9 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
         cardNumber: onlyDigits(number), cardholderName: holder.trim(), cardExpirationMonth: String(valid.month).padStart(2, '0'), cardExpirationYear: String(valid.year), securityCode: cvv,
         identificationType: 'CPF', identificationNumber: onlyDigits(cpfValue || cpf),
       }).catch(() => { throw new Error('Não foi possível validar o cartão. Confira os dados.'); });
-      return { token: token.id, paymentMethodId: method.current.id, issuerId: method.current.issuerId, installments };
+      return { token: token.id, paymentMethodId: method.current.id, issuerId: method.current.issuerId, bin: bin.slice(0, 6), installments };
     },
-  }), [number, holder, expiry, cvv, installments, sdkError, cpf, refreshInstallments, isRede]);
-
-  useEffect(() => {
-    if (config.provider !== 'rede') return;
-    const count = installmentCount(amount, config.maxInstallments, config.minInstallment);
-    setOptions(Array.from({ length: count }, (_, i) => ({ installments: i + 1, label: `${i + 1}x de ${formatPrice(amount / (i + 1))} sem juros` })));
-    setInstallments(current => Math.min(current, count));
-  }, [config, amount]);
+  }), [number, holder, expiry, cvv, installments, sdkError, cpf, refreshInstallments, bin]);
 
   return (
     <div className="mt-3 grid gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
@@ -95,7 +86,7 @@ export const CardPayment = forwardRef<CardPaymentHandle, { config: NonNullable<P
           {options.map(option => <option key={option.installments} value={option.installments}>{option.label}</option>)}
         </select>
       </label>
-      <p className="text-xs text-slate-500 sm:col-span-2">{isRede ? 'Pagamento processado pela Rede. Os dados do cartão são enviados com segurança e não ficam guardados.' : `Pagamento processado pelo Mercado Pago. O parcelamento sem juros exige parcela mínima de ${formatPrice(minFreeInstallment)} e respeita as opções disponíveis para este cartão.`}</p>
+      <p className="text-xs text-slate-500 sm:col-span-2">Pagamento processado pelo Mercado Pago. O parcelamento sem juros exige parcela mínima de {formatPrice(minFreeInstallment)} e respeita as opções disponíveis para este cartão.</p>
     </div>
   );
 });

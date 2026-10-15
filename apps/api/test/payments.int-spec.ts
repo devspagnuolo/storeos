@@ -2,7 +2,6 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { createHmac } from 'node:crypto';
 import { OrderLifecycleService } from '../src/modules/orders/order-lifecycle.service';
 import { MercadoPagoClient, MercadoPagoPayment } from '../src/modules/payments/mercado-pago.client';
-import { RedeClient, RedeCharge } from '../src/modules/payments/rede.client';
 import { checkoutBody, cleanup, createStore, inventoryOf, login, prisma, startApp } from './helpers';
 
 /** Mercado Pago falso: guarda os pagamentos criados e deixa o teste mudar o status. */
@@ -40,6 +39,14 @@ class FakeMercadoPago {
     return payment;
   }
 
+  /** Parcelas que o gateway oferece: por padrão, 2 a 6x com juros pagos pelo cliente. */
+  offers: ((amount: number) => { installments: number; installment_amount: number; total_amount: number }[]) | undefined = amount => [1, 2, 3, 6].map(n => ({ installments: n, total_amount: n === 1 ? amount : amount * 1.1, installment_amount: (n === 1 ? amount : amount * 1.1) / n }));
+  readonly defaultOffers = this.offers;
+  async installmentOffers(input: { amount: number }) {
+    if (!this.offers) throw new Error('gateway fora do ar');
+    return this.offers(input.amount);
+  }
+
   refunds: { id: string; amount?: number }[] = [];
   async refund(id: string, amount: number | undefined) {
     this.refunds.push({ id, amount });
@@ -51,25 +58,11 @@ class FakeMercadoPago {
   }
 }
 
-/** Rede falsa: guarda o que seria enviado e devolve o retorno combinado no teste. */
-class FakeRede {
-  configured = false;
-  returnCode = '00';
-  failNext = false;
-  last: RedeCharge | undefined;
-  async authorize(input: RedeCharge) {
-    if (this.failNext) { this.failNext = false; throw new Error('timeout'); }
-    this.last = input;
-    return { returnCode: this.returnCode, returnMessage: 'x', tid: 'TID123', reference: input.reference };
-  }
-}
-
 const mercadoPago = new FakeMercadoPago();
-const rede = new FakeRede();
 let app: NestExpressApplication;
 let api: Awaited<ReturnType<typeof startApp>>['api'];
 
-beforeAll(async () => ({ app, api } = await startApp(builder => builder.overrideProvider(MercadoPagoClient).useValue(mercadoPago).overrideProvider(RedeClient).useValue(rede))));
+beforeAll(async () => ({ app, api } = await startApp(builder => builder.overrideProvider(MercadoPagoClient).useValue(mercadoPago))));
 afterAll(() => cleanup(app));
 afterEach(() => { delete process.env.MERCADOPAGO_WEBHOOK_SECRET; });
 
@@ -224,9 +217,51 @@ describe('operação manual de pedidos', () => {
 
 describe('cartão e boleto pelo Mercado Pago', () => {
   const cpf = '529.982.247-25';
-  const card = { token: 'tok_abcdef12', paymentMethodId: 'visa', installments: 3 };
+  const card = { token: 'tok_abcdef12', paymentMethodId: 'visa', installments: 3, bin: '450995' };
   const pay = (slug: string, productId: string, extra: Record<string, unknown>, method = 'CREDIT_CARD') => api('/checkout', { method: 'POST', body: { ...checkoutBody(slug, [{ productId, quantity: 2 }], method), ...extra } });
   afterEach(() => { mercadoPago.cardOutcome = { status: 'approved' }; mercadoPago.publicKey = 'TEST-public-key'; });
+
+  describe('regra de parcelas no servidor', () => {
+    afterEach(() => { mercadoPago.offers = mercadoPago.defaultOffers; });
+    const state = (slug: string) => prisma.order.findMany({ where: { store: { slug } }, include: { payments: true } });
+
+    it('aceita parcela com juros que o gateway oferece para o cartão', async () => {
+      const { store, product } = await createStore(5);
+      expect((await pay(store.slug, product.id, { cpf, card })).status).toBe(201);
+    });
+
+    it('recusa parcela que o gateway não oferece, cancela o pedido e devolve o estoque sem cobrar', async () => {
+      const { store, product } = await createStore(5);
+      mercadoPago.lastRequest = undefined;
+      const result = await pay(store.slug, product.id, { cpf, card: { ...card, installments: 5 } });
+      expect(result.status).toBe(400);
+      expect(result.body.message).toMatch(/não está disponível/);
+      expect(mercadoPago.lastRequest).toBeUndefined();
+      expect((await state(store.slug))[0].status).toBe('CANCELLED');
+      expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+    });
+
+    it('recusa parcela sem juros acima do limite sem juros da loja', async () => {
+      const { store, product } = await createStore(5);
+      mercadoPago.offers = amount => [1, 2, 3].map(n => ({ installments: n, total_amount: amount, installment_amount: amount / n }));
+      const result = await pay(store.slug, product.id, { cpf, card });
+      expect(result.status).toBe(400);
+      expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+    });
+
+    it('sem consulta ao gateway, só aceita o que é sem juros pela regra da loja', async () => {
+      const { store, product } = await createStore(5);
+      mercadoPago.offers = undefined;
+      expect((await pay(store.slug, product.id, { cpf, card })).status).toBe(400);
+      expect((await pay(store.slug, product.id, { cpf, card: { ...card, installments: 1 } })).status).toBe(201);
+    });
+
+    it('recusa acima do máximo da loja', async () => {
+      const { store, product } = await createStore(5);
+      process.env.MERCADOPAGO_MAX_INSTALLMENTS = '2';
+      try { expect((await pay(store.slug, product.id, { cpf, card })).status).toBe(400); } finally { delete process.env.MERCADOPAGO_MAX_INSTALLMENTS; }
+    });
+  });
 
   it('expõe a chave pública e o limite de parcelas, e some sem chave', async () => {
     expect((await api('/payments/config')).body).toEqual({ card: { provider: 'mercadopago', publicKey: 'TEST-public-key', maxInstallments: 12, maxFreeInstallments: 1, minFreeInstallment: 80 }, boleto: true });
@@ -295,56 +330,5 @@ describe('cartão e boleto pelo Mercado Pago', () => {
     mercadoPago.setStatus(payment.transactionId!, 'approved');
     await webhook(payment.transactionId!);
     expect((await orderOf(checkout.body.number)).status).toBe('PAID');
-  });
-});
-
-describe('cartão pela Rede', () => {
-  const card = { number: '4235 6477 2802 5682', holder: 'Maria Silva', expMonth: 12, expYear: 2099, cvv: '123', installments: 4 };
-  const pay = (slug: string, productId: string, cardData: Record<string, unknown> | null = card) => api('/checkout', { method: 'POST', body: { ...checkoutBody(slug, [{ productId, quantity: 2 }], 'CREDIT_CARD'), card: cardData ?? undefined } });
-  beforeEach(() => { rede.configured = true; rede.returnCode = '00'; });
-  afterEach(() => { rede.configured = false; });
-
-  it('a config aponta a Rede e não expõe chave', async () => {
-    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'rede', maxInstallments: 12, maxFreeInstallments: 12, minInstallment: 5 }, boleto: true });
-  });
-
-  it('aprova na hora, manda o cartão só ao adquirente e não grava dados do cartão', async () => {
-    const { store, product } = await createStore(5);
-    const checkout = await pay(store.slug, product.id);
-    expect(checkout.status).toBe(201);
-    expect(checkout.body.status).toBe('PAID');
-    expect(rede.last).toMatchObject({ installments: 4, card: { number: '4235647728025682', cvv: '123' } });
-    const order = await orderOf(checkout.body.number);
-    expect(order.payments[0]).toMatchObject({ provider: 'rede', transactionId: 'TID123', status: 'PAID' });
-    const stored = JSON.stringify(order.payments[0]);
-    expect(stored).not.toContain('4235'); expect(stored).not.toContain('cvv');
-    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 3, reserved: 0 });
-  });
-
-  it('recusa devolve 402 com o motivo, cancela e libera o estoque', async () => {
-    const { store, product } = await createStore(5);
-    rede.returnCode = '51';
-    const checkout = await pay(store.slug, product.id);
-    expect(checkout.status).toBe(402);
-    expect(checkout.body.message).toMatch(/limite/);
-    expect((await prisma.order.findFirstOrThrow({ where: { storeId: store.id } })).status).toBe('CANCELLED');
-    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
-  });
-
-  it('rejeita cartão inválido antes de falar com a Rede', async () => {
-    const { store, product } = await createStore(5);
-    rede.last = undefined;
-    expect((await pay(store.slug, product.id, { ...card, number: '4235 6477 2802 5683' })).status).toBe(400);
-    expect((await pay(store.slug, product.id, { ...card, expYear: 2020 })).status).toBe(400);
-    expect((await pay(store.slug, product.id, null)).status).toBe(400);
-    expect(rede.last).toBeUndefined();
-    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
-  });
-
-  it('cancela o pedido se a Rede não responder', async () => {
-    const { store, product } = await createStore(5);
-    rede.failNext = true;
-    expect((await pay(store.slug, product.id)).status).toBe(502);
-    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
   });
 });

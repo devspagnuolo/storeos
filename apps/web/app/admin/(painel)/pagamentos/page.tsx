@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 type PaymentConfig = {
   card: null | {
-    provider: 'mercadopago' | 'rede';
+    provider: 'mercadopago';
     maxInstallments: number;
     maxFreeInstallments: number;
   };

@@ -63,33 +63,27 @@ const DECLINES: Record<string, string> = {
 /** Mensagem amigável para um cartão recusado; o detalhe técnico do gateway nunca vai ao cliente. */
 export const declineMessage = (detail?: string | null) => (detail && DECLINES[detail]) || 'O cartão foi recusado. Confira os dados ou use outro meio de pagamento.';
 
-/** Algoritmo de Luhn: pega número de cartão digitado errado antes de gastar uma chamada ao adquirente. */
-export function isValidCardNumber(value: string) {
-  const digits = onlyDigits(value);
-  if (digits.length < 13 || digits.length > 19) return false;
-  let sum = 0;
-  [...digits].reverse().forEach((char, index) => {
-    let digit = Number(char);
-    if (index % 2 === 1) { digit *= 2; if (digit > 9) digit -= 9; }
-    sum += digit;
-  });
-  return sum % 10 === 0;
-}
+/** Uma opção de parcelamento devolvida pelo Mercado Pago para o cartão e o valor do pedido. */
+export type InstallmentOffer = { installments: number; installment_amount: number; total_amount: number };
 
-const REDE_DECLINES: Record<string, string> = {
-  '51': 'Saldo ou limite insuficiente no cartão.',
-  '54': 'Cartão vencido. Confira a validade.',
-  '14': 'Confira o número do cartão.',
-  '82': 'Confira o código de segurança do cartão.',
-  '57': 'Cartão sem permissão para esta compra. Fale com o banco ou use outro.',
-  '62': 'Cartão restrito. Fale com o banco ou use outro.',
-  '65': 'Limite de compras do cartão excedido hoje.',
-};
+export type InstallmentLimits = { max: number; maxFree: number; minFree: number };
+export const currentInstallmentLimits = (): InstallmentLimits => ({ max: maxAllowedInstallments(), maxFree: maxFreeInstallments(), minFree: minFreeInstallment() });
 
-/** Traduz o código de retorno da Rede; códigos desconhecidos viram a mensagem genérica de recusa. */
-export const redeDeclineMessage = (code?: string | null) => (code && REDE_DECLINES[code]) || 'O cartão foi recusado. Confira os dados ou use outro meio de pagamento.';
-
-/** Parcelas sem juros: valor mínimo por parcela, para o cliente não parcelar R$ 30 em 12x. */
-export function installmentCount(total: number, max: number, minInstallment = Number(process.env.REDE_MIN_INSTALLMENT ?? 5)) {
-  return Math.max(1, Math.min(max, Math.floor(total / Math.max(minInstallment, 0.01))));
+/**
+ * Regra de parcelamento aplicada no servidor, a mesma que o checkout mostra ao cliente.
+ * Com a oferta real do Mercado Pago: a parcela precisa existir para o cartão; parcelas com juros (pagas pelo cliente) valem até o máximo da loja;
+ * parcelas sem juros (pagas pela loja) respeitam o limite sem juros e o piso por parcela.
+ * Sem a oferta (consulta indisponível), só passa o que é garantidamente sem juros pela regra da loja.
+ * Devolve a mensagem para o cliente, ou null se o parcelamento é válido.
+ */
+export function installmentProblem(requested: number, total: number, offers: InstallmentOffer[] | undefined, limits: InstallmentLimits = currentInstallmentLimits()): string | null {
+  if (requested <= 1) return null;
+  if (requested > limits.max) return `O parcelamento máximo da loja é ${limits.max}x.`;
+  const unavailable = 'Esse parcelamento não está disponível para este cartão. Escolha outro número de parcelas.';
+  if (!offers) return requested <= maxFreeInstallmentsForAmount(total, limits.maxFree, limits.minFree) ? null : unavailable;
+  const offer = offers.find(o => o.installments === requested);
+  if (!offer) return unavailable;
+  const interestFree = offer.total_amount <= total + 0.005;
+  if (!interestFree) return null;
+  return requested <= limits.maxFree && offer.installment_amount + 0.000001 >= limits.minFree ? null : unavailable;
 }

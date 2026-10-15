@@ -1,4 +1,4 @@
-import { clampInstallments, declineMessage, installmentCount, isValidCardNumber, isValidCpf, maxAllowedInstallments, maxFreeInstallments, maxFreeInstallmentsForAmount, minFreeInstallment, onlyDigits, redeDeclineMessage } from './payment-rules';
+import { clampInstallments, declineMessage, installmentProblem, isValidCpf, maxAllowedInstallments, maxFreeInstallments, maxFreeInstallmentsForAmount, minFreeInstallment, onlyDigits } from './payment-rules';
 
 describe('payment-rules', () => {
   it('valida CPF', () => {
@@ -43,20 +43,33 @@ describe('payment-rules', () => {
 
   it('extrai dígitos', () => expect(onlyDigits('12.3-4')).toBe('1234'));
 
-  it('valida número de cartão com Luhn', () => {
-    expect(isValidCardNumber('4235 6477 2802 5682')).toBe(true);
-    expect(isValidCardNumber('4235647728025683')).toBe(false);
-    expect(isValidCardNumber('1234')).toBe(false);
-  });
+  describe('parcelamento no servidor', () => {
+    const limits = { max: 6, maxFree: 3, minFree: 80 };
+    const offers = [
+      { installments: 1, installment_amount: 300, total_amount: 300 },
+      { installments: 2, installment_amount: 150, total_amount: 300 },
+      { installments: 3, installment_amount: 100, total_amount: 300 },
+      { installments: 4, installment_amount: 80, total_amount: 320 },
+      { installments: 6, installment_amount: 55, total_amount: 330 },
+      { installments: 7, installment_amount: 50, total_amount: 350 },
+    ];
 
-  it('traduz retornos da Rede', () => {
-    expect(redeDeclineMessage('51')).toMatch(/limite/);
-    expect(redeDeclineMessage('99')).toMatch(/recusado/);
-  });
-
-  it('limita parcelas pelo valor mínimo', () => {
-    expect(installmentCount(30, 12, 5)).toBe(6);
-    expect(installmentCount(300, 12, 5)).toBe(12);
-    expect(installmentCount(3, 12, 5)).toBe(1);
+    it('à vista sempre passa', () => expect(installmentProblem(1, 10, [], limits)).toBeNull());
+    it('aceita sem juros dentro do limite e do piso', () => expect(installmentProblem(3, 300, offers, limits)).toBeNull());
+    it('recusa sem juros acima do limite sem juros da loja', () => {
+      const generous = offers.map(o => ({ ...o, total_amount: 300, installment_amount: 300 / o.installments }));
+      expect(installmentProblem(4, 300, generous, limits)).toMatch(/não está disponível/);
+    });
+    it('recusa sem juros com parcela abaixo do piso', () => {
+      expect(installmentProblem(3, 150, [{ installments: 3, installment_amount: 50, total_amount: 150 }], limits)).toMatch(/não está disponível/);
+    });
+    it('aceita parcela com juros paga pelo cliente até o máximo da loja', () => expect(installmentProblem(6, 300, offers, limits)).toBeNull());
+    it('recusa acima do máximo da loja, mesmo que o gateway ofereça', () => expect(installmentProblem(7, 300, offers, limits)).toMatch(/máximo da loja é 6x/));
+    it('recusa parcela que o gateway não oferece para o cartão', () => expect(installmentProblem(5, 300, offers, limits)).toMatch(/não está disponível/));
+    it('sem a oferta do gateway só passa o que é sem juros pela regra da loja', () => {
+      expect(installmentProblem(3, 300, undefined, limits)).toBeNull();
+      expect(installmentProblem(4, 300, undefined, limits)).toMatch(/não está disponível/);
+      expect(installmentProblem(2, 100, undefined, limits)).toMatch(/não está disponível/);
+    });
   });
 });

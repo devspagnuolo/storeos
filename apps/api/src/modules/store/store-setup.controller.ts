@@ -40,7 +40,7 @@ export class StoreSetupController {
       storefrontCustomized: Boolean(store.storefrontPublishedAt || theme?.heroTitle), shippingRules,
       carrierConfigured: env('SUPERFRETE_TOKEN') || env('MELHOR_ENVIO_TOKEN'),
       paymentConfigured, webhookConfigured, callbackConfigured,
-      cardConfigured: (env('REDE_PV') && env('REDE_TOKEN')) || (paymentConfigured && (env('MERCADOPAGO_PUBLIC_KEY') || env('NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY'))),
+      cardConfigured: (paymentConfigured && (env('MERCADOPAGO_PUBLIC_KEY') || env('NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY'))),
       confirmedPayments, publishedPageSlugs: pages.map(page => page.slug.toLowerCase()),
       profileDone: store.storefrontOpen || Boolean((store.businessProfile as { segment?: string } | null)?.segment),
       emailConfigured: env('RESEND_API_KEY'), blingConnected: bling > 0, activeDomains,
