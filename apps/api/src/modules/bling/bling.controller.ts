@@ -6,7 +6,7 @@ import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { BlingAuthService } from './bling-auth.service';
-import { BlingImportService } from './bling-import.service';
+import { BlingImportService, parseImportMode } from './bling-import.service';
 import { BlingInvoicesService } from './bling-invoices.service';
 import { BlingTrackingService } from './bling-tracking.service';
 import { BlingStockService } from './bling-stock.service';
@@ -63,7 +63,7 @@ export class BlingController {
   disconnect(@CurrentStore() storeId: string) { return this.auth.disconnect(storeId); }
 
   @Post('import') @HttpCode(202) @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
-  startImport(@CurrentStore() storeId: string) { return this.imports.start(storeId); }
+  startImport(@CurrentStore() storeId: string, @Body('mode') mode?: unknown) { return this.imports.start(storeId, false, parseImportMode(mode)); }
 
   @Get('orders') @RequirePermissions(Permissions.ORDERS_READ)
   listOrders(@CurrentStore() storeId: string, @Query('status') status?: string) {

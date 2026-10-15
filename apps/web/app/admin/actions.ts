@@ -587,9 +587,9 @@ export async function disconnectBlingAction() {
   revalidatePath('/admin/bling');
 }
 
-export async function importBlingAction(): Promise<FormState> {
+export async function importBlingAction(_: FormState, form: FormData): Promise<FormState> {
   try {
-    await adminFetch('/bling/import', { method: 'POST', body: {} });
+    await adminFetch('/bling/import', { method: 'POST', body: { mode: form.get('mode') === 'update' ? 'update' : 'new' } });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     throw error;

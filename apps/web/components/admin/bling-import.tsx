@@ -22,16 +22,23 @@ export function BlingImport({ initial }: { initial: BlingImportJob | null }) {
   return (
     <div>
       <form action={action} className="flex flex-wrap items-center gap-3">
+        <label className="text-sm">O que importar
+          <select name="mode" defaultValue="new" className="input mt-1">
+            <option value="new">Só produtos que ainda não existem na loja</option>
+            <option value="update">Também atualizar nome, descrição, categorias e fotos dos que já existem</option>
+          </select>
+        </label>
         <button className="button disabled:opacity-60" disabled={pending || job?.status === 'RUNNING'}>{job?.status === 'RUNNING' ? 'Importando…' : 'Importar produtos do Bling'}</button>
         {state.error && <p role="alert" className="text-sm text-red-700">{state.error}</p>}
         {state.ok && job?.status !== 'RUNNING' && <p className="text-sm text-emerald-700">{state.ok}</p>}
       </form>
+      <p className="mt-2 text-xs text-slate-500">Preço, situação (ativo/rascunho) e estoque dos produtos que já existem nunca são alterados pela importação. Use “Conferir com o Bling” para ver diferenças e a sincronização de estoque para igualar saldos.</p>
       {job && (
         <div className="mt-4 text-sm">
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-brand transition-all" style={{ width: `${job.status === 'DONE' ? 100 : percent}%` }} /></div>
           <p className="mt-2 text-slate-600">
             {job.status === 'RUNNING' ? `Importando ${job.processed} de ${job.total || '…'} produtos` : job.status === 'DONE' ? 'Última importação concluída' : 'Última importação falhou'}
-            {' · '}{job.created} novos, {job.updated} atualizados, {job.failed} com erro
+            {' · '}{job.created} novos, {job.updated} atualizados, {job.skipped ?? 0} já existentes (mantidos), {job.failed} com erro
           </p>
           {job.errors.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-red-700">{job.errors.slice(0, 8).map((e, i) => <li key={i}>{e.message}</li>)}</ul>}
         </div>

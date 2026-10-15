@@ -11,6 +11,8 @@ const MAX_PRODUCTS = 5000;
 const STALE_MS = 30 * 60_000;
 
 type Page<T> = { data?: T[] };
+export type ImportMode = 'new' | 'update';
+export const parseImportMode = (value: unknown): ImportMode => value === 'update' ? 'update' : 'new';
 
 /** Importa o catálogo do Bling em segundo plano; o painel acompanha pela linha BlingImport. */
 @Injectable()
@@ -24,22 +26,22 @@ export class BlingImportService {
   }
 
   /** Dispara a importação. Se já há uma rodando, devolve a mesma; uma que travou há mais de 30 min é dada como falha. */
-  async start(storeId: string, wait = false) {
+  async start(storeId: string, wait = false, mode: ImportMode = 'new') {
     const current = await this.latest(storeId);
     if (current?.status === BlingImportStatus.RUNNING) {
       if (Date.now() - current.startedAt.getTime() < STALE_MS) return current;
       await this.prisma.blingImport.update({ where: { id: current.id }, data: { status: BlingImportStatus.FAILED, finishedAt: new Date(), errors: [{ message: 'A importação foi interrompida (servidor reiniciado).' }] } });
     }
     await this.auth.accessToken(storeId); // falha cedo e com mensagem clara se não estiver conectado
-    const job = await this.prisma.blingImport.create({ data: { storeId } });
-    const running = this.run(storeId, job.id);
+    const job = await this.prisma.blingImport.create({ data: { storeId, mode } });
+    const running = this.run(storeId, job.id, mode);
     if (wait) await running;
     return job;
   }
 
-  private async run(storeId: string, jobId: string) {
+  private async run(storeId: string, jobId: string, mode: ImportMode) {
     const errors: { sku?: string; message: string }[] = [];
-    const counters = { total: 0, processed: 0, created: 0, updated: 0, failed: 0 };
+    const counters = { total: 0, processed: 0, created: 0, updated: 0, failed: 0, skipped: 0 };
     const flush = () => this.prisma.blingImport.update({ where: { id: jobId }, data: { ...counters, errors: errors.slice(0, 50) as Prisma.InputJsonArray } });
     try {
       const get = async <T>(path: string) => this.client.request<T>(await this.auth.accessToken(storeId), path);
@@ -66,9 +68,10 @@ export class BlingImportService {
         try {
           const detail = (await get<{ data: BlingProductDetail }>(`/produtos/${id}`)).data;
           const existingId = detail.codigo ? bySku.get(detail.codigo.trim().toLowerCase()) : undefined;
+          if (existingId && mode === 'new') { counters.skipped++; counters.processed++; continue; } // produto já existe: a loja manda
           const product = toImportProduct(detail, categories, counters.processed + 1, slug => !existingId && slugs.has(slug));
           if ('error' in product) throw new Error(product.error);
-          await this.importer.save(storeId, product, existingId);
+          await this.importer.save(storeId, product, existingId, { preserveCommercial: true });
           slugs.add(product.slug);
           bySku.set(product.sku.toLowerCase(), existingId ?? 'novo');
           counters[existingId ? 'updated' : 'created']++;

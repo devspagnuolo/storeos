@@ -118,13 +118,27 @@ describe('importação de produtos do Bling', () => {
     const calca = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'CP-1' }, include: { inventory: true } });
     expect(calca.inventory[0].quantity).toBe(7);
 
-    (bling.products[2] as { preco: number; estoque: { saldoVirtualTotal: number } }).preco = 160;
+    const priceBefore = (await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'CP-1' } })).price.toString();
+    (bling.products[2] as { preco: number; nome: string; estoque: { saldoVirtualTotal: number } }).preco = 160;
     (bling.products[2] as { estoque: { saldoVirtualTotal: number } }).estoque.saldoVirtualTotal = 3;
+    (bling.products[2] as { nome: string }).nome = 'Calça Nova';
+    const quantityOf = async () => (await prisma.product.findFirstOrThrow({ where: { sku: 'CP-1', storeId: store.id }, include: { inventory: true } })).inventory[0].quantity;
+
+    // padrão: só cria o que falta; produto existente não é tocado
     await api('/bling/import', { method: 'POST', token });
-    const again = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING' && job.updated > 0);
-    expect(again).toMatchObject({ created: 0, updated: 2 });
+    const again = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING' && job.id !== done.id);
+    expect(again).toMatchObject({ mode: 'new', created: 0, updated: 0, skipped: 2 });
     expect(await prisma.product.count({ where: { storeId: store.id, sku: 'CP-1' } })).toBe(1);
-    expect((await prisma.product.findFirstOrThrow({ where: { sku: 'CP-1', storeId: store.id }, include: { inventory: true } }))).toMatchObject({ price: expect.anything(), inventory: [{ quantity: 3 }] });
+    expect(await quantityOf()).toBe(7);
+
+    // atualizar: dados descritivos mudam, preço, situação e estoque da loja ficam
+    await api('/bling/import', { method: 'POST', token, body: { mode: 'update' } });
+    const updated = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING' && job.id !== again.id);
+    expect(updated).toMatchObject({ mode: 'update', created: 0, updated: 2, skipped: 0 });
+    const calcaNow = await prisma.product.findFirstOrThrow({ where: { sku: 'CP-1', storeId: store.id } });
+    expect(calcaNow.name).toBe('Calça Nova');
+    expect(calcaNow.price.toString()).toBe(priceBefore);
+    expect(await quantityOf()).toBe(7);
   });
 });
 
