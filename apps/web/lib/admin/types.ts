@@ -91,3 +91,5 @@ export type OrderRefunds = { paid: string | null; remaining: string; gatewayAvai
 
 export type AbandonedCartRow = { id: string; email: string; name: string | null; status: 'OPEN' | 'REMINDED' | 'RECOVERED' | 'OPTED_OUT'; itemCount: number; subtotal: string; items: { name: string; quantity: number; variantLabel?: string }[]; lastActivityAt: string; remindedAt: string | null; recoveredAt: string | null };
 export type AbandonedCartList = { items: AbandonedCartRow[]; stats: { open: number; reminded: number; recovered: number; optedOut: number; recoveredValue: string; pendingValue: string }; delayMinutes: number; siteConfigured: boolean };
+
+export type EmailTemplateRow = { key: string; label: string; description: string; variables: { name: string; description: string }[]; defaultSubject: string; defaultBody: string; subject: string; body: string; enabled: boolean; customized: boolean };

@@ -84,7 +84,9 @@ export class AbandonedCartsService {
   async sweep(now = new Date()): Promise<number> {
     const idleBefore = new Date(now.getTime() - delayMinutes() * 60_000);
     const oldest = new Date(now.getTime() - MAX_AGE_DAYS * 24 * 60 * 60_000);
-    const due = await this.prisma.abandonedCart.findMany({ where: { status: AbandonedCartStatus.OPEN, remindedAt: null, lastActivityAt: { lte: idleBefore, gte: oldest } }, orderBy: { lastActivityAt: 'asc' }, take: BATCH });
+    // Lojas que desligaram o lembrete não entram na fila (o carrinho continua aberto).
+    const off = (await this.prisma.emailTemplate.findMany({ where: { key: 'cart-reminder', enabled: false }, select: { storeId: true } })).map(t => t.storeId);
+    const due = await this.prisma.abandonedCart.findMany({ where: { storeId: { notIn: off }, status: AbandonedCartStatus.OPEN, remindedAt: null, lastActivityAt: { lte: idleBefore, gte: oldest } }, orderBy: { lastActivityAt: 'asc' }, take: BATCH });
     let sent = 0;
     for (const cart of due) {
       const claimed = await this.prisma.abandonedCart.updateMany({ where: { id: cart.id, status: AbandonedCartStatus.OPEN, remindedAt: null }, data: { status: AbandonedCartStatus.REMINDED, remindedAt: now } });
@@ -124,7 +126,9 @@ export class AbandonedCartsService {
     const site = await this.siteUrl(cart.storeId);
     if (!site) throw new ServiceUnavailableException('Endereço da loja não configurado (PUBLIC_SITE_URL ou domínio ativo)');
     const lines = cart.items as unknown as CartLine[];
-    const message = buildCartReminderMail({ storeName: store.name, customerName: cart.name ?? '', items: lines, recoverUrl: `${site}/recuperar/${cart.token}`, optOutUrl: `${site}/recuperar/${cart.token}?sair=1` });
+    const override = await this.prisma.emailTemplate.findUnique({ where: { storeId_key: { storeId: cart.storeId, key: 'cart-reminder' } } });
+    const message = buildCartReminderMail({ storeName: store.name, customerName: cart.name ?? '', items: lines, recoverUrl: `${site}/recuperar/${cart.token}`, optOutUrl: `${site}/recuperar/${cart.token}?sair=1` }, override);
+    if (!message) throw new ServiceUnavailableException('O lembrete de carrinho está desligado em E-mails.');
     const from = process.env.MAIL_FROM ?? `${store.name} <pedidos@example.com>`;
     let status: EmailStatus = EmailStatus.SENT; let providerId: string | undefined; let error: string | undefined;
     try {

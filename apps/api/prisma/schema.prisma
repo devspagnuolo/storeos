@@ -86,6 +86,7 @@ model Store {
   stockMovements         StockMovement[]
   domains                StoreDomain[]
   abandonedCarts         AbandonedCart[]
+  emailTemplates         EmailTemplate[]
 }
 
 model User {
@@ -980,4 +981,19 @@ model AbandonedCart {
 
   @@unique([storeId, email])
   @@index([storeId, status, lastActivityAt])
+}
+
+/// Texto personalizado de um e-mail da loja (chave = modelo padrão no código). Sem linha, vale o padrão.
+model EmailTemplate {
+  id        String   @id @default(uuid())
+  storeId   String
+  key       String
+  subject   String
+  body      String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, key])
 }

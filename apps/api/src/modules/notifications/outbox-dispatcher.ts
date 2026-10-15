@@ -3,6 +3,7 @@ import { Interval } from '@nestjs/schedule';
 import { EmailStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { MAIL_PROVIDER, MailProvider } from './mail-provider';
+import { templateKeyForEvent } from './email-templates';
 import { buildOrderMail } from './templates';
 
 const MAX_ATTEMPTS = 5;
@@ -59,10 +60,12 @@ export class OutboxDispatcher {
     const order = await tx.order.findUnique({ where: { id: event.aggregateId }, include: { customer: true, store: { select: { name: true } }, fulfillment: true } });
     if (!order?.customer || order.customer.anonymizedAt) return;
     const payload = (event.payload ?? {}) as Record<string, string | undefined>;
+    const key = templateKeyForEvent(event.eventName);
+    const override = key ? await tx.emailTemplate.findUnique({ where: { storeId_key: { storeId: order.storeId, key } } }) : null;
     const message = buildOrderMail(event.eventName, {
       storeName: order.store.name, customerName: order.customer.name, orderNumber: order.number, total: order.total.toFixed(2),
       carrier: payload.carrier ?? order.fulfillment?.carrier ?? undefined, trackingCode: payload.trackingCode ?? order.fulfillment?.trackingCode ?? undefined, trackingUrl: order.fulfillment?.trackingUrl ?? undefined,
-    });
+    }, override);
     if (!message) return;
     const from = process.env.MAIL_FROM ?? `${order.store.name} <pedidos@example.com>`;
     let status: EmailStatus = EmailStatus.SENT; let providerId: string | undefined; let error: string | undefined;
