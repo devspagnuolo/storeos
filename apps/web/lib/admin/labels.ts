@@ -22,3 +22,6 @@ export const segmentLabel: Record<string, string> = { PROSPECT: 'Sem compras', N
 export const segmentTone: Record<string, string> = {
   PROSPECT: 'bg-slate-100 text-slate-700', NEW: 'bg-violet-100 text-violet-700', RECURRING: 'bg-emerald-100 text-emerald-700', VIP: 'bg-amber-100 text-amber-800', AT_RISK: 'bg-red-100 text-red-700',
 };
+
+export const audienceLabel: Record<string, string> = { ALL: 'Newsletter e clientes que aceitaram novidades', NEWSLETTER: 'Só inscritos na newsletter', CUSTOMERS: 'Só clientes que aceitaram novidades' };
+export const campaignStatus = { DRAFT: ['Rascunho', 'bg-slate-100 text-slate-700'], SENDING: ['Enviando', 'bg-amber-100 text-amber-800'], SENT: ['Enviada', 'bg-emerald-100 text-emerald-800'], CANCELLED: ['Cancelada', 'bg-slate-200 text-slate-600'] } as const;

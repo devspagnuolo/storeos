@@ -21,6 +21,7 @@ import { BlingModule } from './modules/bling/bling.module';
 import { MediaModule } from './modules/media/media.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
+import { MarketingModule } from './modules/marketing/marketing.module';
 import { StoreModule } from './modules/store/store.module';
 import { HealthController } from './modules/health.controller';
 import { StoreBootstrapService } from './shared/access/store-bootstrap.service';
@@ -42,6 +43,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     InventoryModule,
     AbandonedCartsModule,
     EngagementModule,
+    MarketingModule,
     MediaModule,
     BlingModule,
     NotificationsModule,

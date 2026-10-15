@@ -89,6 +89,7 @@ model Store {
   domains                StoreDomain[]
   abandonedCarts         AbandonedCart[]
   emailTemplates         EmailTemplate[]
+  emailCampaigns EmailCampaign[]
 }
 
 model User {
@@ -1002,4 +1003,55 @@ model EmailTemplate {
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, key])
+}
+
+enum EmailCampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  CANCELLED
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENDING
+  SENT
+  SIMULATED
+  FAILED
+}
+
+model EmailCampaign {
+  id         String                @id @default(uuid())
+  storeId    String
+  name       String
+  subject    String
+  body       String
+  audience   String                @default("ALL")
+  segment    String?
+  status     EmailCampaignStatus   @default(DRAFT)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  store      Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  recipients EmailCampaignRecipient[]
+
+  @@index([storeId, createdAt])
+  @@index([status])
+}
+
+model EmailCampaignRecipient {
+  id         String                  @id @default(uuid())
+  campaignId String
+  email      String
+  name       String?
+  status     CampaignRecipientStatus @default(PENDING)
+  attempts   Int                     @default(0)
+  claimedAt  DateTime?
+  sentAt     DateTime?
+  error      String?
+  campaign   EmailCampaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, email])
+  @@index([campaignId, status])
 }

@@ -101,3 +101,7 @@ export type EnvironmentReport = {
   variables: { name: string; group: string; importance: 'required' | 'recommended' | 'optional'; description: string; set: boolean }[];
   unrecognized: { name: string; suggestion: string | null }[];
 };
+
+export type CampaignCounts = { total: number; sent: number; simulated: number; failed: number; pending: number };
+export type EmailCampaign = { id: string; name: string; subject: string; body: string; audience: 'ALL' | 'NEWSLETTER' | 'CUSTOMERS'; segment: string | null; status: 'DRAFT' | 'SENDING' | 'SENT' | 'CANCELLED'; startedAt: string | null; finishedAt: string | null; createdAt: string; counts: CampaignCounts };
+export type EmailCampaignDetail = EmailCampaign & { failures: { email: string; error: string | null }[] };
