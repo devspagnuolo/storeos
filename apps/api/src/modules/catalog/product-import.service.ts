@@ -57,19 +57,22 @@ export class ProductImportService {
     return (await this.prisma.brand.findFirst({ where: { storeId, slug } }))?.id ?? (await this.catalog.createBrand(storeId, { name, slug })).id;
   }
 
-  async save(storeId: string, p: ImportProduct, existingId?: string) {
+  /** `preserveCommercial`: ao atualizar produto existente, mantém preço, situação, estoque e variações como estão na loja. */
+  async save(storeId: string, p: ImportProduct, existingId?: string, opts: { preserveCommercial?: boolean } = {}) {
     const categoryIds = await this.categoryIds(storeId, p.categories);
     const brandId = await this.brandId(storeId, p.brand);
+    const keep = Boolean(existingId && opts.preserveCommercial);
     const common = {
-      name: p.name, sku: p.sku, price: p.price, status: p.status === 'ACTIVE' ? ProductStatus.ACTIVE : ProductStatus.DRAFT, ...(p.description && { description: p.description }),
+      name: p.name, sku: p.sku, ...(p.description && { description: p.description }),
       ...(categoryIds.length && { categoryIds }), ...(brandId && { brandId }), ...(p.seoTitle && { seoTitle: p.seoTitle }), ...(p.seoDescription && { seoDescription: p.seoDescription }),
       ...(p.weightGrams && { weightGrams: p.weightGrams }), ...(p.widthCm && { widthCm: p.widthCm }), ...(p.heightCm && { heightCm: p.heightCm }), ...(p.lengthCm && { lengthCm: p.lengthCm }),
     };
+    const commercial = { price: p.price, status: p.status === 'ACTIVE' ? ProductStatus.ACTIVE : ProductStatus.DRAFT };
     let productId = existingId;
     if (existingId) {
-      await this.catalog.update(storeId, existingId, { ...common, ...(p.variants.length ? {} : { stock: p.stock }) });
+      await this.catalog.update(storeId, existingId, { ...common, ...(keep ? {} : commercial), ...(p.variants.length || keep ? {} : { stock: p.stock }) });
     } else {
-      productId = (await this.catalog.create(storeId, { ...common, slug: p.slug, stock: p.stock, ...(p.imageUrls[0] && { imageUrl: p.imageUrls[0] }) })).id;
+      productId = (await this.catalog.create(storeId, { ...common, ...commercial, slug: p.slug, stock: p.stock, ...(p.imageUrls[0] && { imageUrl: p.imageUrls[0] }) })).id;
     }
     const id = productId as string;
     if (!(await this.prisma.productImage.count({ where: { productId: id } })) || (!existingId && p.imageUrls.length > 1)) {
@@ -77,7 +80,7 @@ export class ProductImportService {
       const urls = p.imageUrls.slice(have);
       if (urls.length) await this.prisma.productImage.createMany({ data: urls.map((url, i) => ({ productId: id, url, alt: p.name, position: have + i })) });
     }
-    if (p.variants.length) {
+    if (p.variants.length && !keep) {
       const current = await this.prisma.productVariant.findMany({ where: { productId: id }, select: { id: true, sku: true } });
       await this.catalog.replaceVariants(storeId, id, p.variants.map(v => ({ id: current.find(c => c.sku.toLowerCase() === v.sku.toLowerCase())?.id, sku: v.sku, attributes: v.attributes, price: v.price, stock: v.stock })));
     }
