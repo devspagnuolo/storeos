@@ -9,7 +9,6 @@ export async function StorefrontHome({ theme }: { theme: StorefrontConfig }) {
   const sections = effectiveSections(theme, hasBanners);
   return <>
     <Header />
-    {theme.announcementText && <div className="bg-brand px-4 py-2 text-center text-sm font-medium text-brand-fg">{theme.announcementText}</div>}
     <main><HomeSections sections={sections} /></main>
   </>;
 }

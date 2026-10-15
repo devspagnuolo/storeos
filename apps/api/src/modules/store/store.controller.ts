@@ -25,6 +25,19 @@ const view = (store: { id: string; slug: string; name: string; logoUrl: string |
   themeConfig: store.themeConfig,
 });
 
+/**
+ * Menor valor de frete grátis para a faixa do topo da vitrine. Prefere regras que valem para todo o Brasil;
+ * se só houver regras regionais, avisa que vale para algumas regiões.
+ */
+export function freeShippingSummary(rules: { states: string[]; freeAbove: Prisma.Decimal | null }[]) {
+  const withValue = rules.filter((rule): rule is { states: string[]; freeAbove: Prisma.Decimal } => rule.freeAbove !== null);
+  const nationwide = withValue.filter(rule => rule.states.length === 0);
+  const pool = nationwide.length ? nationwide : withValue;
+  if (!pool.length) return null;
+  const from = pool.reduce((min, rule) => rule.freeAbove.lt(min) ? rule.freeAbove : min, pool[0].freeAbove);
+  return { from: from.toFixed(2), nationwide: nationwide.length > 0 };
+}
+
 const acceptedImageTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'];
 
 @ApiTags('Store')
@@ -40,7 +53,7 @@ export class StoreController {
     });
     if (!store) throw new NotFoundException('Loja não encontrada');
     const { id: storeId, marketingConfig, storefrontOpen, ...rest } = store;
-    const [primary, activeTheme] = await Promise.all([
+    const [primary, activeTheme, freeRules] = await Promise.all([
       this.prisma.storeDomain.findFirst({ where: { storeId, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } }),
       this.prisma.themeEnginePublication.findFirst({
         where: { storeId, installation: { status: 'ACTIVE' } },
@@ -50,6 +63,7 @@ export class StoreController {
           installation: { select: { release: { select: { manifest: true, version: true, package: { select: { key: true, name: true } } } } } },
         },
       }),
+      this.prisma.shippingRule.findMany({ where: { storeId, active: true, freeAbove: { not: null } }, select: { states: true, freeAbove: true } }),
     ]);
     // O documento é declarativo e seu HTML/código nunca é executado. Publica-se apenas conteúdo do tenant e componentes compilados.
     return {
@@ -62,6 +76,7 @@ export class StoreController {
       open: storefrontOpen,
       marketing: readMarketingConfig(marketingConfig),
       primaryDomain: primary?.hostname ?? null,
+      freeShipping: freeShippingSummary(freeRules),
     };
   }
 
