@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache';
 import 'server-only';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -45,7 +46,17 @@ export async function adminFetch<T>(path: string, init: { method?: string; body?
     const message = Array.isArray(body?.message) ? body.message.join('; ') : body?.message;
     throw new ApiError(response.status, message || 'Erro inesperado na API');
   }
+  // Toda alteração feita pelo painel derruba o cache da vitrine: produtos, preços, estoque, banners e tema aparecem na hora no site.
+  if (init.method && init.method !== 'GET') refreshStorefront();
   return body as T;
+}
+
+function refreshStorefront() {
+  try {
+    revalidatePath('/', 'layout');
+  } catch {
+    // Fora de uma ação (renderização), não há o que invalidar.
+  }
 }
 
 export async function currentStoreSlug() {

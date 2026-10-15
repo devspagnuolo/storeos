@@ -19,7 +19,7 @@ const emptyPage = (page = 1, pageSize = 24): ProductPage => ({ items: [], total:
 
 async function get<T>(path: (slug: string) => string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${apiUrl}${path(await resolveStoreSlug())}`, { next: { revalidate: 60 } });
+    const response = await fetch(`${apiUrl}${path(await resolveStoreSlug())}`, { next: { revalidate: 20 } });
     return response.ok ? await response.json() : fallback;
   } catch {
     // A vitrine continua de pé mesmo com a API fora do ar (por exemplo, acordando no plano free).

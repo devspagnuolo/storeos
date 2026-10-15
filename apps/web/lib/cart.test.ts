@@ -33,3 +33,14 @@ describe('carrinho', () => {
     expect(toRequestItems([{ ...manta, quantity: 1 }])).toEqual([{ productId: 'p2', quantity: 1 }]);
   });
 });
+
+describe('preços vigentes', () => {
+  it('troca o preço que mudou na loja e mantém a mesma lista quando nada mudou', async () => {
+    const { applyPrices } = await import('./cart');
+    const items = addItem(addItem([], vaso), manta);
+    expect(applyPrices(items, new Map([['p1', '0.10']]))).toBe(items);
+    const next = applyPrices(items, new Map([['p2', '159.90'], ['p1', null]]));
+    expect(next.find(i => i.productId === 'p2')?.price).toBe('159.90');
+    expect(next.find(i => i.productId === 'p1')?.price).toBe('0.10');
+  });
+});

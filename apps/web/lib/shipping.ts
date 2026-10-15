@@ -23,8 +23,8 @@ export function deliveryTime({ minDays, maxDays }: Pick<ShippingOption, 'minDays
 /** Lembra o último CEP para o checkout já abrir com o frete calculado no carrinho. */
 export function rememberCep(cep?: string) {
   try {
-    if (cep === undefined) return sessionStorage.getItem(CEP_KEY) ?? '';
-    sessionStorage.setItem(CEP_KEY, cep);
+    if (cep === undefined) return localStorage.getItem(CEP_KEY) ?? '';
+    localStorage.setItem(CEP_KEY, cep);
   } catch {
     // Sem storage (aba privada): só não lembra.
   }

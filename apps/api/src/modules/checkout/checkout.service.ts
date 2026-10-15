@@ -6,6 +6,7 @@ import { OrderLifecycleService } from '../orders/order-lifecycle.service';
 import { CardPayment, ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
 import { clampInstallments, declineMessage, MAX_INSTALLMENTS, InstallmentOffer, installmentProblem, isValidCpf, onlyDigits } from '../payments/payment-rules';
 import { MercadoPagoClient } from '../payments/mercado-pago.client';
+import { CheckoutDraftService } from './checkout-draft.service';
 import { CouponsService } from '../promotions/coupons.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { ShippingService } from '../shipping/shipping.service';
@@ -14,7 +15,7 @@ import { money } from '../../shared/money/money';
 export type ShippingAddress = { zipCode: string; street: string; number: string; complement?: string; district?: string; city: string; state: string };
 export type CheckoutInput = {
   storeSlug: string;
-  customer: { name: string; email: string };
+  customer: { name: string; email: string; phone?: string };
   shippingAddress: ShippingAddress;
   items: RequestedItem[];
   paymentMethod: PaymentMethod;
@@ -29,7 +30,7 @@ export type CheckoutInput = {
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
 
-  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService, private readonly promotions: PromotionsService, private readonly mercadoPago: MercadoPagoClient) {}
+  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService, private readonly promotions: PromotionsService, private readonly mercadoPago: MercadoPagoClient, private readonly drafts: CheckoutDraftService) {}
 
   /** Oferta real de parcelas do Mercado Pago para o cartão; se a consulta falhar, a regra cai no que é seguro sem juros. */
   private async offersFor(card: CardPayment, bin: string | undefined, total: number): Promise<InstallmentOffer[] | undefined> {
@@ -65,6 +66,7 @@ export class CheckoutService {
     if (!store.storefrontOpen) throw new BadRequestException({ message: 'Esta loja ainda não abriu para vendas.', code: 'STORE_CLOSED' });
     const items = mergeItems(input.items);
     const email = input.customer.email.trim().toLowerCase();
+    const phone = input.customer.phone?.replace(/\D/g, '') || undefined;
     const expiresAt = paymentDeadline(input.paymentMethod);
     const state = this.shipping.stateOrFail(input.shippingAddress.zipCode);
     if (state !== input.shippingAddress.state) throw new BadRequestException('O CEP não corresponde ao estado informado');
@@ -95,13 +97,15 @@ export class CheckoutService {
           WHERE "storeId" = ${store.id} AND "productId" = ${item.productId} AND ${inventoryOf(item.variantId)} AND "quantity" - "reserved" >= ${item.quantity}`;
         if (reserved !== 1) {
           const name = lines.find(line => line.productId === item.productId && line.variantId === item.variantId)?.name;
-          throw new ConflictException(`Estoque insuficiente para ${name}`);
+          const [row] = await tx.$queryRaw<{ free: number }[]>`SELECT GREATEST(COALESCE(SUM("quantity" - "reserved"), 0), 0)::int AS free FROM "Inventory" WHERE "storeId" = ${store.id} AND "productId" = ${item.productId} AND ${inventoryOf(item.variantId)}`;
+          const free = row?.free ?? 0;
+          throw new ConflictException({ message: free > 0 ? `Temos só ${free} unidade(s) de ${name}. Ajuste a quantidade no carrinho.` : `${name} esgotou. Remova do carrinho para continuar.`, code: 'OUT_OF_STOCK', productId: item.productId, variantId: item.variantId ?? null, available: free });
         }
       }
       const customer = await tx.customer.upsert({
         where: { storeId_email: { storeId: store.id, email } },
-        create: { storeId: store.id, email, name: input.customer.name, ...(validCpf && { document: validCpf }) },
-        update: { name: input.customer.name, ...(validCpf && { document: validCpf }) },
+        create: { storeId: store.id, email, name: input.customer.name, ...(phone && { phone }), ...(validCpf && { document: validCpf }) },
+        update: { name: input.customer.name, ...(phone && { phone }), ...(validCpf && { document: validCpf }) },
       });
       // Promoções automáticas entram primeiro; o cupom incide sobre o que sobrou.
       const promo = await this.promotions.evaluate(tx, store.id, lines);
@@ -161,6 +165,8 @@ export class CheckoutService {
       throw new HttpException(declineMessage(charge.declineDetail), HttpStatus.PAYMENT_REQUIRED);
     }
     await this.prisma.payment.update({ where: { id: payment.id }, data: { provider: charge.provider, transactionId: charge.transactionId, status: charge.status, instructions: charge.instructions } });
+    // Pedido gerado: o rascunho do checkout já cumpriu seu papel.
+    await this.drafts.finish(store.id, cpf).catch(error => this.logger.warn(`Rascunho do pedido ${order.number} não apagado: ${(error as Error).message}`));
     let orderStatus: OrderStatus = order.status;
     if (charge.status === PaymentStatus.PAID) {
       // Cartão aprovado na hora: confirma o pedido sem esperar o webhook (que depois não muda nada).
