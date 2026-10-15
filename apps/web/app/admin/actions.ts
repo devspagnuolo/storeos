@@ -191,11 +191,27 @@ export async function saveCollectionAction(_: FormState, form: FormData): Promis
   return simplePost(id ? `/catalog/collections/${encodeURIComponent(id)}` : '/catalog/collections', id ? 'PATCH' : 'POST', body, id ? 'Coleção salva.' : 'Coleção criada.');
 }
 
+export async function addCustomerNoteAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = encodeURIComponent(String(form.get('id')));
+  try { await adminFetch(`/customers/${id}/notes`, { method: 'POST', body: { body: String(form.get('body') ?? '').trim() } }); }
+  catch (error) { if (error instanceof ApiError) return { error: error.message }; throw error; }
+  revalidatePath(`/admin/clientes/${id}`);
+  return { ok: 'Anotação salva.' };
+}
+
+export async function deleteCustomerNoteAction(_: FormState, form: FormData): Promise<FormState> {
+  const id = encodeURIComponent(String(form.get('id')));
+  try { await adminFetch(`/customers/${id}/notes/${encodeURIComponent(String(form.get('noteId')))}`, { method: 'DELETE' }); }
+  catch (error) { if (error instanceof ApiError) return { error: error.message }; throw error; }
+  revalidatePath(`/admin/clientes/${id}`);
+  return {};
+}
+
 export async function saveCustomerAction(_: FormState, form: FormData): Promise<FormState> {
   const id = encodeURIComponent(String(form.get('id')));
   try {
     await adminFetch(`/customers/${id}`, { method: 'PATCH', body: {
-      phone: String(form.get('phone') ?? '').trim(), notes: String(form.get('notes') ?? '').trim(),
+      phone: String(form.get('phone') ?? '').trim(),
       tags: String(form.get('tags') ?? '').split(',').map(t => t.trim()).filter(Boolean), marketingOptIn: form.get('marketingOptIn') === 'on',
     } });
   } catch (error) {
@@ -203,6 +219,7 @@ export async function saveCustomerAction(_: FormState, form: FormData): Promise<
     throw error;
   }
   revalidatePath('/admin/clientes');
+  revalidatePath(`/admin/clientes/${id}`);
   return { ok: 'Dados salvos.' };
 }
 
