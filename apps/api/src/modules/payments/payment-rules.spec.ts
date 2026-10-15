@@ -27,12 +27,12 @@ describe('payment-rules', () => {
   });
 
   it('calcula parcelas sem juros pelo piso por parcela', () => {
-    expect(minFreeInstallment('70')).toBe(70);
-    expect(minFreeInstallment()).toBe(70);
-    expect(maxFreeInstallmentsForAmount(300, 6, 70)).toBe(4);
-    expect(maxFreeInstallmentsForAmount(279.99, 6, 70)).toBe(3);
-    expect(maxFreeInstallmentsForAmount(70, 6, 70)).toBe(1);
-    expect(maxFreeInstallmentsForAmount(69.99, 6, 70)).toBe(1);
+    expect(minFreeInstallment('80')).toBe(80);
+    expect(minFreeInstallment()).toBe(80);
+    expect(maxFreeInstallmentsForAmount(300, 6, 80)).toBe(3);
+    expect(maxFreeInstallmentsForAmount(279.99, 6, 80)).toBe(3);
+    expect(maxFreeInstallmentsForAmount(80, 6, 80)).toBe(1);
+    expect(maxFreeInstallmentsForAmount(79.99, 6, 80)).toBe(1);
   });
 
   it('traduz a recusa do cartão sem vazar detalhe técnico', () => {
