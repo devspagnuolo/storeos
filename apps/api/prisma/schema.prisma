@@ -56,6 +56,8 @@ model Store {
   themeConfig            Json                    @default("{}")
   whatsappNumber         String?
   whatsappMessage        String?
+  /// CEP de onde a loja despacha (8 dígitos). Sem ele vale SHIPPING_ORIGIN_ZIP do servidor.
+  shippingOriginZip      String?
   draftThemeConfig       Json?
   storefrontVersion      Int                     @default(0)
   storefrontPublishedAt  DateTime?

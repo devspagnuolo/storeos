@@ -43,4 +43,21 @@ describe('diagnóstico das integrações', () => {
     const empty = await api('/diagnostics/shipping-test', { method: 'POST', token, body: { zip: '01310-100' } });
     expect([200, 404]).toContain(empty.status);
   });
+
+  it('relata as variáveis do servidor sem valores e aponta as que o código não lê', async () => {
+    const { store } = await createStore();
+    expect((await api('/diagnostics/environment')).status).toBe(401);
+    process.env.SUPERFRETE_TOKEM = 'valor-confidencial-xyz';
+    try {
+      const token = await login(api, store, ['settings.write']);
+      const res = await api('/diagnostics/environment', { token });
+      expect(res.status).toBe(200);
+      expect(res.body.variables.find((v: { name: string }) => v.name === 'MERCADOPAGO_ACCESS_TOKEN')).toMatchObject({ set: true, group: 'Pagamentos' });
+      expect(res.body.unrecognized).toContainEqual({ name: 'SUPERFRETE_TOKEM', suggestion: 'SUPERFRETE_TOKEN' });
+      expect(JSON.stringify(res.body)).not.toContain('valor-confidencial-xyz');
+      expect(JSON.stringify(res.body)).not.toContain('TEST-token');
+    } finally {
+      delete process.env.SUPERFRETE_TOKEM;
+    }
+  });
 });
