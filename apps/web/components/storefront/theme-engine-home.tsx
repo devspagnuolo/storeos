@@ -33,7 +33,7 @@ export async function ThemeEngineHome({ theme, store }: { theme: PublishedTheme;
   const fontToken = theme.document.global.designTokens.typography?.fontFamily;
   const fontFamily = fontToken === 'serif' ? 'Georgia, serif' : fontToken === 'sans-serif' ? 'Arial, sans-serif' : 'system-ui, sans-serif';
 
-  return <div style={{ backgroundColor: background, color: foreground, fontFamily, ['--theme-primary' as string]: primary }}>
+  return <div style={{ backgroundColor: background, color: foreground, fontFamily }}>
     {sections.map(section => <ThemeHomeSection key={section.id} section={section} store={store} products={products} categories={categories} primary={primary} globalSettings={theme.document.global.settings} />)}
   </div>;
 }
