@@ -93,6 +93,7 @@ model Store {
   emailCampaigns EmailCampaign[]
   warehouses     Warehouse[]
   loyaltyConfig LoyaltyConfig?
+  businessProfile Json?
   productReviews ProductReview[]
   redirects Redirect[]
   automationRules AutomationRule[]
@@ -109,6 +110,9 @@ model User {
   mfaSecretEnc  String?
   mfaRecovery   String[]       @default([])
   mfaLastStep   Int?
+  emailVerifiedAt         DateTime?
+  verificationHash        String?
+  verificationExpiresAt   DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)

@@ -36,6 +36,7 @@ export class AuthService {
     const store = await this.prisma.store.findUnique({ where: { slug: input.storeSlug } });
     const user = store && await this.loadUser({ storeId_email: { storeId: store.id, email: input.email } });
     if (!user || user.status !== 'ACTIVE' || !(await argon2.verify(user.passwordHash, input.password))) throw new UnauthorizedException('Credenciais inválidas');
+    if (user.verificationHash) throw new UnauthorizedException({ message: 'Confirme seu e-mail antes de entrar. Procure a mensagem de confirmação na sua caixa de entrada.', code: 'EMAIL_NOT_VERIFIED' });
     if (user.mfaEnabled) await this.checkSecondFactor(user, input.code);
     return this.issue(user, client);
   }

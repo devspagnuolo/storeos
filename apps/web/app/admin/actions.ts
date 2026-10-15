@@ -20,6 +20,7 @@ export async function loginAction(_: LoginState, form: FormData): Promise<LoginS
   if (response.status === 401) {
     const body = await response.json().catch(() => undefined);
     if (body?.code === 'MFA_REQUIRED') return { ...kept, error: 'Este usuário usa verificação em duas etapas. Digite a senha de novo e informe o código do aplicativo.' };
+    if (body?.code === 'EMAIL_NOT_VERIFIED') return { ...kept, error: 'Falta confirmar o seu e-mail. Abra a mensagem que enviamos quando você criou a loja e clique em “Confirmar meu e-mail”.' };
     if (body?.code === 'MFA_INVALID') return { ...kept, error: 'Código de verificação inválido ou já usado. Aguarde o próximo código.' };
   }
   if (!response.ok) return { ...kept, error: 'E-mail, senha ou loja incorretos.' };
