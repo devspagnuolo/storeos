@@ -31,6 +31,7 @@ export const ENV_VARS: EnvVar[] = [
   { name: 'REDE_SOFT_DESCRIPTOR', group: 'Pagamentos', importance: 'optional', description: 'Nome que aparece na fatura do cartão.' },
   { name: 'REDE_MIN_INSTALLMENT', group: 'Pagamentos', importance: 'optional', description: 'Valor mínimo da parcela na Rede.' },
   { name: 'SUPERFRETE_TOKEN', group: 'Frete', importance: 'recommended', description: 'Token do SuperFrete (cotação dos Correios).' },
+  { name: 'SUPERFRETE_API_URL', group: 'Frete', importance: 'optional', description: 'Endereço da API do SuperFrete (padrão https://api.superfrete.com).' },
   { name: 'SUPERFRETE_SANDBOX', group: 'Frete', importance: 'optional', description: '“true” usa o ambiente de testes do SuperFrete.' },
   { name: 'SUPERFRETE_SERVICES', group: 'Frete', importance: 'optional', description: 'Serviços cotados no SuperFrete (padrão 1,2,17).' },
   { name: 'MELHOR_ENVIO_TOKEN', group: 'Frete', importance: 'optional', description: 'Token do Melhor Envio (alternativa ao SuperFrete).' },

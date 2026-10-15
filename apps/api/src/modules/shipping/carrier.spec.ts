@@ -1,7 +1,7 @@
 import { money } from '../../shared/money/money';
 import { buildPackages, DEFAULT_PACKAGE } from './carrier';
 import { MelhorEnvioClient } from './melhor-envio.client';
-import { SuperFreteClient } from './superfrete.client';
+import { superFreteHost, SuperFreteClient } from './superfrete.client';
 
 describe('pacotes para transportadoras', () => {
   it('usa as medidas do produto e cai no padrão quando faltam', () => {
@@ -70,6 +70,22 @@ describe('SuperFreteClient', () => {
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.superfrete.com/api/v0/calculator');
     expect(JSON.parse(init.body as string)).toMatchObject({ from: { postal_code: '09015000' }, to: { postal_code: '01310100' }, services: '1,2,17', products: [{ quantity: 2, weight: 0.3, height: 5 }] });
+  });
+
+  it('usa SUPERFRETE_API_URL (sem a barra final) e só aceita https', () => {
+    expect(superFreteHost({})).toBe('https://api.superfrete.com');
+    expect(superFreteHost({ SUPERFRETE_SANDBOX: 'true' })).toBe('https://sandbox.superfrete.com');
+    expect(superFreteHost({ SUPERFRETE_API_URL: 'https://api.superfrete.com/' })).toBe('https://api.superfrete.com');
+    expect(superFreteHost({ SUPERFRETE_API_URL: ' https://sandbox.superfrete.com ', SUPERFRETE_SANDBOX: 'false' })).toBe('https://sandbox.superfrete.com');
+    expect(superFreteHost({ SUPERFRETE_API_URL: 'http://inseguro.example' })).toBe('https://api.superfrete.com');
+    expect(superFreteHost({ SUPERFRETE_API_URL: 'lixo' })).toBe('https://api.superfrete.com');
+  });
+
+  it('cota no endereço definido em SUPERFRETE_API_URL', async () => {
+    process.env.SUPERFRETE_TOKEN = 't'; process.env.SUPERFRETE_API_URL = 'https://api.superfrete.com/';
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(new Response('[]'));
+    await new SuperFreteClient().quote({ fromZip: '1', toZip: '2', packages: [] });
+    expect((fetchSpy.mock.calls[0] as [string])[0]).toBe('https://api.superfrete.com/api/v0/calculator');
   });
 
   it('propaga falha HTTP', async () => {

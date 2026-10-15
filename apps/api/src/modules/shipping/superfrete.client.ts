@@ -7,9 +7,16 @@ type SuperFreteService = {
   company?: { name: string }; has_error?: boolean; error?: string;
 };
 
+/** Endereço da API: `SUPERFRETE_API_URL` (https) quando definido; senão o de testes ou o de produção conforme `SUPERFRETE_SANDBOX`. */
+export function superFreteHost(env: NodeJS.ProcessEnv = process.env): string {
+  const custom = env.SUPERFRETE_API_URL?.trim().replace(/\/+$/, '');
+  if (custom && /^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(custom)) return custom;
+  return env.SUPERFRETE_SANDBOX === 'true' ? 'https://sandbox.superfrete.com' : 'https://api.superfrete.com';
+}
+
 /**
  * Cotação pela API do SuperFrete (Correios PAC, SEDEX e Mini Envios). Precisa de `SUPERFRETE_TOKEN`; o CEP de origem vem do cadastro da loja (ou, na falta dele, de `SHIPPING_ORIGIN_ZIP`);
- * `SUPERFRETE_SANDBOX=true` usa o ambiente de testes e `SUPERFRETE_SERVICES` troca os serviços cotados (padrão "1,2,17").
+ * `SUPERFRETE_API_URL` troca o endereço da API, `SUPERFRETE_SANDBOX=true` usa o ambiente de testes e `SUPERFRETE_SERVICES` troca os serviços cotados (padrão "1,2,17").
  */
 @Injectable()
 export class SuperFreteClient implements CarrierQuotes {
@@ -21,7 +28,7 @@ export class SuperFreteClient implements CarrierQuotes {
   }
 
   async quote({ fromZip, toZip, packages }: { fromZip: string; toZip: string; packages: CarrierPackage[] }): Promise<CarrierOffer[]> {
-    const host = process.env.SUPERFRETE_SANDBOX === 'true' ? 'https://sandbox.superfrete.com' : 'https://api.superfrete.com';
+    const host = superFreteHost();
     const response = await fetch(`${host}/api/v0/calculator`, {
       method: 'POST',
       headers: {
