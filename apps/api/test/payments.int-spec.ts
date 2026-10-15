@@ -223,7 +223,7 @@ describe('cartão e boleto pelo Mercado Pago', () => {
 
   it('valida CPF, dados do cartão e disponibilidade', async () => {
     const { store, product } = await createStore(5);
-    expect((await pay(store.slug, product.id, { card })).status).toBe(400);
+    expect((await pay(store.slug, product.id, { cpf: undefined, card })).status).toBe(400);
     expect((await pay(store.slug, product.id, { cpf: '111.111.111-11', card })).status).toBe(400);
     expect((await pay(store.slug, product.id, { cpf })).status).toBe(400);
     expect((await pay(store.slug, product.id, { cpf, card: { ...card, installments: 99 } })).status).toBe(400);
@@ -235,7 +235,7 @@ describe('cartão e boleto pelo Mercado Pago', () => {
 
   it('boleto exige CPF, devolve link e código de barras e é pago pelo webhook', async () => {
     const { store, product } = await createStore(5);
-    expect((await pay(store.slug, product.id, {}, 'BOLETO')).status).toBe(400);
+    expect((await pay(store.slug, product.id, { cpf: undefined }, 'BOLETO')).status).toBe(400);
     const checkout = await pay(store.slug, product.id, { cpf }, 'BOLETO');
     expect(checkout.status).toBe(201);
     expect(checkout.body.payment.instructions).toMatchObject({ ticketUrl: 'https://mp.test/boleto', barcode: '23790000' });
