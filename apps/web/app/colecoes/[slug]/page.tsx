@@ -8,10 +8,11 @@ export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const page = Math.max(Number((await searchParams).page) || 1, 1);
   const entry = (await getCollections()).find(item => item.slug === slug);
-  return { title: entry?.name ?? 'Coleção', description: entry?.description ?? undefined };
+  return { alternates: { canonical: page > 1 ? `/colecoes/${slug}?page=${page}` : `/colecoes/${slug}` }, title: entry?.name ?? 'Coleção', description: entry?.description ?? undefined };
 }
 
 export default async function CollectionPage({ params, searchParams }: Props) {

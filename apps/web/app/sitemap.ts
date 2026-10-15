@@ -4,9 +4,17 @@ import { resolveSiteUrl } from '../lib/store-host';
 
 export const dynamic = 'force-dynamic';
 
+/** Todas as páginas de produto, não só as primeiras: o limite da API é 60 por página. */
+async function allProducts() {
+  const first = await getProducts({ pageSize: 60 });
+  const pages = Math.min(Math.ceil(first.total / 60), 80);
+  const rest = await Promise.all(Array.from({ length: Math.max(pages - 1, 0) }, (_, i) => getProducts({ pageSize: 60, page: i + 2 })));
+  return { items: [first, ...rest].flatMap(p => p.items) };
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = await resolveSiteUrl();
-  const [categories, products, brands, collections, pages] = await Promise.all([getCategories(), getProducts({ pageSize: 60 }), getBrands(), getCollections(), getPages()]);
+  const [categories, products, brands, collections, pages] = await Promise.all([getCategories(), allProducts(), getBrands(), getCollections(), getPages()]);
   return [
     { url: siteUrl, changeFrequency: 'daily', priority: 1 },
     { url: `${siteUrl}/categorias`, changeFrequency: 'daily', priority: 0.8 },

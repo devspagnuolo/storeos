@@ -110,3 +110,10 @@ export type EnvironmentReport = {
 export type CampaignCounts = { total: number; sent: number; simulated: number; failed: number; pending: number };
 export type EmailCampaign = { id: string; name: string; subject: string; body: string; audience: 'ALL' | 'NEWSLETTER' | 'CUSTOMERS'; segment: string | null; status: 'DRAFT' | 'SENDING' | 'SENT' | 'CANCELLED'; startedAt: string | null; finishedAt: string | null; createdAt: string; counts: CampaignCounts };
 export type EmailCampaignDetail = EmailCampaign & { failures: { email: string; error: string | null }[] };
+
+export type TrackingConfig = { ga4?: string; gtm?: string; metaPixel?: string; googleVerification?: string; homeTitle?: string; homeDescription?: string };
+export type SeoAudit = {
+  checks: { id: string; label: string; ok: boolean; hint: string }[];
+  products: { total: number; withIssues: number; counts: { key: string; label: string; count: number }[] };
+  list: { id: string; name: string; slug: string; labels: string[] }[];
+};

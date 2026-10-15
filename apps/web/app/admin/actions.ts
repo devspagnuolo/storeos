@@ -867,3 +867,15 @@ export async function deleteCampaignAction(form: FormData) {
   revalidatePath('/admin/campanhas');
   redirect('/painel/campanhas');
 }
+
+export async function saveTrackingAction(_: FormState, form: FormData): Promise<FormState> {
+  const text = (name: string) => String(form.get(name) ?? '').trim();
+  try {
+    await adminFetch('/seo/tracking', { method: 'PUT', body: { ga4: text('ga4'), gtm: text('gtm'), metaPixel: text('metaPixel'), googleVerification: text('googleVerification'), homeTitle: text('homeTitle'), homeDescription: text('homeDescription') } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/seo');
+  return { ok: 'Salvo. A loja passa a usar essas informações em até 1 minuto.' };
+}
