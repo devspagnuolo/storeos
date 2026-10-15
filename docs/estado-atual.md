@@ -1,6 +1,6 @@
 # Estado atual do STOREOS (referência única)
 
-Atualizado em 15/10/2026, com base no código em `main` (PRs até #67). **Este é o documento que orienta novas entregas.** Os outros documentos desta pasta são histórico: o diagnóstico e a avaliação de outubro descrevem uma loja que ainda não vendia, e as análises de paridade partem de um painel bem menor que o atual. Onde houver conflito, vale este documento e o código.
+Atualizado em 15/10/2026, com base no código em `main` (PRs até #74). **Este é o documento que orienta novas entregas.** Os outros documentos desta pasta são histórico: o diagnóstico e a avaliação de outubro descrevem uma loja que ainda não vendia, e as análises de paridade partem de um painel bem menor que o atual. Onde houver conflito, vale este documento e o código.
 
 Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao lado) · ❌ não existe · ⏳ depende de dados, contas ou credenciais do lojista.
 
@@ -22,9 +22,11 @@ Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao la
 | Recurso | Estado | Observação |
 |---|---|---|
 | Rascunho, prévia privada, publicar, histórico e restaurar versão | ✅ | |
-| Seções da página inicial (ordem, textos, imagens) | ✅ | |
-| Outras páginas (categoria, produto, institucionais) | 🟡 | Seguem o layout padrão; só a home é editável por seções |
-| Seleção visual de produtos nas seções | 🟡 | Ver o plano de evolução do editor abaixo |
+| Layout familiar: páginas à esquerda, prévia no centro, configurações do elemento ao lado | ✅ | |
+| Seções da página inicial (adicionar, mover, ocultar, duplicar, remover) | ✅ | |
+| Seções nas páginas de categoria e de produto (abaixo do conteúdo fixo) | ✅ | O conteúdo fixo (lista, detalhes do produto) não é reordenável; a prévia dessas páginas usa um exemplo |
+| Páginas institucionais | 🟡 | Texto editado em Páginas; ainda sem seções próprias |
+| Escolha visual de produtos já cadastrados nas seções | ✅ | Guarda só os ids; até 24 por seção; produto despublicado some da loja |
 | Menus, banners, WhatsApp, páginas institucionais, newsletter | ✅ | |
 | Temas prontos para escolher | ❌ | Há cores e tipografia editáveis, não vários modelos |
 
@@ -47,14 +49,15 @@ Legenda: ✅ pronto e testado · 🟡 parcial (o que falta está na coluna ao la
 | Área | Estado | Observação |
 |---|---|---|
 | Várias lojas isoladas por `storeId`, papéis e permissões | ✅ | Papéis ainda globais, não por loja |
-| Criar conta e loja sozinho, confirmar e-mail | ❌ | Em andamento: passo a passo de criação da loja |
+| Criar conta e loja sozinho, confirmar e-mail (`/criar-loja`) | 🟡 ⏳ | Desligado até `SIGNUP_ENABLED=true` e `PUBLIC_SITE_URL`; e-mail real exige Resend; a vitrine de loja nova precisa de domínio próprio |
+| Passo a passo: dados básicos, loja "em construção" e botão Publicar | ✅ | Marca, tema e produtos seguem nas telas atuais, ligados pelo checklist de Primeiros passos |
 | Planos, cobrança e limites | ❌ | Decisão do dono: por enquanto não haverá planos |
 | App marketplace, IA para descrições | ❌ | |
 
 ## Próximas entregas, em ordem
 
-1. **Criação de loja guiada** (jornada: criar acesso, dados básicos, marca, produtos, tema, vitrine, pagamentos e entregas, revisar e publicar).
-2. **Editor**: páginas à esquerda, prévia no centro, configurações do elemento ao lado; adicionar, mover, ocultar e remover seções; escolher produtos já cadastrados.
+1. **Temas prontos** (vários modelos completos) e seções nas páginas institucionais.
+2. **Assistente único** de criação de loja (marca, tema e produtos em uma sequência só) e vitrine de loja nova sem depender de domínio próprio.
 3. Estrelas nos cards, aviso de nova avaliação, bônus de aniversário e resgate de pontos pelo cliente.
 4. Marketplaces, quando houver contas de desenvolvedor e credenciais.
 
