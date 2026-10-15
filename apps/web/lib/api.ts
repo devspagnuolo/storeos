@@ -26,7 +26,7 @@ async function get<T>(path: (slug: string) => string, fallback: T): Promise<T> {
   }
 }
 
-export function getProducts(query: { category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number } = {}) {
+export function getProducts(query: { ids?: string; category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number } = {}) {
   return get<ProductPage>(store => {
     const params = new URLSearchParams({ store });
     for (const [key, value] of Object.entries(query)) if (value) params.set(key, String(value));

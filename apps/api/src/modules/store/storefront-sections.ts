@@ -120,10 +120,12 @@ const sanitizers: Record<SectionType, (props: Record<string, unknown>) => Record
     return { heading: text(props.heading, 'Título', 80), limit: integer(props.limit, 'Quantidade', 1, 12, 6) };
   },
   products: props => {
-    onlyKeys(props, ['heading', 'subheading', 'limit', 'categorySlug'], 'products');
+    onlyKeys(props, ['heading', 'subheading', 'limit', 'categorySlug', 'productIds'], 'products');
+    const productIds = props.productIds === undefined || props.productIds === null ? [] : props.productIds;
+    if (!Array.isArray(productIds) || productIds.length > 24 || productIds.some(id => typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) || new Set(productIds).size !== productIds.length) fail('Produtos escolhidos inválidos (até 24, sem repetir).');
     const slug = text(props.categorySlug, 'Categoria', 120);
     if (slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) fail('Categoria inválida.');
-    return { heading: text(props.heading, 'Título', 80), subheading: text(props.subheading, 'Subtítulo', 80), limit: integer(props.limit, 'Quantidade', 1, 24, 8), categorySlug: slug };
+    return { heading: text(props.heading, 'Título', 80), subheading: text(props.subheading, 'Subtítulo', 80), limit: integer(props.limit, 'Quantidade', 1, 24, 8), categorySlug: slug, productIds };
   },
   benefits: props => {
     onlyKeys(props, ['items'], 'benefits');

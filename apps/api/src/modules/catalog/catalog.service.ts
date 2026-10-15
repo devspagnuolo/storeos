@@ -5,7 +5,7 @@ import { recordMovement } from '../inventory/stock-ledger';
 import { cleanFiscal } from './fiscal-rules';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
-export type ProductQuery = { category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number };
+export type ProductQuery = { ids?: string; category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number };
 export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; imageUrls?: string[]; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; ncm?: string | null; cest?: string | null; gtin?: string | null; taxOrigin?: number | null; unit?: string | null };
 export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string };
 export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
@@ -45,9 +45,12 @@ export class CatalogService {
     const q = query.q?.trim();
     // Abrir uma categoria mostra também os produtos de todas as subcategorias abaixo dela.
     const categoryIds = query.category ? await this.categoryAndDescendants(storeId, query.category) : undefined;
+    // Vitrine com produtos escolhidos a dedo: só entram os ativos da loja, na ordem escolhida.
+    const ids = query.ids?.split(',').map(id => id.trim()).filter(Boolean).slice(0, 24);
     const where: Prisma.ProductWhereInput = {
       storeId,
       status: ProductStatus.ACTIVE,
+      ...(ids && { id: { in: ids } }),
       ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }),
       ...(query.brand && { brand: { slug: query.brand } }),
       ...(query.collection && { collections: { some: { collection: { slug: query.collection, active: true } } } }),
@@ -57,6 +60,7 @@ export class CatalogService {
       this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 } }, skip: (page - 1) * pageSize, take: pageSize, orderBy: { createdAt: 'desc' } }),
       this.prisma.product.count({ where }),
     ]);
+    if (ids) items.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
     return { items, total, page, pageSize };
   }
 
@@ -278,11 +282,12 @@ export class CatalogService {
     }
   }
 
-  async adminList(storeId: string, { q, status, category, page = 1, pageSize = 20 }: { q?: string; status?: ProductStatus; category?: string; page?: number; pageSize?: number }) {
+  async adminList(storeId: string, { ids, q, status, category, page = 1, pageSize = 20 }: { ids?: string; q?: string; status?: ProductStatus; category?: string; page?: number; pageSize?: number }) {
     const term = q?.trim();
     // Filtrar por uma categoria inclui as subcategorias dela.
     const categoryIds = category ? await this.categoryAndDescendants(storeId, category) : undefined;
-    const where: Prisma.ProductWhereInput = { storeId, ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }), ...(status && { status }), ...(term && { OR: [{ name: { contains: term, mode: 'insensitive' } }, { sku: { contains: term, mode: 'insensitive' } }] }) };
+    const idList = ids?.split(',').map(id => id.trim()).filter(Boolean).slice(0, 24);
+    const where: Prisma.ProductWhereInput = { storeId, ...(idList && { id: { in: idList } }), ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }), ...(status && { status }), ...(term && { OR: [{ name: { contains: term, mode: 'insensitive' } }, { sku: { contains: term, mode: 'insensitive' } }] }) };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 }, inventory: true, _count: { select: { variants: true } } }, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.product.count({ where }),
