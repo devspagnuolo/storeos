@@ -55,6 +55,26 @@ function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): Them
       }
     }
   }
+  const publicHomeComponents = new Set([
+    'storeos.announcement.v1',
+    'storeos.header.v1',
+    'storeos.hero.v1',
+    'storeos.category-grid.v1',
+    'storeos.product-collection.v1',
+    'storeos.benefits.v1',
+    'storeos.rich-text.v1',
+    'storeos.newsletter.v1',
+    'storeos.footer.v1',
+  ]);
+  for (const [index, section] of (typed.templates.home?.sections ?? []).entries()) {
+    if (section.enabled && !publicHomeComponents.has(section.type)) {
+      issues.push({
+        path: `$.templates.home.sections[${index}].type`,
+        code: 'INVALID_SECTION',
+        message: 'Este componente ainda não está disponível na vitrine pública. Oculte-o ou aguarde a próxima versão do runtime.',
+      });
+    }
+  }
   return issues;
 }
 
