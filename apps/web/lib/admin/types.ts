@@ -88,3 +88,6 @@ export type Diagnostics = { checkedAt: string; summary: { fail: number; warn: nu
 export type ShippingTestResult = { product: string; elapsedMs: number; required: boolean; options: { id: string; name: string; price: string; minDays: number; maxDays: number; free: boolean }[] };
 
 export type OrderRefunds = { paid: string | null; remaining: string; gatewayAvailable: boolean; refunds: { id: string; amount: string; reason: string; mode: 'GATEWAY' | 'MANUAL'; status: 'PENDING' | 'DONE' | 'FAILED'; error: string | null; createdAt: string }[] };
+
+export type AbandonedCartRow = { id: string; email: string; name: string | null; status: 'OPEN' | 'REMINDED' | 'RECOVERED' | 'OPTED_OUT'; itemCount: number; subtotal: string; items: { name: string; quantity: number; variantLabel?: string }[]; lastActivityAt: string; remindedAt: string | null; recoveredAt: string | null };
+export type AbandonedCartList = { items: AbandonedCartRow[]; stats: { open: number; reminded: number; recovered: number; optedOut: number; recoveredValue: string; pendingValue: string }; delayMinutes: number; siteConfigured: boolean };

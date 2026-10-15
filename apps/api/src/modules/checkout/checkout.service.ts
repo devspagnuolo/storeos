@@ -1,5 +1,5 @@
 import { BadGatewayException, BadRequestException, ConflictException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
+import { AbandonedCartStatus, OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { generateOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from '../orders/order-lines';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
@@ -117,6 +117,8 @@ export class CheckoutService {
         },
         include: { payments: true, items: true },
       });
+      // Quem fechou o pedido deixa de ser carrinho abandonado (e não recebe lembrete).
+      await tx.abandonedCart.updateMany({ where: { storeId: store.id, email, status: { in: [AbandonedCartStatus.OPEN, AbandonedCartStatus.REMINDED] } }, data: { status: AbandonedCartStatus.RECOVERED, recoveredAt: new Date(), recoveredOrderId: created.id } });
       if (couponId) await tx.couponRedemption.create({ data: { couponId, orderId: created.id, customerId: customer.id, amount: discount } });
       await tx.outboxEvent.create({ data: { storeId: store.id, aggregateType: 'Order', aggregateId: created.id, eventName: 'orders.order-created.v1', payload: { orderNumber: number, customerId: customer.id, total: total.toString(), currency: created.currency } } });
       await tx.outboxEvent.create({ data: { storeId: store.id, aggregateType: 'Order', aggregateId: created.id, eventName: 'inventory.reserved.v1', payload: { orderNumber: number, items } as unknown as Prisma.InputJsonObject } });

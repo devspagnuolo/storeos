@@ -15,6 +15,7 @@ import { ContentModule } from './modules/content/content.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { AbandonedCartsModule } from './modules/abandoned-carts/abandoned-carts.module';
 import { EngagementModule } from './modules/engagement/engagement.module';
 import { BlingModule } from './modules/bling/bling.module';
 import { MediaModule } from './modules/media/media.module';
@@ -39,6 +40,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     ShippingModule,
     PromotionsModule,
     InventoryModule,
+    AbandonedCartsModule,
     EngagementModule,
     MediaModule,
     BlingModule,

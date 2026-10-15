@@ -33,3 +33,14 @@ export function buildOrderMail(eventName: string, data: OrderMailData): Mail | n
       return null;
   }
 }
+
+export type CartReminderData = { storeName: string; customerName: string; items: { name: string; quantity: number; variantLabel?: string }[]; recoverUrl: string; optOutUrl: string };
+
+/** Lembrete de carrinho abandonado: lista os itens e leva direto ao carrinho de volta. */
+export function buildCartReminderMail(data: CartReminderData): Mail {
+  const greeting = `Olá, ${firstName(data.customerName)}!`;
+  const lines = data.items.map(i => `${i.quantity}x ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''}`);
+  const text = [greeting, '', 'Você deixou estes itens no carrinho:', ...lines.map(l => `- ${l}`), '', `Finalize sua compra: ${data.recoverUrl}`, '', `Equipe ${data.storeName}`, '', `Não quer receber este lembrete? ${data.optOutUrl}`].join('\n');
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1e293b"><h2 style="margin:0 0 16px">Seu carrinho está esperando</h2><p>${escapeHtml(greeting)}</p><p>Você deixou estes itens no carrinho:</p><ul>${lines.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul><p><a href="${escapeHtml(data.recoverUrl)}" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Finalizar minha compra</a></p><p style="color:#64748b">Equipe ${escapeHtml(data.storeName)}</p><p style="color:#94a3b8;font-size:12px"><a href="${escapeHtml(data.optOutUrl)}" style="color:#94a3b8">Não quero receber este lembrete</a></p></div>`;
+  return { template: 'cart-reminder', subject: `${firstName(data.customerName)}, seu carrinho está esperando`, text, html };
+}

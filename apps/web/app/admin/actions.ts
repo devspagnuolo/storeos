@@ -735,3 +735,14 @@ export async function createManualOrderAction(payload: ManualOrderPayload): Prom
   revalidatePath('/admin', 'layout');
   redirect(`/admin/pedidos/${encodeURIComponent(number)}`);
 }
+
+export async function remindCartAction(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    await adminFetch(`/abandoned-carts/admin/${encodeURIComponent(String(form.get('id')))}/remind`, { method: 'POST', body: {} });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/carrinhos');
+  return { ok: 'Lembrete enviado.' };
+}
