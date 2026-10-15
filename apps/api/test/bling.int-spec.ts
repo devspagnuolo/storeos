@@ -50,6 +50,7 @@ class FakeBling {
       if (this.failOrders) throw new Error('Bling 400: contato inválido');
       const id = this.nextId++; this.salesOrders.set((init.body as { numeroLoja: string }).numeroLoja, id); return { data: { id, numero: id + 100 } };
     }
+    if (/^\/pedidos\/vendas\/\d+\/situacoes\/\d+$/.test(url.pathname) && method === 'PATCH') return undefined;
     if (url.pathname === '/nfe' && method === 'GET') { this.invoiceCalls.push({ method, path }); return { data: [] }; }
     if (url.pathname.startsWith('/pedidos/vendas/') && url.pathname.endsWith('/gerar-nfe') && method === 'POST') { this.invoiceCalls.push({ method, path }); return { data: { idNotaFiscal: 3001 } }; }
     if (url.pathname === '/nfe/3001/enviar' && method === 'POST') { this.invoiceCalls.push({ method, path, body: init.body }); return { data: {} }; }
@@ -182,7 +183,7 @@ describe('importação escolhendo produtos', () => {
 });
 
 describe('pedidos do site no Bling', () => {
-  it('envia ao Bling pedidos pendentes e anteriores à conexão, preservando os dois números', async () => {
+  it('só envia ao Bling depois do pagamento aprovado (inclusive pedidos anteriores à conexão), preservando os dois números', async () => {
     const { store, product } = await createStore(5);
     const checkout = await api('/checkout', { method: 'POST', body: { ...checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }], 'BOLETO'), cpf: '529.982.247-25' } });
     expect(checkout.status).toBe(201);
@@ -190,12 +191,16 @@ describe('pedidos do site no Bling', () => {
     await connect(store.id);
     const orders = app.get(BlingOrdersService);
 
+    // Aguardando pagamento: não vira venda no Bling.
+    expect(await orders.processDue()).toBe(0);
+    expect(await prisma.blingOrderSync.findUnique({ where: { orderId: order.id } })).toBeNull();
+    const operator = await login(api, store, ['orders.read', 'orders.write']);
+    expect((await api(`/bling/orders/${checkout.body.number}/send`, { method: 'POST', token: operator })).status).toBe(400);
+
+    await app.get(OrderLifecycleService).markPaid({ orderId: order.id });
     expect(await orders.processDue()).toBe(1);
     const sync = await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } });
     expect(sync).toMatchObject({ status: 'SENT', blingOrderId: '9000', blingOrderNumber: '9100', attempts: 0 });
-
-    await app.get(OrderLifecycleService).markPaid({ orderId: order.id });
-    expect(await orders.processDue()).toBe(0);
     const contact = bling.calls.find(c => c.method === 'POST' && c.path === '/contatos')!.body;
     expect(contact).toMatchObject({ nome: 'Maria Silva', numeroDocumento: '52998224725', email: 'maria@example.com' });
     expect(bling.calls.find(c => c.path.startsWith('/contatos?') && c.method === 'GET')!.path).toContain('numeroDocumento=52998224725');
@@ -215,6 +220,7 @@ describe('pedidos do site no Bling', () => {
     await connect(store.id);
     const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }], 'PIX') });
     const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
+    await app.get(OrderLifecycleService).markPaid({ orderId: order.id });
     await app.get(BlingOrdersService).processDue();
 
     const sent = await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } });
@@ -254,6 +260,41 @@ describe('pedidos do site no Bling', () => {
     const response = await api('/bling/webhook', { method: 'POST', body: event, headers: { 'x-bling-signature-256': signature } });
     expect(response.body).toMatchObject({ ignored: false, queued: true });
     expect(await prisma.blingConnection.findUniqueOrThrow({ where: { storeId: store.id } })).toMatchObject({ companyId: '888', lastError: null });
+  });
+
+  it('pedido cancelado ou recusado antes de ir ao Bling nunca é enviado', async () => {
+    const { store, product } = await createStore(5);
+    await connect(store.id);
+    const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }], 'PIX') });
+    const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
+    await app.get(OrderLifecycleService).cancel({ orderId: order.id }, { message: 'Falha ao gerar a cobrança' });
+    // Uma fila antiga (de antes da regra) também é descartada sem enviar.
+    await prisma.blingOrderSync.create({ data: { storeId: store.id, orderId: order.id } });
+    await app.get(BlingOrdersService).processDue();
+    expect(await prisma.blingOrderSync.findUnique({ where: { orderId: order.id } })).toBeNull();
+    expect(bling.calls.some(c => c.method === 'POST' && c.path === '/pedidos/vendas')).toBe(false);
+  });
+
+  it('pedido já no Bling que é reembolsado na loja é cancelado no Bling, uma única vez', async () => {
+    const { store, product } = await createStore(5);
+    await connect(store.id);
+    const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }], 'PIX') });
+    const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
+    const lifecycle = app.get(OrderLifecycleService);
+    const orders = app.get(BlingOrdersService);
+    await lifecycle.markPaid({ orderId: order.id });
+    await orders.processDue();
+    const sent = await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } });
+
+    await lifecycle.markRefunded({ orderId: order.id }, { message: 'Estornado no Mercado Pago' });
+    bling.calls = [];
+    await orders.processDue();
+    expect(bling.calls.filter(c => c.method === 'PATCH')).toEqual([{ method: 'PATCH', path: `/pedidos/vendas/${sent.blingOrderId}/situacoes/12`, body: undefined }]);
+    expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({ blingSituationId: '12', blingSituationName: 'Cancelado', lastError: null });
+
+    bling.calls = [];
+    await orders.processDue();
+    expect(bling.calls.some(c => c.method === 'PATCH')).toBe(false);
   });
 
   it('falha fica registrada com espera, e o reenvio manual conclui sem duplicar', async () => {

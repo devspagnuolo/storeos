@@ -1,6 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { BlingSyncStatus } from '@prisma/client';
+import { BlingSyncStatus, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { BlingAuthService } from './bling-auth.service';
 import { contactPayload, OrderForBling, salesOrderPayload } from './bling-mapper';
@@ -11,6 +11,14 @@ const BATCH = 5;
 const LEASE_MS = 5 * 60_000;
 
 type Listing<T> = { data?: T[] };
+
+/** Só pedido com pagamento aprovado vai ao Bling; antes disso ele pode nem virar venda. */
+export const SENDABLE_STATUSES: OrderStatus[] = [OrderStatus.PAID, OrderStatus.PICKING, OrderStatus.INVOICED, OrderStatus.SHIPPED, OrderStatus.DELIVERED];
+/** Pedido cancelado ou reembolsado na loja é cancelado também no Bling. */
+export const VOIDED_STATUSES: OrderStatus[] = [OrderStatus.CANCELLED, OrderStatus.REFUNDED];
+/** "Cancelado" é a situação padrão 12 do módulo de vendas do Bling; BLING_CANCELLED_SITUATION_ID troca, se a conta usar outra. */
+const cancelledSituationId = () => process.env.BLING_CANCELLED_SITUATION_ID?.trim() || '12';
+const CANCEL_RETRY_MS = 10 * 60_000;
 
 /** Envia todos os pedidos da loja ao Bling; falhas ficam registradas e são repetidas com espera crescente. */
 @Injectable()
@@ -33,19 +41,22 @@ export class BlingOrdersService {
     }
   }
 
-  /** Inclui pedidos novos e históricos, inclusive aguardando pagamento; cada pedido local é enviado uma única vez. */
+  /** Inclui pedidos novos e históricos já pagos; cada pedido local é enviado uma única vez. */
   async enqueueNew() {
     return this.prisma.$executeRaw`
       INSERT INTO "BlingOrderSync" ("id", "storeId", "orderId", "status", "attempts", "nextAttemptAt", "createdAt", "updatedAt")
       SELECT gen_random_uuid()::text, o."storeId", o."id", 'PENDING', 0, NOW(), NOW(), NOW()
       FROM "Order" o JOIN "BlingConnection" c ON c."storeId" = o."storeId"
-      WHERE NOT EXISTS (SELECT 1 FROM "BlingOrderSync" s WHERE s."orderId" = o."id")
+      WHERE o."status" IN ('PAID', 'PICKING', 'INVOICED', 'SHIPPED', 'DELIVERED')
+        AND NOT EXISTS (SELECT 1 FROM "BlingOrderSync" s WHERE s."orderId" = o."id")
       ORDER BY o."createdAt" ASC
       LIMIT 50
       ON CONFLICT ("orderId") DO NOTHING`;
   }
 
   async processDue() {
+    // Pedido que deixou de estar pago antes de ir ao Bling (cancelado, recusado) sai da fila sem ser enviado.
+    await this.prisma.blingOrderSync.deleteMany({ where: { status: { not: BlingSyncStatus.SENT }, order: { status: { notIn: SENDABLE_STATUSES } } } });
     await this.enqueueNew();
     const due = await this.prisma.blingOrderSync.findMany({
       where: { status: { in: [BlingSyncStatus.PENDING, BlingSyncStatus.FAILED, BlingSyncStatus.PROCESSING] }, attempts: { lt: MAX_ATTEMPTS }, nextAttemptAt: { lte: new Date() } },
@@ -53,7 +64,36 @@ export class BlingOrdersService {
       take: BATCH,
     });
     for (const sync of due) await this.send(sync.id);
+    await this.cancelVoided();
     return due.length;
+  }
+
+  /** Pedidos já no Bling que foram cancelados ou reembolsados na loja passam para a situação "Cancelado" lá. */
+  async cancelVoided() {
+    const situationId = cancelledSituationId();
+    const rows = await this.prisma.blingOrderSync.findMany({
+      where: {
+        status: BlingSyncStatus.SENT,
+        blingOrderId: { not: null },
+        OR: [{ blingSituationId: null }, { blingSituationId: { not: situationId } }],
+        nextAttemptAt: { lte: new Date() },
+        order: { status: { in: VOIDED_STATUSES } },
+      },
+      orderBy: { updatedAt: 'asc' },
+      take: BATCH,
+    });
+    for (const row of rows) {
+      try {
+        const token = await this.auth.accessToken(row.storeId);
+        await this.client.request(token, `/pedidos/vendas/${encodeURIComponent(row.blingOrderId!)}/situacoes/${encodeURIComponent(situationId)}`, { method: 'PATCH' });
+        await this.prisma.blingOrderSync.update({ where: { id: row.id }, data: { blingSituationId: situationId, blingSituationName: 'Cancelado', lastError: null } });
+      } catch (error) {
+        const message = (error as Error).message.slice(0, 500);
+        this.logger.warn('Pedido ' + row.orderId + ' não foi cancelado no Bling: ' + message);
+        await this.prisma.blingOrderSync.update({ where: { id: row.id }, data: { lastError: 'Cancelar no Bling: ' + message, nextAttemptAt: new Date(Date.now() + CANCEL_RETRY_MS) } });
+      }
+    }
+    return rows.length;
   }
 
   async list(storeId: string, status?: BlingSyncStatus) {
@@ -72,8 +112,9 @@ export class BlingOrdersService {
 
   /** Reenvio manual: zera as tentativas e envia na hora (ou cria o registro, se o pedido nunca entrou na fila). */
   async resend(storeId: string, orderNumber: string) {
-    const order = await this.prisma.order.findFirst({ where: { storeId, number: orderNumber }, select: { id: true } });
+    const order = await this.prisma.order.findFirst({ where: { storeId, number: orderNumber }, select: { id: true, status: true } });
     if (!order) throw new NotFoundException('Pedido não encontrado');
+    if (!SENDABLE_STATUSES.includes(order.status)) throw new BadRequestException('Só pedidos com pagamento aprovado vão para o Bling.');
     const sync = await this.prisma.blingOrderSync.upsert({
       where: { orderId: order.id },
       create: { storeId, orderId: order.id },
@@ -95,7 +136,12 @@ export class BlingOrdersService {
       data: { status: BlingSyncStatus.PROCESSING, nextAttemptAt: new Date(now.getTime() + LEASE_MS) },
     });
     if (!claimed.count) return this.prisma.blingOrderSync.findUniqueOrThrow({ where: { id: syncId } });
-    const sync = await this.prisma.blingOrderSync.findUniqueOrThrow({ where: { id: syncId } });
+    const sync = await this.prisma.blingOrderSync.findUniqueOrThrow({ where: { id: syncId }, include: { order: { select: { status: true } } } });
+    if (!SENDABLE_STATUSES.includes(sync.order.status)) {
+      // Cancelado entre entrar na fila e ser enviado: não vira venda no Bling.
+      await this.prisma.blingOrderSync.delete({ where: { id: sync.id } });
+      return null;
+    }
     try {
       const remote = await this.export(sync.storeId, sync.orderId);
       return await this.prisma.blingOrderSync.update({
