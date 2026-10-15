@@ -7,6 +7,7 @@ import type { StorefrontState } from '../../lib/admin/storefront';
 import { defaultHomeSections, duplicateSection, FieldSpec, moveItem, newSection, SECTION_CATALOG } from '../../lib/storefront-model';
 import { accentOf, contrastRatio, DEFAULT_ACCENT, PRESETS } from '../../lib/theme';
 import { ImageUploader } from './image-uploader';
+import { ProductPicker } from './product-picker';
 
 type Doc = { sections: HomeSection[]; design: StorefrontDesign; accentColor: string; announcementText: string };
 type Status = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
@@ -39,6 +40,7 @@ function Field({ spec, value, onChange }: { spec: FieldSpec; value: Json; onChan
       <ImageUploader key={value ?? 'vazio'} kind="banner" label={value ? 'Trocar imagem' : 'Enviar imagem do computador'} onUploaded={urls => onChange(urls[0])} />
       <label className="text-xs text-slate-500">Ou cole o endereço (https://…)<input type="url" className="input" value={value ?? ''} onChange={e => onChange(e.currentTarget.value || null)} /></label></div>;
   }
+  if (spec.kind === 'products') return <ProductPicker label={spec.label} max={spec.max} help={spec.help} value={Array.isArray(value) ? value : []} onChange={onChange} />;
   if (spec.kind === 'list') {
     const list: Json[] = Array.isArray(value) ? value : [];
     return <fieldset className="grid gap-3 rounded-xl border p-3"><legend className="px-1 text-sm font-medium">{spec.label}</legend>

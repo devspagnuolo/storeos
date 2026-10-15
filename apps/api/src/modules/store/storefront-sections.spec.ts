@@ -16,6 +16,15 @@ describe('seções da vitrine', () => {
     expect(result[1].hidden).toBe(true);
   });
 
+  it('guarda os produtos escolhidos pelo lojista, sem repetir e até 24', () => {
+    const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
+    expect(sanitizeSections([section('products', { productIds: ids })])[0].props.productIds).toEqual(ids);
+    expect(sanitizeSections([section('products', {})])[0].props.productIds).toEqual([]);
+    expect(() => sanitizeSections([section('products', { productIds: [ids[0], ids[0]] })])).toThrow(BadRequestException);
+    expect(() => sanitizeSections([section('products', { productIds: ['x'] })])).toThrow(BadRequestException);
+    expect(() => sanitizeSections([section('products', { productIds: Array.from({ length: 25 }, (_, i) => `${String(i).padStart(8, '0')}-1111-4111-8111-111111111111`) })])).toThrow(BadRequestException);
+  });
+
   it.each([
     ['tipo desconhecido', [section('html', { code: '<b>' })]],
     ['campo extra na seção', [{ ...section('text', { body: 'oi' }), onclick: 'x' }]],

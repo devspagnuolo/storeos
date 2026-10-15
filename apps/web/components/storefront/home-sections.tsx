@@ -49,10 +49,12 @@ async function Categories({ p }: { p: SectionProps }) {
 }
 
 async function Products({ p }: { p: SectionProps }) {
-  const { items } = await getProducts({ pageSize: p.limit ?? 8, ...(p.categorySlug ? { category: p.categorySlug } : {}) });
+  // Produtos escolhidos pelo lojista têm prioridade e aparecem na ordem escolhida; sem escolha, vale categoria + quantidade.
+  const picked: string[] = Array.isArray(p.productIds) ? p.productIds : [];
+  const { items } = await getProducts(picked.length ? { ids: picked.join(','), pageSize: 24 } : { pageSize: p.limit ?? 8, ...(p.categorySlug ? { category: p.categorySlug } : {}) });
   return <Wrap>
     <div className="mb-8 flex items-end justify-between"><div>{p.subheading && <p className="text-sm font-semibold text-brand">{p.subheading}</p>}{p.heading && <h2 className="text-3xl font-bold">{p.heading}</h2>}</div>
-      <Link href={p.categorySlug ? `/categorias/${p.categorySlug}` : '/categorias'} className="font-medium text-brand">Ver todos →</Link></div>
+      <Link href={!picked.length && p.categorySlug ? `/categorias/${p.categorySlug}` : '/categorias'} className="font-medium text-brand">Ver todos →</Link></div>
     {items.length ? <div className="grid grid-cols-2 gap-4 md:grid-cols-4">{items.map(product => <ProductCard product={product} key={product.id} />)}</div>
       : <div className="card p-10 text-center text-slate-500">Os produtos aparecerão aqui assim que forem publicados.</div>}
   </Wrap>;

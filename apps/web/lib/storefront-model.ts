@@ -5,6 +5,7 @@ export type FieldSpec =
   | { key: string; label: string; kind: 'number'; min: number; max: number }
   | { key: string; label: string; kind: 'select'; options: [string, string][] }
   | { key: string; label: string; kind: 'image'; help?: string }
+  | { key: string; label: string; kind: 'products'; max: number; help?: string }
   | { key: string; label: string; kind: 'list'; itemLabel: string; max: number; fields: FieldSpec[]; defaults: SectionProps };
 
 export const SECTION_CATALOG: Record<SectionType, { label: string; description: string; fields: FieldSpec[]; defaults: SectionProps }> = {
@@ -47,10 +48,11 @@ export const SECTION_CATALOG: Record<SectionType, { label: string; description: 
     label: 'Produtos', description: 'Vitrine de produtos, de toda a loja ou de uma categoria.',
     fields: [
       { key: 'subheading', label: 'Subtítulo', kind: 'text', max: 80 }, { key: 'heading', label: 'Título', kind: 'text', max: 80 },
+      { key: 'productIds', label: 'Produtos escolhidos', kind: 'products', max: 24, help: 'Escolha entre os produtos já cadastrados. Com produtos escolhidos, a categoria e a quantidade abaixo são ignoradas.' },
       { key: 'categorySlug', label: 'Categoria (código da URL, opcional)', kind: 'text', max: 120, placeholder: 'blusas', help: 'Deixe vazio para mostrar os produtos mais recentes.' },
       { key: 'limit', label: 'Quantidade (1 a 24)', kind: 'number', min: 1, max: 24 },
     ],
-    defaults: { subheading: 'CURADORIA', heading: 'Mais desejados', categorySlug: '', limit: 8 },
+    defaults: { subheading: 'CURADORIA', heading: 'Mais desejados', categorySlug: '', limit: 8, productIds: [] },
   },
   benefits: {
     label: 'Benefícios', description: 'Até 6 destaques curtos (frete, pagamento…).',
