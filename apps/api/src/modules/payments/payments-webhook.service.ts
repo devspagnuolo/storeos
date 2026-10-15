@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma, RefundMode, RefundStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { money } from '../../shared/money/money';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
@@ -25,6 +25,8 @@ export class PaymentsWebhookService {
     if (status === PaymentStatus.PAID) {
       // Só confirma se o valor pago cobre o total do pedido.
       if (money(remote.transaction_amount).lessThan(payment.amount)) return 'ignorado (valor menor que o pedido)';
+      // Aprovado depois de o pedido ter sido cancelado (prazo vencido ou cartão em análise): o estoque já foi liberado, então o valor volta ao cliente.
+      if (payment.order.status === OrderStatus.CANCELLED) return this.refundLatePayment(payment, paymentId);
       const changed = await this.lifecycle.markPaid({ orderId: payment.orderId }, { message: `Pagamento aprovado no Mercado Pago (${paymentId})` }).catch(error => {
         this.logger.error(`Pagamento ${paymentId} aprovado, mas o pedido ${payment.order.number} não pôde ser confirmado: ${(error as Error).message}`);
         return false;
@@ -35,7 +37,32 @@ export class PaymentsWebhookService {
       const changed = await this.lifecycle.cancel({ orderId: payment.orderId }, { message: `Pagamento ${remote.status} no Mercado Pago`, paymentStatus: status }).catch(() => false);
       return changed ? 'pedido cancelado' : 'sem mudança';
     }
+    if (status === PaymentStatus.REFUNDED) {
+      // Estorno ou chargeback feito fora do painel: o pedido acompanha. Se o reembolso partiu daqui, o pedido já está reembolsado e nada muda.
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { status } });
+      const changed = await this.lifecycle.markRefunded({ orderId: payment.orderId }, { message: `Pagamento ${remote.status === 'charged_back' ? 'contestado (chargeback)' : 'estornado'} no Mercado Pago` }).catch(() => false);
+      return changed ? 'pedido reembolsado' : 'sem mudança';
+    }
     await this.prisma.payment.update({ where: { id: payment.id }, data: { status } });
     return `status ${status}`;
+  }
+
+  /** Devolve pelo gateway um pagamento aprovado que chegou tarde demais para o pedido. Idempotente: não repete se já houver reembolso. */
+  private async refundLatePayment(payment: { id: string; orderId: string; amount: Prisma.Decimal; order: { number: string; storeId: string } }, paymentId: string) {
+    if (await this.prisma.refund.findFirst({ where: { paymentId: payment.id, status: { not: RefundStatus.FAILED } } })) return 'sem mudança';
+    const refund = await this.prisma.refund.create({ data: { storeId: payment.order.storeId, orderId: payment.orderId, paymentId: payment.id, amount: payment.amount, reason: 'Pagamento aprovado depois do cancelamento do pedido', mode: RefundMode.GATEWAY } });
+    try {
+      const result = await this.client.refund(paymentId, undefined, `storeos-refund-${refund.id}`);
+      await this.prisma.refund.update({ where: { id: refund.id }, data: { status: RefundStatus.DONE, gatewayRefundId: String(result.id) } });
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.REFUNDED } });
+      await this.prisma.orderTimeline.create({ data: { orderId: payment.orderId, status: OrderStatus.CANCELLED, message: `Pagamento aprovado após o cancelamento: R$ ${payment.amount.toFixed(2)} devolvido automaticamente (${paymentId})` } });
+      return 'pagamento tardio devolvido';
+    } catch (error) {
+      const message = (error as Error).message.slice(0, 500);
+      this.logger.error(`Pagamento ${paymentId} aprovado após o cancelamento do pedido ${payment.order.number} e o estorno automático falhou: ${message}`);
+      await this.prisma.refund.update({ where: { id: refund.id }, data: { status: RefundStatus.FAILED, error: message } });
+      await this.prisma.orderTimeline.create({ data: { orderId: payment.orderId, status: OrderStatus.CANCELLED, message: `ATENÇÃO: pagamento aprovado após o cancelamento e a devolução automática falhou. Devolva manualmente (${paymentId}).` } });
+      throw error; // o Mercado Pago repete a notificação, e a devolução é tentada de novo
+    }
   }
 }

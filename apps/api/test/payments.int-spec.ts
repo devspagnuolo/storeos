@@ -40,6 +40,12 @@ class FakeMercadoPago {
     return payment;
   }
 
+  refunds: { id: string; amount?: number }[] = [];
+  async refund(id: string, amount: number | undefined) {
+    this.refunds.push({ id, amount });
+    return { id: this.refunds.length };
+  }
+
   setStatus(id: string, status: MercadoPagoPayment['status']) {
     this.payments.get(id)!.status = status;
   }
@@ -124,6 +130,51 @@ describe('PIX pelo Mercado Pago', () => {
     const v1 = createHmac('sha256', 'segredo').update(`id:${id};request-id:r1;ts:${ts};`).digest('hex');
     expect((await webhook(id, { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': 'r1' })).status).toBe(200);
     expect((await orderOf(checkout.body.number)).status).toBe('PAID');
+  });
+
+  it('devolve automaticamente o pagamento aprovado depois de o pedido ser cancelado', async () => {
+    const { store, product } = await createStore(5);
+    const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }]) });
+    const { payments: [payment] } = await orderOf(checkout.body.number);
+    await prisma.payment.update({ where: { id: payment.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    await app.get(OrderLifecycleService).expireOverdue();
+    expect((await orderOf(checkout.body.number)).status).toBe('CANCELLED');
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+
+    mercadoPago.refunds.length = 0;
+    mercadoPago.setStatus(payment.transactionId!, 'approved');
+    await webhook(payment.transactionId!);
+    await webhook(payment.transactionId!);
+    expect(mercadoPago.refunds).toEqual([{ id: payment.transactionId, amount: undefined }]);
+    const after = await orderOf(checkout.body.number);
+    expect(after.status).toBe('CANCELLED');
+    expect(after.payments[0].status).toBe('REFUNDED');
+    expect(await prisma.refund.findMany({ where: { orderId: after.id } })).toMatchObject([{ status: 'DONE', mode: 'GATEWAY' }]);
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+  });
+
+  it('estorno feito no Mercado Pago reembolsa o pedido pago e devolve o estoque', async () => {
+    const { store, product } = await createStore(5);
+    const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }]) });
+    const { payments: [payment] } = await orderOf(checkout.body.number);
+    mercadoPago.setStatus(payment.transactionId!, 'approved');
+    await webhook(payment.transactionId!);
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 3, reserved: 0 });
+    mercadoPago.setStatus(payment.transactionId!, 'refunded');
+    await webhook(payment.transactionId!);
+    const after = await orderOf(checkout.body.number);
+    expect(after.status).toBe('REFUNDED');
+    expect(after.payments[0].status).toBe('REFUNDED');
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+  });
+
+  it('recusa pedido de total zero antes de reservar estoque', async () => {
+    const { store, product } = await createStore(5);
+    await prisma.coupon.create({ data: { storeId: store.id, code: 'GRATIS', type: 'PERCENT', value: 100 } });
+    const checkout = await api('/checkout', { method: 'POST', body: { ...checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }]), couponCode: 'GRATIS' } });
+    expect(checkout.status).toBe(400);
+    expect(await inventoryOf(product.id)).toMatchObject({ quantity: 5, reserved: 0 });
+    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
   });
 
   it('ignora notificação de pagamento desconhecido', async () => {
