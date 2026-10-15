@@ -14,11 +14,13 @@ export function normalizeHost(raw: string | null | undefined) {
 /** Domínio-base para lojas sem domínio próprio (ex.: lojas.exemplo.com.br → vivi.lojas.exemplo.com.br). Vazio = recurso desligado. */
 export const storeBaseDomain = () => (process.env.STORE_BASE_DOMAIN ?? '').trim().toLowerCase().replace(/^\.+|\.+$/g, '');
 
+const RESERVED_LABELS = new Set(['www', 'api', 'app', 'admin', 'painel', 'mail', 'smtp', 'send', 'static', 'assets', 'login', 'blog', 'storeos', 'suporte', 'ajuda']);
+
 /** Subdomínio da plataforma → slug da loja, só se o domínio-base estiver configurado e o rótulo for um slug válido. */
 export function platformSlug(host: string, base = storeBaseDomain()) {
   if (!base || !host.endsWith('.' + base)) return null;
   const label = host.slice(0, -(base.length + 1));
-  return /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(label) ? label : null;
+  return /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(label) && !RESERVED_LABELS.has(label) ? label : null;
 }
 
 export async function requestHost() {

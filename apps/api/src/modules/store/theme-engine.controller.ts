@@ -51,6 +51,11 @@ export class ThemeEngineController {
     return this.themes.publish(storeId, installationId, dto.revision, req.user.sub);
   }
 
+  @Post('installations/:installationId/deactivate')
+  deactivate(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
+    return this.themes.deactivate(storeId, installationId);
+  }
+
   @Patch('installations/:installationId/draft')
   saveDraft(
     @CurrentStore() storeId: string,

@@ -1102,6 +1102,19 @@ export async function applyReadyThemeAction(form: FormData): Promise<void> {
   redirect(back === '/admin/site/temas' ? '/admin/site?salvo=tema' : `${back}?tema=${encodeURIComponent(key)}`);
 }
 
+/** Desativa o tema avançado: a página inicial volta a obedecer ao editor "Personalizar loja". */
+export async function deactivateThemeAction(form: FormData): Promise<void> {
+  const id = String(form.get('installationId') ?? '').trim();
+  if (!id || id.length > 100) redirect('/admin/site/temas?erro=Identificador+inv%C3%A1lido.');
+  try {
+    await adminFetch(`/themes/installations/${encodeURIComponent(id)}/deactivate`, { method: 'POST' });
+  } catch (error) {
+    redirect(`/admin/site/temas?erro=${encodeURIComponent(error instanceof ApiError ? error.message : 'Não foi possível desativar o tema.')}`);
+  }
+  revalidatePath('/', 'layout');
+  redirect('/admin/site?salvo=voltou');
+}
+
 /** Instala um release publicado como rascunho inativo; não altera a vitrine ativa. */
 export async function installThemeAction(form: FormData): Promise<void> {
   const releaseId = String(form.get('releaseId') ?? '').trim();

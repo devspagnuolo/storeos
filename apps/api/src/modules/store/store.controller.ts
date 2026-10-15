@@ -43,7 +43,7 @@ export class StoreController {
     const [primary, activeTheme] = await Promise.all([
       this.prisma.storeDomain.findFirst({ where: { storeId, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } }),
       this.prisma.themeEnginePublication.findFirst({
-        where: { storeId },
+        where: { storeId, installation: { status: 'ACTIVE' } },
         orderBy: { version: 'desc' },
         select: {
           version: true, document: true, documentHash: true,
