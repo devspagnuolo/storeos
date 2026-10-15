@@ -178,7 +178,7 @@ describe('cartão e boleto pelo Mercado Pago', () => {
   afterEach(() => { mercadoPago.cardOutcome = { status: 'approved' }; mercadoPago.publicKey = 'TEST-public-key'; });
 
   it('expõe a chave pública e o limite de parcelas, e some sem chave', async () => {
-    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'mercadopago', publicKey: 'TEST-public-key', maxInstallments: 12 }, boleto: true });
+    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'mercadopago', publicKey: 'TEST-public-key', maxInstallments: 12, maxFreeInstallments: 1 }, boleto: true });
     mercadoPago.publicKey = undefined;
     expect((await api('/payments/config')).body).toEqual({ card: null, boleto: true });
   });
@@ -254,7 +254,7 @@ describe('cartão pela Rede', () => {
   afterEach(() => { rede.configured = false; });
 
   it('a config aponta a Rede e não expõe chave', async () => {
-    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'rede', maxInstallments: 12, minInstallment: 5 }, boleto: true });
+    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'rede', maxInstallments: 12, maxFreeInstallments: 12, minInstallment: 5 }, boleto: true });
   });
 
   it('aprova na hora, manda o cartão só ao adquirente e não grava dados do cartão', async () => {
