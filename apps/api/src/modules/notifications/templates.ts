@@ -1,46 +1,26 @@
+import { renderMail, templateKeyForEvent, TemplateOverride } from './email-templates';
+export type { Mail } from './email-templates';
+import type { Mail } from './email-templates';
+
 export type OrderMailData = { storeName: string; customerName: string; orderNumber: string; total?: string; carrier?: string; trackingCode?: string; trackingUrl?: string; siteUrl?: string };
-export type Mail = { template: string; subject: string; text: string; html: string };
 
+const money = (value?: string) => (value ? `R$ ${Number(value).toFixed(2).replace('.', ',')}` : undefined);
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
-const firstName = (name: string) => name.trim().split(/\s+/)[0] || 'cliente';
 
-function layout(data: OrderMailData, title: string, lines: string[]): Pick<Mail, 'text' | 'html'> {
-  const greeting = `Olá, ${firstName(data.customerName)}!`;
-  const text = [greeting, '', ...lines, '', `Equipe ${data.storeName}`].join('\n');
-  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1e293b"><h2 style="margin:0 0 16px">${escapeHtml(title)}</h2><p>${escapeHtml(greeting)}</p>${lines.map(line => `<p>${escapeHtml(line)}</p>`).join('')}<p style="color:#64748b">Equipe ${escapeHtml(data.storeName)}</p></div>`;
-  return { text, html };
-}
-
-const money = (value?: string) => (value ? `R$ ${Number(value).toFixed(2).replace('.', ',')}` : '');
-
-/** Textos dos e-mails de pedido. Devolve null para eventos que não geram e-mail. */
-export function buildOrderMail(eventName: string, data: OrderMailData): Mail | null {
-  const n = data.orderNumber;
-  switch (eventName) {
-    case 'orders.order-created.v1':
-      return { template: 'order-created', subject: `Recebemos seu pedido ${n}`, ...layout(data, 'Pedido recebido', [`Recebemos o pedido ${n}${data.total ? ` no valor de ${money(data.total)}` : ''}.`, 'Assim que o pagamento for confirmado, avisaremos você.']) };
-    case 'orders.order-paid.v1':
-      return { template: 'order-paid', subject: `Pagamento confirmado – pedido ${n}`, ...layout(data, 'Pagamento confirmado', [`O pagamento do pedido ${n} foi confirmado.`, 'Já estamos separando seus itens.']) };
-    case 'orders.order-shipped.v1':
-      return { template: 'order-shipped', subject: `Seu pedido ${n} foi enviado`, ...layout(data, 'Pedido enviado', [`O pedido ${n} saiu para entrega${data.carrier ? ` com ${data.carrier}` : ''}.`, ...(data.trackingCode ? [`Código de rastreio: ${data.trackingCode}`] : []), ...(data.trackingUrl ? [`Acompanhe em: ${data.trackingUrl}`] : [])]) };
-    case 'orders.order-delivered.v1':
-      return { template: 'order-delivered', subject: `Pedido ${n} entregue`, ...layout(data, 'Pedido entregue', [`O pedido ${n} foi entregue. Esperamos que goste!`]) };
-    case 'orders.order-cancelled.v1':
-      return { template: 'order-cancelled', subject: `Pedido ${n} cancelado`, ...layout(data, 'Pedido cancelado', [`O pedido ${n} foi cancelado.`, 'Se isso foi um engano, é só fazer um novo pedido na loja.']) };
-    case 'orders.order-refunded.v1':
-      return { template: 'order-refunded', subject: `Reembolso do pedido ${n}`, ...layout(data, 'Pedido reembolsado', [`O pedido ${n} foi reembolsado${data.total ? ` (${money(data.total)})` : ''}.`, 'O prazo para o valor aparecer na sua conta ou fatura depende do banco ou da operadora do cartão.']) };
-    default:
-      return null;
-  }
+/** E-mails de pedido. Devolve null para eventos sem e-mail ou quando a loja desligou o aviso. */
+export function buildOrderMail(eventName: string, data: OrderMailData, override?: TemplateOverride | null): Mail | null {
+  const key = templateKeyForEvent(eventName);
+  if (!key) return null;
+  return renderMail(key, { nome: data.customerName, loja: data.storeName, pedido: data.orderNumber, total: money(data.total), transportadora: data.carrier, rastreio: data.trackingCode, link_rastreio: data.trackingUrl }, { override });
 }
 
 export type CartReminderData = { storeName: string; customerName: string; items: { name: string; quantity: number; variantLabel?: string }[]; recoverUrl: string; optOutUrl: string };
 
-/** Lembrete de carrinho abandonado: lista os itens e leva direto ao carrinho de volta. */
-export function buildCartReminderMail(data: CartReminderData): Mail {
-  const greeting = `Olá, ${firstName(data.customerName)}!`;
-  const lines = data.items.map(i => `${i.quantity}x ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''}`);
-  const text = [greeting, '', 'Você deixou estes itens no carrinho:', ...lines.map(l => `- ${l}`), '', `Finalize sua compra: ${data.recoverUrl}`, '', `Equipe ${data.storeName}`, '', `Não quer receber este lembrete? ${data.optOutUrl}`].join('\n');
-  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1e293b"><h2 style="margin:0 0 16px">Seu carrinho está esperando</h2><p>${escapeHtml(greeting)}</p><p>Você deixou estes itens no carrinho:</p><ul>${lines.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul><p><a href="${escapeHtml(data.recoverUrl)}" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Finalizar minha compra</a></p><p style="color:#64748b">Equipe ${escapeHtml(data.storeName)}</p><p style="color:#94a3b8;font-size:12px"><a href="${escapeHtml(data.optOutUrl)}" style="color:#94a3b8">Não quero receber este lembrete</a></p></div>`;
-  return { template: 'cart-reminder', subject: `${firstName(data.customerName)}, seu carrinho está esperando`, text, html };
+/** Lembrete de carrinho abandonado: lista os itens e leva direto ao carrinho de volta. O link de descadastro é sempre incluído. */
+export function buildCartReminderMail(data: CartReminderData, override?: TemplateOverride | null): Mail | null {
+  const itens = data.items.map(i => `- ${i.quantity}x ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''}`).join('\n');
+  return renderMail('cart-reminder', { nome: data.customerName, loja: data.storeName, itens, link_carrinho: data.recoverUrl }, {
+    override,
+    footer: { text: `Não quer receber este lembrete? ${data.optOutUrl}`, html: `<a href="${escapeHtml(data.optOutUrl)}" style="color:#94a3b8">Não quero receber este lembrete</a>` },
+  });
 }

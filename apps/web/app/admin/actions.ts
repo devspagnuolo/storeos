@@ -746,3 +746,43 @@ export async function remindCartAction(_: FormState, form: FormData): Promise<Fo
   revalidatePath('/admin/carrinhos');
   return { ok: 'Lembrete enviado.' };
 }
+
+export type TemplateFormState = FormState & { preview?: { subject: string; text: string; html: string } };
+
+function templateFields(form: FormData) {
+  return { subject: String(form.get('subject') ?? ''), body: String(form.get('body') ?? '') };
+}
+
+export async function saveEmailTemplateAction(_: TemplateFormState, form: FormData): Promise<TemplateFormState> {
+  const key = encodeURIComponent(String(form.get('key')));
+  try {
+    await adminFetch(`/notifications/templates/${key}`, { method: 'PUT', body: { ...templateFields(form), enabled: form.get('enabled') === 'on' } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/emails');
+  return { ok: 'Modelo salvo. Vale a partir do próximo e-mail.' };
+}
+
+export async function previewEmailTemplateAction(_: TemplateFormState, form: FormData): Promise<TemplateFormState> {
+  const key = encodeURIComponent(String(form.get('key')));
+  try {
+    const preview = await adminFetch<{ subject: string; text: string; html: string }>(`/notifications/templates/${key}/preview`, { method: 'POST', body: templateFields(form) });
+    return { preview };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function restoreEmailTemplateAction(_: TemplateFormState, form: FormData): Promise<TemplateFormState> {
+  try {
+    await adminFetch(`/notifications/templates/${encodeURIComponent(String(form.get('key')))}`, { method: 'DELETE' });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/emails');
+  return { ok: 'Voltou ao texto padrão.' };
+}
