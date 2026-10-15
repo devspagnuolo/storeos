@@ -1086,3 +1086,17 @@ export async function setStoreOpenAction(_: FormState, form: FormData): Promise<
   revalidatePath('/admin', 'layout');
   return { ok: open ? 'Sua loja está no ar!' : 'A loja voltou para “em construção”.' };
 }
+
+/** Instala um release publicado como rascunho inativo; não altera a vitrine ativa. */
+export async function installThemeAction(form: FormData): Promise<void> {
+  const releaseId = String(form.get('releaseId') ?? '').trim();
+  if (!releaseId || releaseId.length > 100) redirect('/admin/site/temas?erro=Identificador+de+tema+inv%C3%A1lido.');
+  try {
+    await adminFetch('/themes/installations', { method: 'POST', body: { releaseId } });
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : 'Não foi possível instalar o tema.';
+    redirect(`/admin/site/temas?erro=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/admin/site/temas');
+  redirect('/admin/site/temas?instalado=1');
+}

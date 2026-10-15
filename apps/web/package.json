@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "pnpm --filter @storeos/contracts build && next dev",
+    "build": "pnpm --filter @storeos/contracts build && next build",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run"
@@ -15,7 +15,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
-    "zustand": "^5.0.2"
+    "zustand": "^5.0.2",
+    "@storeos/contracts": "workspace:*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
