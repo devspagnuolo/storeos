@@ -30,6 +30,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState('');
   const [dragged, setDragged] = useState<string | null>(null);
+  const [previewSize, setPreviewSize] = useState<'desktop' | 'mobile'>('desktop');
   const [saving, startSaving] = useTransition();
   const templateKey = Object.keys(document.templates)[0] ?? 'home';
   const sections = document.templates[templateKey]?.sections ?? [];
@@ -77,7 +78,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
   const colors = tokens.colors ?? {};
   const globalProperties = manifest.globalSettingsSchema?.properties ?? {};
 
-  return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+  return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
     <div className="grid content-start gap-6">
       <section className="rounded-2xl border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -88,12 +89,18 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
       </section>
 
       <section className="rounded-2xl border bg-surface p-5">
-        <div><h2 className="text-lg font-bold">Identidade visual</h2><p className="mt-1 text-sm text-slate-500">Cores e tipografia são tokens do tema e poderão ser aplicados pelo renderizador.</p></div>
+        <div><h2 className="text-lg font-bold">Identidade visual</h2><p className="mt-1 text-sm text-slate-500">A prévia acompanha as cores e a tipografia escolhidas.</p></div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {([['primary', 'Cor principal', '#6D28D9'], ['background', 'Fundo', '#FFFFFF'], ['text', 'Texto', '#0F172A']] as const).map(([key, label, fallback]) =>
-            <label key={key} className="flex items-center gap-3 text-sm font-medium">{label}<input aria-label={label} type="color" value={colors[key] ?? fallback} onChange={event => changeDocument(current => ({ ...current, global: { ...current.global, designTokens: { ...current.global.designTokens, colors: { ...current.global.designTokens.colors, [key]: event.currentTarget.value.toUpperCase() } } } }))} className="h-10 w-14 rounded border p-1" /></label>
+            <label key={key} className="flex items-center gap-3 text-sm font-medium">{label}<input aria-label={label} type="color" value={colors[key] ?? fallback} onChange={event => {
+              const value = event.currentTarget.value.toUpperCase();
+              changeDocument(current => ({ ...current, global: { ...current.global, designTokens: { ...current.global.designTokens, colors: { ...current.global.designTokens.colors, [key]: value } } } }));
+            }} className="h-10 w-14 rounded border p-1" /></label>
           )}
-          <label className="text-sm font-medium">Família tipográfica<select className="input" value={String(tokens.typography?.fontFamily ?? 'system')} onChange={event => changeDocument(current => ({ ...current, global: { ...current.global, designTokens: { ...current.global.designTokens, typography: { ...current.global.designTokens.typography, fontFamily: event.currentTarget.value } } } }))}>
+          <label className="text-sm font-medium">Família tipográfica<select className="input" value={String(tokens.typography?.fontFamily ?? 'system')} onChange={event => {
+            const fontFamily = event.currentTarget.value;
+            changeDocument(current => ({ ...current, global: { ...current.global, designTokens: { ...current.global.designTokens, typography: { ...current.global.designTokens.typography, fontFamily } } } }));
+          }}>
             <option value="system">Padrão do sistema</option><option value="sans-serif">Sem serifa</option><option value="serif">Serifada</option>
           </select></label>
           {Object.keys(globalProperties).length > 0 && <div className="grid gap-4 sm:col-span-2"><h3 className="font-semibold">Preferências do tema</h3>{Object.entries(globalProperties).map(([key, schema]) => {
@@ -121,8 +128,12 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
               <div className="min-w-0 flex-1"><h3 className="font-semibold">{definition.title}</h3><p className="text-xs text-slate-500">{definition.description}</p></div>
               <button type="button" className="rounded border px-2 py-1" aria-label={'Subir ' + definition.title} disabled={index === 0} onClick={() => moveSection(index, index - 1)}>↑</button>
               <button type="button" className="rounded border px-2 py-1" aria-label={'Descer ' + definition.title} disabled={index === sections.length - 1} onClick={() => moveSection(index, index + 1)}>↓</button>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={section.enabled} onChange={event => updateSection(section.id, current => ({ ...current, enabled: event.currentTarget.checked }))} />Visível</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={section.enabled} disabled={isRequired} onChange={event => {
+                const enabled = event.currentTarget.checked;
+                updateSection(section.id, current => ({ ...current, enabled }));
+              }} />Visível</label>
             </div>
+            {isRequired && <p className="mt-2 text-xs text-slate-500">Seção estrutural obrigatória do tema.</p>}
             <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2">
               {Object.entries(definition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} name={labelFor(key, schema)} schema={schema} value={section.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, settings: { ...current.settings, [key]: value } }))} />)}
               {!Object.keys(definition.settingsSchema.properties ?? {}).length && <p className="text-sm text-slate-500">Esta seção não tem opções configuráveis nesta versão.</p>}
@@ -133,13 +144,82 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
       </section>
     </div>
 
-    <aside className="h-fit rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 xl:sticky xl:top-20">
-      <h2 className="font-bold">Prévia e publicação</h2>
-      <p className="mt-2">Este editor salva os dados do novo Theme Engine, mas o preview e a vitrine pública ainda usam o formato atual. Por segurança, não há opção de publicar aqui.</p>
-      <p className="mt-3">Para alterar o site que seus clientes veem hoje, use o personalizador atual.</p>
-      <a className="mt-3 inline-block font-semibold underline" href="/painel/site">Abrir personalizador atual</a>
-    </aside>
+    <ThemeDraftPreview document={document} manifest={manifest} templateKey={templateKey} previewSize={previewSize} onPreviewSizeChange={setPreviewSize} />
   </div>;
+}
+
+function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPreviewSizeChange }: {
+  document: ThemeDocument;
+  manifest: ThemeManifest;
+  templateKey: string;
+  previewSize: 'desktop' | 'mobile';
+  onPreviewSizeChange: (size: 'desktop' | 'mobile') => void;
+}) {
+  const sections = document.templates[templateKey]?.sections ?? [];
+  const colors = document.global.designTokens.colors ?? {};
+  const font = String(document.global.designTokens.typography?.fontFamily ?? 'system');
+  const fontFamily = font === 'system' ? 'system-ui, sans-serif' : font;
+  const textColor = colors.text ?? '#0F172A';
+  const background = colors.background ?? '#FFFFFF';
+  const primary = colors.primary ?? '#6D28D9';
+  const globalSettings = document.global.settings;
+  const announcementText = String(globalSettings.announcementText ?? '');
+
+  return <aside className="h-fit rounded-2xl border bg-surface p-4 xl:sticky xl:top-20">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><h2 className="font-bold">Prévia do rascunho</h2><p className="mt-1 text-xs text-slate-500">Atualiza enquanto você edita</p></div>
+      <div className="flex rounded-lg border p-1" role="group" aria-label="Tamanho da prévia">
+        <button type="button" aria-pressed={previewSize === 'desktop'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'desktop' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('desktop')}>Desktop</button>
+        <button type="button" aria-pressed={previewSize === 'mobile'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'mobile' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('mobile')}>Celular</button>
+      </div>
+    </div>
+    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Composição demonstrativa do rascunho. Produtos e categorias são exemplos; a vitrine publicada não é alterada.</p>
+    <div className="overflow-auto rounded-xl border bg-slate-100 p-2">
+      <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : '100%', maxWidth: '100%' }}>
+        <div style={{ color: textColor, backgroundColor: background, fontFamily }}>
+          {sections.filter(section => section.enabled).map(section => {
+            const definition = manifest.sections.find(item => item.type === section.type);
+            const settings = section.settings;
+            if (section.type === 'storeos.announcement.v1') {
+              const message = String(settings.text ?? announcementText);
+              if (!message || globalSettings.showAnnouncement === false) return null;
+              return <div key={section.id} className="px-3 py-2 text-center text-xs" style={{ color: '#FFFFFF', backgroundColor: primary }}>{message}{settings.linkLabel ? <span className="ml-2 underline">{String(settings.linkLabel)}</span> : null}</div>;
+            }
+            if (section.type === 'storeos.header.v1') return <header key={section.id} className="flex items-center gap-3 border-b px-4 py-4">
+              <strong className="mr-auto text-base">Sua loja</strong>
+              {settings.showSearch !== false && <span className="rounded-full border px-3 py-2 text-xs text-slate-500">Buscar produtos…</span>}
+              {settings.showAccount !== false && <span aria-label="Minha conta">♡</span>}
+              {settings.showCart !== false && <span aria-label="Carrinho">▢</span>}
+            </header>;
+            if (section.type === 'storeos.hero.v1') return <section key={section.id} className="grid gap-3 px-5 py-8 sm:grid-cols-2 sm:items-center" style={{ background: 'linear-gradient(135deg, #f8fafc, #eef2ff)' }}>
+              <div>{settings.eyebrow ? <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: primary }}>{String(settings.eyebrow)}</p> : null}
+                <h3 className="text-2xl font-bold">{String(settings.title ?? '')}</h3><p className="mt-2 text-sm">{String(settings.subtitle ?? '')}</p>
+                {settings.ctaLabel ? <span className="mt-4 inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: primary }}>{String(settings.ctaLabel)}</span> : null}
+              </div>
+              <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed bg-white/70 text-xs text-slate-500">{settings.imageUrl ? 'Imagem do banner configurada' : 'Espaço do banner'}</div>
+            </section>;
+            if (section.type === 'storeos.category-grid.v1') return <section key={section.id} className="px-4 py-6">
+              <h3 className="text-lg font-bold">{String(settings.heading ?? '')}</h3><p className="mb-4 mt-1 text-xs text-slate-500">{String(settings.subheading ?? '')}</p>
+              <div className="grid grid-cols-2 gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(2, Math.min(6, Number(settings.columns ?? 4)))}, minmax(0, 1fr))` }}>
+                {['Novidades', 'Mais vendidos', 'Vestidos', 'Acessórios'].slice(0, Math.max(2, Math.min(6, Number(settings.columns ?? 4)))).map(category => <div key={category} className="rounded-lg border p-3 text-center text-xs">{category}</div>)}
+              </div>
+            </section>;
+            if (section.type === 'storeos.product-collection.v1') return <section key={section.id} className="px-4 py-6">
+              <h3 className="text-lg font-bold">{String(settings.heading ?? '')}</h3><p className="mb-4 mt-1 text-xs text-slate-500">{String(settings.subheading ?? '')}</p>
+              <div className="grid grid-cols-2 gap-3">{['Peça em destaque', 'Novidade da coleção'].slice(0, Number(settings.limit ?? 8) > 1 ? 2 : 1).map((product, index) => <div key={product} className="overflow-hidden rounded-lg border">
+                <div className="flex aspect-[4/5] items-center justify-center bg-slate-100 text-2xl text-slate-400">◇</div><div className="p-2"><p className="text-xs">{product}</p><p className="mt-1 text-sm font-bold">R$ {index ? '129,90' : '89,90'}</p></div>
+              </div>)}</div>
+            </section>;
+            if (section.type === 'storeos.footer.v1') return <footer key={section.id} className="border-t px-4 py-6 text-xs">
+              <p>{String(settings.text ?? '')}</p><p className="mt-2 text-slate-500">{String(globalSettings.footerNote ?? '© Sua loja')}</p>{settings.showNewsletter ? <p className="mt-3 font-semibold">Receba novidades por e-mail</p> : null}
+            </footer>;
+            return <section key={section.id} className="border-t px-4 py-6"><h3 className="font-semibold">{definition?.title ?? section.type}</h3><p className="mt-1 text-xs text-slate-500">Seção habilitada no layout do tema.</p></section>;
+          })}
+        </div>
+      </div>
+    </div>
+    <p className="mt-3 text-xs text-slate-500">Prévia local dos componentes permitidos, sem carregar HTML, scripts ou imagens externas do tema.</p>
+  </aside>;
 }
 
 function SettingField({ name, schema, value, onChange }: { name: string; schema: FieldSchema; value: JsonValue | undefined; onChange: (value: JsonValue) => void }) {
