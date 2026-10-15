@@ -47,7 +47,7 @@ export class BlingAuthService {
     } catch {
       await this.prisma.blingConnection.update({
         where: { storeId },
-        data: { companyId: null, lastError: 'Conexão ativa. Para habilitar os webhooks, conceda leitura de dados da empresa no aplicativo Bling e reconecte.' },
+        data: { companyId: null, lastError: 'Conectado, mas o Bling não liberou a leitura dos dados da empresa. Isso não impede enviar pedidos; os avisos do Bling são ligados sozinhos quando o primeiro chegar. Para resolver agora, marque a permissão de leitura da empresa no aplicativo Bling e reconecte.' },
       });
     }
     return storeId;

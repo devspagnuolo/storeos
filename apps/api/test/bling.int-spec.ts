@@ -205,6 +205,18 @@ describe('pedidos do site no Bling', () => {
     expect(invalid.status).toBe(401);
   });
 
+  it('vincula a empresa pelo próprio webhook quando a conexão ficou sem a permissão de leitura da empresa', async () => {
+    await prisma.blingConnection.deleteMany({ where: { companyId: null } });
+    const { store } = await createStore(5);
+    await connect(store.id);
+    await prisma.blingConnection.update({ where: { storeId: store.id }, data: { companyId: null, lastError: 'sem permissão' } });
+    const event = { eventId: `evt-bl-link-${Date.now()}`, event: 'order.updated', companyId: 888, data: { id: 1, numero: '1', situacao: { id: 42 } } };
+    const signature = 'sha256=' + createHmac('sha256', 'test-secret').update(JSON.stringify(event)).digest('hex');
+    const response = await api('/bling/webhook', { method: 'POST', body: event, headers: { 'x-bling-signature-256': signature } });
+    expect(response.body).toMatchObject({ ignored: false, queued: true });
+    expect(await prisma.blingConnection.findUniqueOrThrow({ where: { storeId: store.id } })).toMatchObject({ companyId: '888', lastError: null });
+  });
+
   it('falha fica registrada com espera, e o reenvio manual conclui sem duplicar', async () => {
     const { store, product } = await createStore(5);
     await connect(store.id);
