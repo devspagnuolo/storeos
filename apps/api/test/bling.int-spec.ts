@@ -31,7 +31,7 @@ class FakeBling {
     const method = init.method ?? 'GET';
     this.calls.push({ method, path, body: init.body });
     const url = new URL(path, 'https://x.test');
-    if (url.pathname === '/empresas/me') return { data: { id: 777 } };
+    if (url.pathname === '/empresas/me/dados-basicos') return { data: { id: 777 } };
     if (url.pathname.startsWith('/situacoes/')) return { data: { id: 42, nome: 'Em aberto' } };
     if (url.pathname === '/categorias/produtos') return { data: [{ id: 1, descricao: 'Blusas' }, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }] };
     if (url.pathname === '/produtos' && url.searchParams.has('criterio')) return { data: Object.values(this.products).map(p => ({ id: (p as { id: number }).id })) };
@@ -205,11 +205,11 @@ describe('pedidos do site no Bling', () => {
     expect(invalid.status).toBe(401);
   });
 
-  it('vincula a empresa pelo próprio webhook quando a conexão ficou sem a permissão de leitura da empresa', async () => {
-    await prisma.blingConnection.deleteMany({ where: { companyId: null } });
+  it('corrige o vínculo da empresa pelo próprio webhook quando há uma única conexão', async () => {
+    await prisma.blingConnection.deleteMany({});
     const { store } = await createStore(5);
     await connect(store.id);
-    await prisma.blingConnection.update({ where: { storeId: store.id }, data: { companyId: null, lastError: 'sem permissão' } });
+    await prisma.blingConnection.update({ where: { storeId: store.id }, data: { companyId: '123', lastError: 'sem permissão' } });
     const event = { eventId: `evt-bl-link-${Date.now()}`, event: 'order.updated', companyId: 888, data: { id: 1, numero: '1', situacao: { id: 42 } } };
     const signature = 'sha256=' + createHmac('sha256', 'test-secret').update(JSON.stringify(event)).digest('hex');
     const response = await api('/bling/webhook', { method: 'POST', body: event, headers: { 'x-bling-signature-256': signature } });
