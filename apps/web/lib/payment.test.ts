@@ -30,10 +30,10 @@ describe('payment', () => {
   });
 
   it('aplica piso de parcela apenas para opções sem juros do Mercado Pago', () => {
-    expect(isEligibleFreeInstallment(1, 69, 6, 70)).toBe(true);
-    expect(isEligibleFreeInstallment(4, 75, 6, 70)).toBe(true);
-    expect(isEligibleFreeInstallment(5, 60, 6, 70)).toBe(false);
-    expect(isEligibleFreeInstallment(5, 80, 6, 70)).toBe(true);
-    expect(isEligibleFreeInstallment(7, 100, 6, 70)).toBe(false);
+    expect(isEligibleFreeInstallment(1, 79, 6, 80)).toBe(true);
+    expect(isEligibleFreeInstallment(3, 100, 6, 80)).toBe(true);
+    expect(isEligibleFreeInstallment(4, 75, 6, 80)).toBe(false);
+    expect(isEligibleFreeInstallment(4, 85, 6, 80)).toBe(true);
+    expect(isEligibleFreeInstallment(7, 100, 6, 80)).toBe(false);
   });
 });
