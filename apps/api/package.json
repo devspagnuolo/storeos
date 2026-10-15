@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "nest start --watch",
-    "build": "nest build",
+    "dev": "pnpm --filter @storeos/contracts build && nest start --watch",
+    "build": "pnpm --filter @storeos/contracts build && nest build",
     "start": "node dist/main",
     "lint": "eslint src prisma test",
-    "test": "jest",
+    "test": "pnpm --filter @storeos/contracts build && jest",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "test:int": "jest --config test/jest-int.config.js --runInBand",
+    "test:int": "pnpm --filter @storeos/contracts build && jest --config test/jest-int.config.js --runInBand",
     "db:seed": "prisma db seed"
   },
   "dependencies": {
