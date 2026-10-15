@@ -49,7 +49,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
             <div className="grid gap-4 p-5">
               <div><h3 className="text-lg font-bold">{theme.manifest.displayName}</h3><p className="mt-1 text-sm text-slate-600">{theme.package.description ?? 'Tema responsivo para sua loja virtual.'}</p></div>
               <div className="flex flex-wrap gap-2 text-xs text-slate-500"><span className="rounded-full bg-slate-100 px-2.5 py-1">Por {theme.manifest.author?.name ?? 'STOREOS'}</span><span className="rounded-full bg-slate-100 px-2.5 py-1">{templateCount} modelos de página</span></div>
-              {installed ? <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Instalado nesta loja · rascunho inativo</p> : <form action={installThemeAction}><input type="hidden" name="releaseId" value={theme.id} /><button className="button w-full" type="submit">Instalar tema</button></form>}
+              {installed ? <div className="grid gap-2"><p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Instalado nesta loja · rascunho inativo</p><Link className="button-ghost text-center" href={'/painel/site/temas/' + installations.find(item => item.releaseId === theme.id)?.id}>Configurar rascunho</Link></div> : <form action={installThemeAction}><input type="hidden" name="releaseId" value={theme.id} /><button className="button w-full" type="submit">Instalar tema</button></form>}
             </div>
           </article>;
         })}
