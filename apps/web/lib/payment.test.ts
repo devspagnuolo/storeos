@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCardNumber, formatCpf, formatExpiry, installmentCount, isValidCpf, parseExpiry } from './payment';
+import { formatCardNumber, formatCpf, formatExpiry, installmentCount, isEligibleFreeInstallment, isValidCpf, parseExpiry } from './payment';
 
 describe('payment', () => {
   it('formata e valida CPF', () => {
@@ -27,5 +27,13 @@ describe('payment', () => {
     expect(installmentCount(30, 12, 5)).toBe(6);
     expect(installmentCount(300, 12, 5)).toBe(12);
     expect(installmentCount(2, 12, 5)).toBe(1);
+  });
+
+  it('aplica piso de parcela apenas para opções sem juros do Mercado Pago', () => {
+    expect(isEligibleFreeInstallment(1, 69, 6, 70)).toBe(true);
+    expect(isEligibleFreeInstallment(4, 75, 6, 70)).toBe(true);
+    expect(isEligibleFreeInstallment(5, 60, 6, 70)).toBe(false);
+    expect(isEligibleFreeInstallment(5, 80, 6, 70)).toBe(true);
+    expect(isEligibleFreeInstallment(7, 100, 6, 70)).toBe(false);
   });
 });
