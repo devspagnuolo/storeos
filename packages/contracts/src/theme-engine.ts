@@ -141,7 +141,8 @@ export type ThemeDocumentIssue = {
     | 'UNSAFE_PROPERTY'
     | 'UNSAFE_URL'
     | 'DOCUMENT_TOO_LARGE'
-    | 'TREE_TOO_COMPLEX';
+    | 'TREE_TOO_COMPLEX'
+    | 'INVALID_SETTINGS';
   message: string;
 };
 
