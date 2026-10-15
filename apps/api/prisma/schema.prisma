@@ -93,6 +93,7 @@ model Store {
   emailCampaigns EmailCampaign[]
   warehouses     Warehouse[]
   loyaltyConfig LoyaltyConfig?
+  redirects Redirect[]
   automationRules AutomationRule[]
 }
 
@@ -1195,4 +1196,19 @@ model LoyaltyConfig {
   diamondPct    Int      @default(100)
   updatedAt     DateTime @updatedAt
   store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+/// Endereço antigo que leva ao novo com redirecionamento permanente (301), para não perder posição no Google ao trocar de loja.
+model Redirect {
+  id        String   @id @default(uuid())
+  storeId   String
+  fromPath  String
+  toPath    String
+  hits      Int      @default(0)
+  lastHitAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, fromPath])
 }

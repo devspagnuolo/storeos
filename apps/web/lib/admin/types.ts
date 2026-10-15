@@ -155,3 +155,5 @@ export type FeedStatus = {
   siteConfigured: boolean; apiConfigured: boolean; google: string; meta: string; products: number; withoutPhoto: number;
   counts: { key: string; label: string; count: number }[]; list: { id: string; name: string; labels: string[] }[];
 };
+
+export type AdminRedirect = { id: string; fromPath: string; toPath: string; hits: number; lastHitAt: string | null };
