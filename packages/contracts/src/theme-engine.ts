@@ -170,7 +170,7 @@ function isSafeUrl(value: string): boolean {
   if (!normalized) return true;
   if (/^(javascript|vbscript|file):/.test(normalized)) return false;
   if (normalized.startsWith('data:')) return /^data:image\/(png|jpeg|webp|gif);base64,/.test(normalized);
-  if (normalized.startsWith('//')) return false;
+  if (normalized.startsWith('//') || normalized.startsWith('/\\')) return false;
   if (normalized.startsWith('/') || normalized.startsWith('#') || normalized.startsWith('?')) return true;
   try {
     const url = new URL(value);
