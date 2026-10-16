@@ -28,12 +28,22 @@ async function get<T>(path: (slug: string) => string, fallback: T): Promise<T> {
   }
 }
 
-export function getProducts(query: { ids?: string; category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number } = {}) {
+export function getProducts(query: { ids?: string; category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number; attrs?: string; minPrice?: number; maxPrice?: number } = {}) {
   return get<ProductPage>(store => {
     const params = new URLSearchParams({ store });
     for (const [key, value] of Object.entries(query)) if (value) params.set(key, String(value));
     return `/catalog/products?${params}`;
   }, emptyPage(query.page, query.pageSize));
+}
+
+export type Facets = { attributes: { name: string; values: string[] }[]; price: { min: number; max: number } | null };
+/** Opções de filtro (tamanhos, cores, faixa de preço) da lista de produtos. */
+export function getFacets(query: { category?: string; q?: string } = {}) {
+  return get<Facets>(store => {
+    const params = new URLSearchParams({ store });
+    for (const [key, value] of Object.entries(query)) if (value) params.set(key, value);
+    return `/catalog/facets?${params}`;
+  }, { attributes: [], price: null });
 }
 
 export const getCategories = () => get<Category[]>(store => `/catalog/categories?store=${encodeURIComponent(store)}`, []);

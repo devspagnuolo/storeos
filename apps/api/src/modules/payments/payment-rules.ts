@@ -12,7 +12,7 @@ export function isValidCpf(value: string) {
   return check(9) === Number(cpf[9]) && check(10) === Number(cpf[10]);
 }
 
-export const MAX_INSTALLMENTS = 12;
+export const MAX_INSTALLMENTS = 18;
 
 /** Limite configurado no servidor, sempre restrito ao máximo permitido pelo gateway. */
 export function maxAllowedInstallments(value: unknown = process.env.MERCADOPAGO_MAX_INSTALLMENTS) {

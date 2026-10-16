@@ -10,7 +10,7 @@ import { CheckoutDraftService } from './checkout-draft.service';
 class CustomerDto { @IsString() @Length(2, 120) name!: string; @IsEmail() @MaxLength(180) email!: string; @IsOptional() @Matches(/^[\d ()+-]{8,20}$/) phone?: string; }
 class AddressDto { @Matches(/^\d{5}-?\d{3}$/) zipCode!: string; @IsString() @Length(1, 160) street!: string; @IsString() @Length(1, 20) number!: string; @IsOptional() @IsString() @MaxLength(80) complement?: string; @IsOptional() @IsString() @MaxLength(80) district?: string; @IsString() @Length(1, 80) city!: string; @Matches(/^[A-Z]{2}$/) state!: string; }
 class CardDto {
-  @IsOptional() @IsString() @Length(8, 128) token?: string; @IsOptional() @IsString() @MaxLength(40) paymentMethodId?: string; @IsOptional() @IsInt() @Min(1) @Max(12) installments?: number; @IsOptional() @IsString() @MaxLength(20) issuerId?: string;
+  @IsOptional() @IsString() @Length(8, 128) token?: string; @IsOptional() @IsString() @MaxLength(40) paymentMethodId?: string; @IsOptional() @IsInt() @Min(1) @Max(18) installments?: number; @IsOptional() @IsString() @MaxLength(20) issuerId?: string;
   @IsOptional() @Matches(/^\d{6,8}$/) bin?: string;
 }
 class CheckoutDto {
