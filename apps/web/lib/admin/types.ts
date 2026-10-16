@@ -8,6 +8,7 @@ export type OrderDetail = Omit<OrderRow, 'payments' | '_count' | 'blingSync'> & 
   payments: { id: string; method: string; status: string; provider: string; transactionId: string | null; amount: string; expiresAt: string | null; paidAt: string | null }[];
   timeline: { id: string; status: string; message: string | null; createdAt: string }[];
   fulfillment: { invoiceNumber: string | null; invoiceKey: string | null; carrier: string | null; trackingCode: string | null; trackingUrl: string | null; shippedAt: string | null; deliveredAt: string | null; returnReason: string | null } | null;
+  shippingLabel?: { status: string; trackingCode: string | null; labelUrl: string | null; price: string | null; lastError: string | null; attempts: number; remoteStatus: string | null } | null;
 };
 export type Summary = { days: number; revenue: string; paidOrders: number; averageTicket: string; orders: number; awaitingPayment: number; paymentRate: number; lowStockProducts: number };
 export type AdminVariant = { id: string; sku: string; price: string | null; attributes: { name: string; value: string }[]; stock: number; reserved: number; active: boolean };
@@ -106,6 +107,8 @@ export type AbandonedCartList = { items: AbandonedCartRow[]; stats: { open: numb
 
 export type EmailTemplateRow = { key: string; label: string; description: string; variables: { name: string; description: string }[]; defaultSubject: string; defaultBody: string; subject: string; body: string; enabled: boolean; customized: boolean };
 
+export type ShippingSender = { name: string; document: string; phone?: string; street: string; number: string; complement?: string; district: string; city: string; state: string };
+export type OrderAutomation = { enabled: boolean; sender: Partial<ShippingSender> | null; missing: string[]; superFrete: boolean; bling: boolean };
 export type CarrierStatus = { enabled: boolean; credentials: boolean; provider: string; originZip: string | null; originSource: 'store' | 'server' | null };
 export type EnvironmentReport = {
   variables: { name: string; group: string; importance: 'required' | 'recommended' | 'optional'; description: string; set: boolean }[];

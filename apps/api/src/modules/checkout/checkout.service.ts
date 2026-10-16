@@ -83,6 +83,7 @@ export class CheckoutService {
       // O frete é recalculado aqui a partir das regras da loja; o cliente só escolhe a opção.
       let shipping = money(0);
       let shippingMethod: string | null = null;
+      let shippingOptionId: string | null = null;
       if ((await this.shipping.hasActiveRules(tx, store.id)) || carrierOn) {
         const options = [...(await this.shipping.optionsFor(tx, store.id, state, subtotal)), ...carrierOptions];
         if (!options.length) throw new BadRequestException('Ainda não entregamos neste CEP');
@@ -90,6 +91,7 @@ export class CheckoutService {
         if (!chosen) throw new BadRequestException('Escolha uma opção de frete válida');
         shipping = chosen.price;
         shippingMethod = chosen.name;
+        shippingOptionId = chosen.id;
       }
       for (const item of items) {
         // Reserva atômica: só incrementa se ainda houver saldo livre, evitando venda acima do estoque.
@@ -123,7 +125,7 @@ export class CheckoutService {
       const number = generateOrderNumber();
       const created = await tx.order.create({
         data: {
-          storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, promotionDiscount: promo.discount, promotions: promo.applied as unknown as Prisma.InputJsonArray, shipping, total, shippingMethod, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : null,
+          storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, promotionDiscount: promo.discount, promotions: promo.applied as unknown as Prisma.InputJsonArray, shipping, total, shippingMethod, shippingOptionId, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : null,
           shippingAddress: input.shippingAddress as Prisma.InputJsonObject,
           items: { create: persistLines(lines) },
           timeline: { create: [{ status: OrderStatus.NEW, message: 'Pedido criado no checkout', createdAt: new Date() }, { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento', createdAt: new Date(Date.now() + 2) }] },

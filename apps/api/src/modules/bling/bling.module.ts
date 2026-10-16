@@ -12,4 +12,4 @@ import { BlingStockService } from './bling-stock.service';
 import { BlingWebhookService } from './bling-webhook.service';
 import { BlingController } from './bling.controller';
 import { BlingClient } from './bling.client';
-@Module({ imports: [CatalogModule, MediaModule, OrdersModule], controllers: [BlingController], providers: [BlingClient, BlingCatalogService, BlingAuthService, BlingImportService, BlingOrdersService, BlingInvoicesService, BlingWebhookService, BlingStockService, BlingTrackingService], exports: [BlingOrdersService] }) export class BlingModule {}
+@Module({ imports: [CatalogModule, MediaModule, OrdersModule], controllers: [BlingController], providers: [BlingClient, BlingCatalogService, BlingAuthService, BlingImportService, BlingOrdersService, BlingInvoicesService, BlingWebhookService, BlingStockService, BlingTrackingService], exports: [BlingOrdersService, BlingInvoicesService] }) export class BlingModule {}

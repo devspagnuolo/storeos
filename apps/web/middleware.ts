@@ -62,13 +62,19 @@ export async function middleware(request: NextRequest) {
 
   const internalUrl = request.nextUrl.clone();
   internalUrl.pathname = pathname.replace(/^\/painel(?=\/|$)/, '/admin');
+  // Sem o caminho, o layout raiz não sabe que é o painel e mostra a faixa da loja no topo.
+  const withPath = () => {
+    const forwarded = new Headers(request.headers);
+    forwarded.set('x-pathname', internalUrl.pathname);
+    return { request: { headers: forwarded } };
+  };
 
   // Login precisa ser acessível sem sessão, mas a URL pública continua em /painel.
   if (internalUrl.pathname === '/admin/login' || internalUrl.pathname.startsWith('/admin/login/')) {
-    return NextResponse.rewrite(internalUrl);
+    return NextResponse.rewrite(internalUrl, withPath());
   }
 
-  const rewrite = () => NextResponse.rewrite(internalUrl);
+  const rewrite = () => NextResponse.rewrite(internalUrl, withPath());
   if (request.cookies.get(ACCESS_COOKIE)) return rewrite();
 
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
@@ -91,9 +97,7 @@ export async function middleware(request: NextRequest) {
   request.cookies.set(ACCESS_COOKIE, session.accessToken);
   request.cookies.set(REFRESH_COOKIE, session.refreshToken);
 
-  const next = NextResponse.rewrite(internalUrl, {
-    request: { headers: request.headers },
-  });
+  const next = NextResponse.rewrite(internalUrl, withPath());
   const secure = process.env.NODE_ENV === 'production';
   next.cookies.set(ACCESS_COOKIE, session.accessToken, {
     httpOnly: true,

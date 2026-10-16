@@ -58,6 +58,10 @@ model Store {
   whatsappMessage        String?
   /// CEP de onde a loja despacha (8 dígitos). Sem ele vale SHIPPING_ORIGIN_ZIP do servidor.
   shippingOriginZip      String?
+  /// Remetente das etiquetas (nome, documento, endereço). O CEP é o de origem acima.
+  shippingSender         Json?
+  /// Pedido pago segue sozinho: separação, nota fiscal (Bling), etiqueta (SuperFrete) e entrega.
+  orderAutomation        Boolean                 @default(false)
   marketingConfig        Json?
   draftThemeConfig       Json?
   storefrontVersion      Int                     @default(0)
@@ -102,6 +106,7 @@ model Store {
   productReviews         ProductReview[]
   redirects              Redirect[]
   automationRules        AutomationRule[]
+  shippingLabels         ShippingLabel[]
 }
 
 model User {
@@ -401,6 +406,8 @@ model Order {
   currency          String            @default("BRL")
   shippingAddress   Json?
   shippingMethod    String?
+  /// Opção de frete escolhida no checkout (ex.: "sf:2" = SEDEX pelo SuperFrete); define o serviço da etiqueta.
+  shippingOptionId  String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   store             Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -416,6 +423,7 @@ model Order {
   loyaltyEntries    LoyaltyEntry[]
   blingSync         BlingOrderSync?
   blingInvoice      BlingInvoice?
+  shippingLabel     ShippingLabel?
   refunds           Refund[]
 
   @@unique([storeId, number])
@@ -1405,4 +1413,40 @@ model ProductReview {
   @@unique([orderId, productId])
   @@index([storeId, status, createdAt])
   @@index([productId, status])
+}
+
+enum ShippingLabelStatus {
+  PENDING
+  CREATED
+  PAID
+  RELEASED
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+/// Etiqueta de envio comprada na transportadora para um pedido. Cada passo fica gravado para nunca comprar duas vezes.
+model ShippingLabel {
+  id            String              @id @default(uuid())
+  storeId       String
+  orderId       String              @unique
+  provider      String              @default("superfrete")
+  serviceId     String
+  remoteId      String?
+  status        ShippingLabelStatus @default(PENDING)
+  remoteStatus  String?
+  trackingCode  String?
+  labelUrl      String?             @db.Text
+  price         Decimal?            @db.Decimal(14, 2)
+  paidAt        DateTime?
+  deliveredAt   DateTime?
+  attempts      Int                 @default(0)
+  lastError     String?             @db.Text
+  nextAttemptAt DateTime            @default(now())
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  store         Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
 }

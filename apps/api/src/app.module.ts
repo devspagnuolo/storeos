@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { AccountModule } from './modules/account/account.module';
+import { FulfillmentModule } from './modules/fulfillment/fulfillment.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -45,6 +46,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     OrdersModule,
     CheckoutModule,
     AccountModule,
+    FulfillmentModule,
     ShippingModule,
     PromotionsModule,
     InventoryModule,

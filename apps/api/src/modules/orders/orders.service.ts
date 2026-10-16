@@ -42,7 +42,7 @@ export class OrdersService {
   }
 
   async byNumber(storeId: string, number: string) {
-    const order = await this.prisma.order.findUnique({ where: { storeId_number: { storeId, number } }, include: { items: true, payments: true, customer: true, fulfillment: true, timeline: { orderBy: { createdAt: 'asc' } }, blingSync: { select: { status: true, blingOrderId: true, blingOrderNumber: true, blingSituationName: true } } } });
+    const order = await this.prisma.order.findUnique({ where: { storeId_number: { storeId, number } }, include: { items: true, payments: true, customer: true, fulfillment: true, shippingLabel: { select: { status: true, trackingCode: true, labelUrl: true, price: true, lastError: true, attempts: true, remoteStatus: true } }, timeline: { orderBy: { createdAt: 'asc' } }, blingSync: { select: { status: true, blingOrderId: true, blingOrderNumber: true, blingSituationName: true } } } });
     if (!order) throw new NotFoundException('Pedido não encontrado');
     return order;
   }
