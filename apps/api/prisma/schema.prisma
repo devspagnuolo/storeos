@@ -90,37 +90,39 @@ model Store {
   domains                StoreDomain[]
   abandonedCarts         AbandonedCart[]
   checkoutDrafts         CheckoutDraft[]
+  customerLoginCodes     CustomerLoginCode[]
+  customerSessions       CustomerSession[]
   emailTemplates         EmailTemplate[]
-  emailCampaigns EmailCampaign[]
-  warehouses     Warehouse[]
-  loyaltyConfig LoyaltyConfig?
-  businessProfile Json?
+  emailCampaigns         EmailCampaign[]
+  warehouses             Warehouse[]
+  loyaltyConfig          LoyaltyConfig?
+  businessProfile        Json?
   /// Vitrine aberta ao público. Lojas criadas pelo cadastro começam fechadas até o lojista publicar.
-  storefrontOpen Boolean @default(true)
-  productReviews ProductReview[]
-  redirects Redirect[]
-  automationRules AutomationRule[]
+  storefrontOpen         Boolean                 @default(true)
+  productReviews         ProductReview[]
+  redirects              Redirect[]
+  automationRules        AutomationRule[]
 }
 
 model User {
-  id            String         @id @default(uuid())
-  storeId       String
-  email         String
-  passwordHash  String
-  name          String
-  status        UserStatus     @default(ACTIVE)
-  mfaEnabled    Boolean        @default(false)
-  mfaSecretEnc  String?
-  mfaRecovery   String[]       @default([])
-  mfaLastStep   Int?
-  emailVerifiedAt         DateTime?
-  verificationHash        String?
-  verificationExpiresAt   DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  roles         UserRole[]
-  refreshTokens RefreshToken[]
+  id                    String         @id @default(uuid())
+  storeId               String
+  email                 String
+  passwordHash          String
+  name                  String
+  status                UserStatus     @default(ACTIVE)
+  mfaEnabled            Boolean        @default(false)
+  mfaSecretEnc          String?
+  mfaRecovery           String[]       @default([])
+  mfaLastStep           Int?
+  emailVerifiedAt       DateTime?
+  verificationHash      String?
+  verificationExpiresAt DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  store                 Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  roles                 UserRole[]
+  refreshTokens         RefreshToken[]
 
   @@unique([storeId, email])
   @@index([storeId])
@@ -303,16 +305,16 @@ model StockMovement {
 }
 
 model Inventory {
-  id           String          @id @default(uuid())
-  storeId      String
-  productId    String
-  variantId    String?
-  quantity     Int             @default(0)
-  reserved     Int             @default(0)
-  reorderPoint Int             @default(0)
-  updatedAt    DateTime        @updatedAt
-  product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  id              String           @id @default(uuid())
+  storeId         String
+  productId       String
+  variantId       String?
+  quantity        Int              @default(0)
+  reserved        Int              @default(0)
+  reorderPoint    Int              @default(0)
+  updatedAt       DateTime         @updatedAt
+  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant         ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
   warehouseStocks WarehouseStock[]
 
   @@unique([storeId, productId, variantId])
@@ -320,7 +322,7 @@ model Inventory {
 }
 
 model Customer {
-  id             String         @id @default(uuid())
+  id             String            @id @default(uuid())
   storeId        String
   email          String
   name           String
@@ -328,18 +330,48 @@ model Customer {
   /// CPF/CNPJ (só dígitos), informado no checkout para a nota fiscal e o pedido no ERP.
   document       String?
   notes          String?
-  tags           String[]       @default([])
-  marketingOptIn Boolean        @default(false)
+  tags           String[]          @default([])
+  marketingOptIn Boolean           @default(false)
   anonymizedAt   DateTime?
   loyaltyEntries LoyaltyEntry[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  store          Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   addresses      Address[]
   orders         Order[]
   noteEntries    CustomerNote[]
+  sessions       CustomerSession[]
 
   @@unique([storeId, email])
+}
+
+/// Código de 6 dígitos enviado por e-mail para o cliente entrar na área "Minha conta" (só o hash fica salvo).
+model CustomerLoginCode {
+  id        String    @id @default(uuid())
+  storeId   String
+  email     String
+  codeHash  String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, email, createdAt])
+}
+
+/// Sessão do cliente na loja; o token fica num cookie httpOnly da vitrine e aqui só o hash.
+model CustomerSession {
+  id         String   @id @default(uuid())
+  storeId    String
+  customerId String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 model Address {
@@ -515,27 +547,27 @@ enum ThemeDraftStatus {
 
 /// Curated theme identity. Releases are immutable and global; tenant content is stored separately.
 model ThemePackage {
-  id          String            @id @default(uuid())
-  key         String            @unique
+  id          String             @id @default(uuid())
+  key         String             @unique
   name        String
-  description String?           @db.Text
+  description String?            @db.Text
   status      ThemePackageStatus @default(DRAFT)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
   releases    ThemeRelease[]
 }
 
 /// Immutable, versioned manifest for an installable theme package.
 model ThemeRelease {
-  id          String             @id @default(uuid())
-  packageId   String
-  version     String
-  manifest    Json
-  manifestHash String
-  status      ThemeReleaseStatus @default(DRAFT)
-  publishedAt DateTime?
-  createdAt   DateTime           @default(now())
-  package     ThemePackage       @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  id            String              @id @default(uuid())
+  packageId     String
+  version       String
+  manifest      Json
+  manifestHash  String
+  status        ThemeReleaseStatus  @default(DRAFT)
+  publishedAt   DateTime?
+  createdAt     DateTime            @default(now())
+  package       ThemePackage        @relation(fields: [packageId], references: [id], onDelete: Cascade)
   installations ThemeInstallation[]
 
   @@unique([packageId, version])
@@ -545,14 +577,14 @@ model ThemeRelease {
 /// A store-scoped installation of one immutable release. Switching the active installation is
 /// enforced in a serializable application transaction, preserving single-active-theme semantics.
 model ThemeInstallation {
-  id        String                  @id @default(uuid())
-  storeId   String
-  releaseId String
-  status    ThemeInstallationStatus @default(INACTIVE)
-  installedAt DateTime              @default(now())
-  updatedAt DateTime                @updatedAt
-  release   ThemeRelease            @relation(fields: [releaseId], references: [id], onDelete: Restrict)
-  drafts    ThemeDraft[]
+  id           String                   @id @default(uuid())
+  storeId      String
+  releaseId    String
+  status       ThemeInstallationStatus  @default(INACTIVE)
+  installedAt  DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  release      ThemeRelease             @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  drafts       ThemeDraft[]
   publications ThemeEnginePublication[]
 
   @@unique([storeId, releaseId])
@@ -562,15 +594,15 @@ model ThemeInstallation {
 
 /// Mutable tenant draft with optimistic revision control. It does not replace Store.draftThemeConfig.
 model ThemeDraft {
-  id             String          @id @default(uuid())
+  id             String            @id @default(uuid())
   storeId        String
   installationId String
-  revision       Int             @default(1)
+  revision       Int               @default(1)
   document       Json
-  status         ThemeDraftStatus @default(DRAFT)
+  status         ThemeDraftStatus  @default(DRAFT)
   updatedBy      String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
   installation   ThemeInstallation @relation(fields: [installationId, storeId], references: [id, storeId], onDelete: Cascade)
 
   @@index([storeId, installationId, updatedAt])
@@ -578,14 +610,14 @@ model ThemeDraft {
 
 /// Immutable publication snapshots for the new engine; legacy storefront snapshots remain readable.
 model ThemeEnginePublication {
-  id             String   @id @default(uuid())
+  id             String            @id @default(uuid())
   storeId        String
   installationId String
   version        Int
   document       Json
   documentHash   String
   actorId        String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime          @default(now())
   installation   ThemeInstallation @relation(fields: [installationId, storeId], references: [id, storeId], onDelete: Cascade)
 
   @@unique([storeId, version])
@@ -942,47 +974,47 @@ enum BlingWebhookStatus {
 
 /// Conta do Bling conectada por OAuth; os tokens ficam cifrados (AES-256-GCM).
 model BlingConnection {
-  id              String   @id @default(uuid())
-  storeId         String   @unique
-  companyId       String?
-  accessTokenEnc  String
-  refreshTokenEnc String
-  expiresAt       DateTime
-  connectedAt     DateTime @default(now())
-  lastError       String?
-  automaticInvoiceEnabled Boolean @default(false)
+  id                        String         @id @default(uuid())
+  storeId                   String         @unique
+  companyId                 String?
+  accessTokenEnc            String
+  refreshTokenEnc           String
+  expiresAt                 DateTime
+  connectedAt               DateTime       @default(now())
+  lastError                 String?
+  automaticInvoiceEnabled   Boolean        @default(false)
   automaticInvoiceEnabledAt DateTime?
-  stockSyncEnabled Boolean @default(false)
-  stockSyncedAt   DateTime?
-  stockSyncError  String?
-  updatedAt       DateTime @updatedAt
-  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  invoices        BlingInvoice[]
+  stockSyncEnabled          Boolean        @default(false)
+  stockSyncedAt             DateTime?
+  stockSyncError            String?
+  updatedAt                 DateTime       @updatedAt
+  store                     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  invoices                  BlingInvoice[]
 
   @@index([companyId])
 }
 
 /// Um pedido do site enviado (ou a enviar) ao Bling; `numeroLoja` no Bling é o número do pedido daqui.
 model BlingOrderSync {
-  id            String          @id @default(uuid())
-  storeId       String
-  orderId       String          @unique
-  status        BlingSyncStatus @default(PENDING)
-  blingOrderId  String?
-  blingOrderNumber String?
-  blingSituationId String?
+  id                 String          @id @default(uuid())
+  storeId            String
+  orderId            String          @unique
+  status             BlingSyncStatus @default(PENDING)
+  blingOrderId       String?
+  blingOrderNumber   String?
+  blingSituationId   String?
   blingSituationName String?
-  attempts      Int             @default(0)
-  lastError     String?
-  nextAttemptAt DateTime        @default(now())
-  sentAt        DateTime?
+  attempts           Int             @default(0)
+  lastError          String?
+  nextAttemptAt      DateTime        @default(now())
+  sentAt             DateTime?
   /// Quando o pedido pago foi baixado no Bling (estoque e contas lançados, situação Atendido).
-  postedAt      DateTime?
-  postError     String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  store         Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  postedAt           DateTime?
+  postError          String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  store              Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order              Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([storeId, status])
   @@index([storeId, blingOrderId])
@@ -1167,19 +1199,19 @@ enum CampaignRecipientStatus {
 }
 
 model EmailCampaign {
-  id         String                @id @default(uuid())
+  id         String                   @id @default(uuid())
   storeId    String
   name       String
   subject    String
   body       String
-  audience   String                @default("ALL")
+  audience   String                   @default("ALL")
   segment    String?
-  status     EmailCampaignStatus   @default(DRAFT)
+  status     EmailCampaignStatus      @default(DRAFT)
   startedAt  DateTime?
   finishedAt DateTime?
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
-  store      Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+  store      Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   recipients EmailCampaignRecipient[]
 
   @@index([storeId, createdAt])
@@ -1332,15 +1364,15 @@ model LoyaltyConfig {
 
 /// Endereço antigo que leva ao novo com redirecionamento permanente (301), para não perder posição no Google ao trocar de loja.
 model Redirect {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   storeId   String
   fromPath  String
   toPath    String
-  hits      Int      @default(0)
+  hits      Int       @default(0)
   lastHitAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, fromPath])
 }
