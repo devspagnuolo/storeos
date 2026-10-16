@@ -64,6 +64,30 @@ export class CatalogService {
     return { items, total, page, pageSize };
   }
 
+  /**
+   * Sugestões para o carrinho: produtos à venda e com saldo das mesmas categorias do que o cliente está levando,
+   * completadas pelas novidades da loja. Nunca repete o que já está no carrinho.
+   */
+  async recommendations(storeSlug: string, productIds: string[], limit = 8) {
+    const storeId = await this.storeId(storeSlug);
+    if (!storeId) return { items: [] };
+    const ids = [...new Set(productIds)].slice(0, 50);
+    const links = ids.length ? await this.prisma.productCategory.findMany({ where: { productId: { in: ids }, product: { storeId } }, select: { categoryId: true } }) : [];
+    const categoryIds = [...new Set(links.map(link => link.categoryId))];
+    const base: Prisma.ProductWhereInput = { storeId, status: ProductStatus.ACTIVE, id: { notIn: ids } };
+    const include = { images: { orderBy: { position: 'asc' as const }, take: 1 }, inventory: { select: { quantity: true, reserved: true } } };
+    const [related, newest] = await Promise.all([
+      categoryIds.length ? this.prisma.product.findMany({ where: { ...base, categories: { some: { categoryId: { in: categoryIds } } } }, include, orderBy: { createdAt: 'desc' }, take: 40 }) : [],
+      this.prisma.product.findMany({ where: base, include, orderBy: { createdAt: 'desc' }, take: 40 }),
+    ]);
+    const seen = new Set<string>();
+    const items = [...related, ...newest]
+      .filter(product => !seen.has(product.id) && seen.add(product.id) && product.inventory.some(i => i.quantity - i.reserved > 0))
+      .slice(0, Math.min(Math.max(limit, 1), 12))
+      .map(({ inventory: _inventory, ...product }) => product);
+    return { items };
+  }
+
   /** Para cada linha do carrinho: se o produto (ou variação) ainda está à venda, o saldo livre e o preço vigente. */
   async availability(storeSlug: string, items: { productId: string; variantId?: string }[]) {
     const storeId = await this.storeId(storeSlug);

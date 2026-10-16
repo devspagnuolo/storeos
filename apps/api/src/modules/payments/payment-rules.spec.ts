@@ -1,4 +1,4 @@
-import { clampInstallments, declineMessage, installmentProblem, isValidCpf, maxAllowedInstallments, maxFreeInstallments, maxFreeInstallmentsForAmount, minFreeInstallment, onlyDigits } from './payment-rules';
+import { clampInstallments, declineMessage, installmentProblem, simulateInstallments, storeInstallmentLimits, isValidCpf, maxAllowedInstallments, maxFreeInstallments, maxFreeInstallmentsForAmount, minFreeInstallment, onlyDigits } from './payment-rules';
 
 describe('payment-rules', () => {
   it('valida CPF', () => {
@@ -71,5 +71,33 @@ describe('payment-rules', () => {
       expect(installmentProblem(4, 300, undefined, limits)).toMatch(/não está disponível/);
       expect(installmentProblem(2, 100, undefined, limits)).toMatch(/não está disponível/);
     });
+  });
+});
+
+describe('regras de parcelamento da loja', () => {
+  const platform = { max: 12, maxFree: 1, minFree: 80 };
+  it('usa o que a loja salvou, dentro do teto da plataforma', () => {
+    expect(storeInstallmentLimits({ maxInstallments: 10, maxFreeInstallments: 6, minFreeInstallment: 50 }, platform)).toEqual({ max: 10, maxFree: 6, minFree: 50 });
+    expect(storeInstallmentLimits({ maxInstallments: 18, maxFreeInstallments: 15 }, platform)).toEqual({ max: 12, maxFree: 12, minFree: 80 });
+    expect(storeInstallmentLimits({ maxInstallments: 3, maxFreeInstallments: 6 }, platform)).toEqual({ max: 3, maxFree: 3, minFree: 80 });
+  });
+  it('sem nada salvo segue o servidor', () => {
+    expect(storeInstallmentLimits(null, platform)).toEqual(platform);
+    expect(storeInstallmentLimits('lixo', platform)).toEqual(platform);
+  });
+  it('sem juros salvo na loja libera as parcelas sem juros do Mercado Pago', () => {
+    const offers = [1, 3, 4].map(n => ({ installments: n, installment_amount: 300 / n, total_amount: 300 }));
+    expect(installmentProblem(3, 300, offers, storeInstallmentLimits({ maxFreeInstallments: 3, minFreeInstallment: 80 }, platform))).toBeNull();
+    expect(installmentProblem(4, 300, offers, storeInstallmentLimits({ maxFreeInstallments: 6, minFreeInstallment: 80 }, platform))).not.toBeNull();
+  });
+  it('simulação explica por que cada parcela aparece ou não', () => {
+    const rows = simulateInstallments(300, [
+      { installments: 1, installment_amount: 300, total_amount: 300 },
+      { installments: 3, installment_amount: 100, total_amount: 300 },
+      { installments: 5, installment_amount: 60, total_amount: 300 },
+      { installments: 6, installment_amount: 54, total_amount: 324 },
+    ], { max: 12, maxFree: 6, minFree: 80 });
+    expect(rows.map(r => [r.installments, r.interestFree, r.shown])).toEqual([[1, true, true], [3, true, true], [5, true, false], [6, false, true]]);
+    expect(rows[2].reason).toBe('parcela abaixo do mínimo sem juros');
   });
 });

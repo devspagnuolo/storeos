@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Header } from '../header';
 import { CartLines, hasStockIssues } from './cart-lines';
+import { CartSuggestions } from './cart-suggestions';
 import { ShippingCalculator } from '../shipping-calculator';
 import { useStoreBrand } from '../store-name';
 import { useAvailability } from '../../lib/availability';
@@ -28,7 +29,7 @@ export function CartPageView({ heading = 'Seu carrinho', buttonLabel = 'Finaliza
         {!hydrated ? null : !items.length ? (
           <div className="card mt-8 p-10 text-center text-slate-500">Seu carrinho está vazio. <Link href="/categorias" className="font-medium text-brand">Ver produtos</Link></div>
         ) : (
-          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
+          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
             <CartLines items={items} availability={availability} />
             <aside className="card h-fit p-6">
               <div className="flex justify-between"><span>Subtotal</span><b>{formatPrice(subtotal)}</b></div>
@@ -36,9 +37,12 @@ export function CartPageView({ heading = 'Seu carrinho', buttonLabel = 'Finaliza
               {blocked
                 ? <><p role="alert" className="mt-6 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Ajuste os itens marcados para continuar.</p><button type="button" disabled className="button mt-3 w-full opacity-60">{buttonLabel}</button></>
                 : <Link href="/checkout" className="button mt-6 w-full">{buttonLabel}</Link>}
+              {/* O carrinho fica salvo neste navegador: voltar para a loja não apaga nada. */}
+              <Link href="/" className="button-ghost mt-3 w-full">Continuar comprando</Link>
             </aside>
           </div>
         )}
+        {hydrated && <CartSuggestions store={slug} productIds={items.map(item => item.productId)} />}
       </main>
     </>
   );

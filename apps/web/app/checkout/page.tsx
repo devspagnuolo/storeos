@@ -81,12 +81,13 @@ export default function CheckoutPage() {
     track('begin_checkout', { value: items.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0), items: items.map(i => ({ id: i.productId, name: i.name, price: Number(i.price), quantity: i.quantity })) });
   }, [hydrated, items]);
 
+  useEffect(() => { void getPaymentConfig(slug).then(setPayConfig); }, [slug]);
+
   useEffect(() => {
     setHydrated(true);
     // Volta ao checkout: o CPF e os dados digitados antes já aparecem.
     const local = readLocalDraft();
     if (local.cpf) setCpf(formatCpf(local.cpf));
-    void getPaymentConfig().then(setPayConfig);
     if (document.cookie.split('; ').some(part => part === 'storeos_customer_in=1')) {
       setCheckingAccount(true);
       void signedInCustomerAction().then(customer => {

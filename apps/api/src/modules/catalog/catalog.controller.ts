@@ -81,6 +81,7 @@ class ProductQueryDto { @IsString() store!: string; @IsOptional() @IsString() @M
 class AdminProductQueryDto { @IsOptional() @IsString() @MaxLength(1000) ids?: string; @IsOptional() @IsString() @MaxLength(100) q?: string; @IsOptional() @IsString() @MaxLength(160) category?: string; @IsOptional() @IsEnum(ProductStatus) status?: ProductStatus; @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number; @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number; }
 class ImportQueryDto { @IsOptional() @IsIn(['true', 'false']) dryRun?: string; }
 class StoreQueryDto { @IsString() store!: string; }
+class RecommendationsDto { @IsString() store!: string; @IsOptional() @IsString() @MaxLength(2000) ids?: string; }
 class AvailabilityItemDto { @IsString() @MaxLength(64) productId!: string; @IsOptional() @IsString() @MaxLength(64) variantId?: string; }
 class AvailabilityDto { @IsString() store!: string; @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => AvailabilityItemDto) items!: AvailabilityItemDto[]; }
 @ApiTags('Catalog') @Controller('catalog') export class CatalogController {
@@ -90,6 +91,8 @@ class AvailabilityDto { @IsString() store!: string; @IsArray() @ArrayMaxSize(50)
   @Get('admin/export.csv') @Header('Content-Type', 'text/csv; charset=utf-8') @Header('Content-Disposition', 'attachment; filename="produtos.csv"') @RequirePermissions(Permissions.CATALOG_WRITE) exportProducts(@CurrentStore() storeId: string) { return this.imports.exportCsv(storeId); }
   /** Saldo e preço atuais das linhas do carrinho, sem cache: o carrinho e o checkout usam para não passar do estoque. */
   @Post('availability') @HttpCode(200) @Throttle({ default: { limit: 60, ttl: 60_000 } }) availability(@Body() { store, items }: AvailabilityDto) { return this.catalog.availability(store, items); }
+  /** Sugestões do carrinho: mesmas categorias dos itens, depois novidades. */
+  @Get('recommendations') recommendations(@Query() { store, ids }: RecommendationsDto) { return this.catalog.recommendations(store, (ids ?? '').split(',').map(id => id.trim()).filter(Boolean)); }
   @Get('products/:slug') product(@Query() { store }: StoreQueryDto, @Param('slug') slug: string) { return this.catalog.bySlug(store, slug); }
   @Get('brands') brands(@Query() { store }: StoreQueryDto) { return this.catalog.brands(store); }
   @Get('collections') collections(@Query() { store }: StoreQueryDto) { return this.catalog.collections(store); }

@@ -20,19 +20,22 @@ export function CartLines({ items, availability, compact = false }: { items: Car
         const atMax = Boolean(info) && item.quantity >= max;
         return (
           <li key={key} className={compact ? 'py-3' : 'p-4'}>
-            <div className="flex items-center gap-3 sm:gap-4">
-              {!compact && <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">{item.image && <img src={item.image} alt={item.name} className="h-full w-full object-cover" />}</div>}
+            <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap sm:gap-4">
+              {!compact && <div className="h-16 w-16 shrink-0 sm:h-20 sm:w-20 overflow-hidden rounded-xl bg-slate-100">{item.image && <img src={item.image} alt={item.name} className="h-full w-full object-cover" />}</div>}
               <div className="min-w-0 flex-1">
                 <Link href={`/produto/${item.slug}`} className="font-semibold hover:text-brand">{item.name}</Link>
                 {item.variantLabel && <p className="text-sm text-slate-600">{item.variantLabel}</p>}
                 <p className="text-sm text-slate-500">{formatPrice(item.price)}{info && info.available > 0 && info.available <= 5 && !issue && <span className="ml-2 text-amber-700">· restam {info.available}</span>}</p>
               </div>
+              {/* No celular, quantidade e total descem para a linha de baixo para o nome não ser espremido. */}
+              <div className={'flex items-center gap-3 sm:contents' + (compact ? '' : ' max-sm:w-full max-sm:justify-end')}>
               <div className="flex items-center gap-1.5">
                 <button type="button" aria-label={`Diminuir ${item.name}`} className="h-8 w-8 rounded-lg border" onClick={() => setQuantity(key, item.quantity - 1)}>−</button>
                 <span className="w-7 text-center" aria-live="polite">{item.quantity}</span>
                 <button type="button" aria-label={`Aumentar ${item.name}`} title={atMax ? `Máximo disponível: ${max}` : undefined} disabled={atMax} className="h-8 w-8 rounded-lg border disabled:cursor-not-allowed disabled:opacity-40" onClick={() => setQuantity(key, item.quantity + 1)}>+</button>
               </div>
               <p className={'text-right font-bold ' + (compact ? 'w-20' : 'w-24 sm:w-28')}>{formatPrice((Number(item.price) * 100 * item.quantity) / 100)}</p>
+              </div>
             </div>
             {atMax && !issue && <p className="mt-2 text-xs text-slate-500">Você já tem no carrinho todas as {max} unidades disponíveis.</p>}
             {issue && (
