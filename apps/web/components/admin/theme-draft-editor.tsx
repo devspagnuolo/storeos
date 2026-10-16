@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from 'react';
 import { ImageUploader } from './image-uploader';
+import { ThemeCompare } from './theme-compare';
 import { publishThemeAction, saveThemeDraftAction, validateThemeDraftAction, type ThemeCheckResult } from '../../app/admin/actions';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -32,8 +33,10 @@ function labelFor(key: string, schema: FieldSchema) {
   return schema.title ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase());
 }
 
-export function ThemeDraftEditor({ installationId, initialRevision, initialDocument, manifest, publishEnabled = false, links = [] }: {
+export function ThemeDraftEditor({ installationId, initialRevision, initialDocument, manifest, publishEnabled = false, links = [], published = null }: {
   installationId: string;
+  /** Última versão publicada deste tema, para a comparação; null quando nunca foi publicado. */
+  published?: { version: number; document: ThemeDocument } | null;
   links?: LinkOption[];
   publishEnabled?: boolean;
   initialRevision: number;
@@ -178,6 +181,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
     });
   }
 
+  const pageTitle = useCallback((pageType: string) => templateName(manifest, pageType), [manifest]);
   const tokens = document.global.designTokens;
   const colors = tokens.colors ?? {};
   const globalProperties = manifest.globalSettingsSchema?.properties ?? {};
@@ -208,6 +212,8 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
         <CheckList checks={checks} dirty={dirty} />
         <p role={notice && !dirty ? 'status' : undefined} className={'mt-4 text-sm ' + (notice && !dirty ? 'text-emerald-700' : 'text-slate-600')}>{notice || (saving ? 'Salvando…' : dirty ? 'Alterações ainda não salvas: o rascunho é salvo sozinho em instantes.' : 'Tudo salvo. Este rascunho ainda não altera a loja publicada.')}</p>
       </section>
+
+      <ThemeCompare installationId={installationId} document={document} published={published} manifest={manifest} templateKey={templateKey} pageTitle={pageTitle} dirty={dirty} />
 
       <section className="rounded-2xl border bg-surface p-5">
         <div><h2 className="text-lg font-bold">Identidade visual</h2><p className="mt-1 text-sm text-slate-500">A prévia acompanha as cores e a tipografia escolhidas.</p></div>

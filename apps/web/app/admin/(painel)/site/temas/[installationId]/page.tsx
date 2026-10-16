@@ -17,9 +17,10 @@ type Publication = { id: string; version: number; createdAt: string; installatio
 export default async function EditThemePage({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ erro?: string; restaurado?: string }> }) {
   const { installationId } = await params;
   const query = await searchParams;
-  const [result, status] = await Promise.all([
+  const [result, status, latest] = await Promise.all([
     adminFetch<ThemeDraftResponse>(`/themes/installations/${encodeURIComponent(installationId)}/draft`),
     adminFetch<ThemeStatus>('/themes/status').catch(() => null),
+    adminFetch<{ publication: { version: number; document: ThemeDraftResponse['draft']['document'] } | null }>(`/themes/installations/${encodeURIComponent(installationId)}/published`).catch(() => ({ publication: null })),
   ]);
   const [categories, collections, pages] = await Promise.all([getCategories(), getCollections(), getPages()]);
   const links: LinkOption[] = [
@@ -36,7 +37,7 @@ export default async function EditThemePage({ params, searchParams }: { params: 
     {query.restaurado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Versão trazida de volta como rascunho. Confira a prévia e publique quando estiver pronta; a loja ainda não mudou.</p>}
     {query.erro && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">{query.erro}</p>}
     <div className="mt-4">
-      <ThemeDraftEditor key={query.restaurado ?? 'editor'} installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} publishEnabled={status?.publishEnabled ?? false} links={links} />
+      <ThemeDraftEditor key={query.restaurado ?? 'editor'} installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} publishEnabled={status?.publishEnabled ?? false} links={links} published={latest.publication ? { version: latest.publication.version, document: latest.publication.document } : null} />
     </div>
     <section aria-labelledby="versoes" className="mt-8 rounded-2xl border bg-surface p-5">
       <h2 id="versoes" className="text-lg font-bold">Versões publicadas deste tema</h2>

@@ -272,6 +272,17 @@ export class ThemeEngineService {
     }));
   }
 
+  /** Última versão publicada desta instalação, para comparar com o rascunho. Null quando nunca foi publicada. */
+  async latestPublication(storeId: string, installationId: string) {
+    const installation = await this.prisma.themeInstallation.findFirst({ where: { id: installationId, storeId }, select: { id: true } });
+    if (!installation) throw new NotFoundException('Tema não encontrado nesta loja.');
+    return this.prisma.themeEnginePublication.findFirst({
+      where: { storeId, installationId },
+      orderBy: { version: 'desc' },
+      select: { id: true, version: true, document: true, documentHash: true, createdAt: true },
+    });
+  }
+
   /**
    * Restaurar nunca publica: copia o documento da versão escolhida para o rascunho da mesma instalação,
    * com controle de revisão. A lojista revisa a prévia e publica, o que gera uma versão nova.
