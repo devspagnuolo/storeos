@@ -59,4 +59,15 @@ describe('validateThemeDocument', () => {
     expect(validateThemeDocument(dangerous, manifest).some(issue => issue.code === 'UNSAFE_PROPERTY')).toBe(true);
     expect(validateThemeDocument({ content: 'x'.repeat(300_000) }, manifest).some(issue => issue.code === 'DOCUMENT_TOO_LARGE')).toBe(true);
   });
+
+  it('rejects links to internal or private network addresses', () => {
+    const withUrl = (imageUrl: string) => validateThemeDocument({
+      ...manifest.defaultDocument,
+      templates: { home: { sections: [{ ...manifest.defaultDocument.templates.home!.sections[0], settings: { imageUrl } }] } },
+    }, manifest).some(issue => issue.code === 'UNSAFE_URL');
+    for (const url of ['http://localhost:3001/x', 'http://127.0.0.1/a', 'http://10.0.0.5/', 'https://192.168.1.1/', 'http://172.20.0.1/', 'http://169.254.169.254/latest', 'http://[::1]/', 'http://intranet/', 'https://api.internal/x']) {
+      expect(withUrl(url)).toBe(true);
+    }
+    for (const url of ['https://cdn.vivimodaplussize.com.br/a.jpg', '/categorias/vestidos', '#ofertas']) expect(withUrl(url)).toBe(false);
+  });
 });

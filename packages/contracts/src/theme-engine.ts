@@ -165,6 +165,20 @@ function validId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 96 && /^[a-zA-Z0-9_-]+$/.test(value);
 }
 
+/** Endereços internos ou de rede privada nunca entram num tema (evita apontar a vitrine para a infraestrutura). */
+function isPrivateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  if (!host.includes('.') && !host.includes(':')) return true;
+  if (host === 'localhost' || /\.(localhost|local|internal|lan|home|corp)$/.test(host)) return true;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+  }
+  if (host.includes(':')) return host === '::1' || host === '::' || /^f[cd]/.test(host) || /^fe[89ab]/.test(host) || host.startsWith('::ffff:');
+  return false;
+}
+
 function isSafeUrl(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   if (!normalized) return true;
@@ -174,7 +188,7 @@ function isSafeUrl(value: string): boolean {
   if (normalized.startsWith('/') || normalized.startsWith('#') || normalized.startsWith('?')) return true;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:';
+    return (url.protocol === 'https:' || url.protocol === 'http:') && !isPrivateHost(url.hostname);
   } catch {
     return false;
   }

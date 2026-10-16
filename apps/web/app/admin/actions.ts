@@ -1214,3 +1214,33 @@ export async function publishThemeAction(installationId: string, revision: numbe
     throw error;
   }
 }
+
+
+export type ThemeCheckResult = { errors: { path: string; message: string }[]; warnings: { path: string; area: string; message: string }[]; failed?: string };
+
+/** Confere o rascunho salvo: erros impedem publicar; avisos de conteúdo, acessibilidade e SEO são recomendações. */
+export async function validateThemeDraftAction(installationId: string): Promise<ThemeCheckResult> {
+  if (!/^[a-zA-Z0-9_-]{1,96}$/.test(installationId)) return { errors: [], warnings: [], failed: 'Identificador inválido.' };
+  try {
+    return await adminFetch<ThemeCheckResult>(`/themes/installations/${encodeURIComponent(installationId)}/validate`, { method: 'POST' });
+  } catch (error) {
+    if (error instanceof ApiError) return { errors: [], warnings: [], failed: error.message };
+    throw error;
+  }
+}
+
+/** Traz uma versão publicada de volta como rascunho do mesmo tema; nunca publica. */
+export async function restoreThemePublicationAction(form: FormData): Promise<void> {
+  const publicationId = String(form.get('publicationId') ?? '').trim();
+  const installationId = String(form.get('installationId') ?? '').trim();
+  const revision = Number(form.get('revision'));
+  const back = `/admin/site/temas/${encodeURIComponent(installationId)}`;
+  if (!/^[a-zA-Z0-9_-]{1,96}$/.test(publicationId) || !/^[a-zA-Z0-9_-]{1,96}$/.test(installationId) || !Number.isInteger(revision) || revision < 1) redirect(`${back}?erro=Dados+inv%C3%A1lidos.`);
+  try {
+    await adminFetch(`/themes/publications/${encodeURIComponent(publicationId)}/restore`, { method: 'POST', body: { revision } });
+  } catch (error) {
+    redirect(`${back}?erro=${encodeURIComponent(error instanceof ApiError ? error.message : 'Não foi possível restaurar a versão.')}`);
+  }
+  revalidatePath(back);
+  redirect(`${back}?restaurado=1`);
+}

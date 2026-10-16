@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { publishThemeAction, saveThemeDraftAction } from '../../app/admin/actions';
+import { useEffect, useState, useTransition } from 'react';
+import { publishThemeAction, saveThemeDraftAction, validateThemeDraftAction, type ThemeCheckResult } from '../../app/admin/actions';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 type ThemeSection = { id: string; type: string; enabled: boolean; settings: Record<string, JsonValue>; blocks: { id: string; type: string; enabled: boolean; settings: Record<string, JsonValue> }[] };
@@ -42,6 +42,9 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
   const [templateKey, setTemplateKey] = useState(() => ('home' in initialDocument.templates ? 'home' : Object.keys(initialDocument.templates)[0]) ?? 'home');
   const [saving, startSaving] = useTransition();
   const [publishing, startPublishing] = useTransition();
+  const [checks, setChecks] = useState<ThemeCheckResult | null>(null);
+  // Confere o rascunho salvo ao abrir e depois de cada gravação.
+  useEffect(() => { let alive = true; validateThemeDraftAction(installationId).then(result => { if (alive) setChecks(result); }); return () => { alive = false; }; }, [installationId, revision]);
   const sections = document.templates[templateKey]?.sections ?? [];
   const templateTitle = templateName(manifest, templateKey);
 
@@ -87,7 +90,9 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
 
   function publish() {
     if (dirty) { setNotice('Salve as alterações antes de publicar.'); return; }
-    if (!window.confirm('Publicar este tema na loja? O tema atual será substituído e continuará disponível nas versões publicadas.')) return;
+    if (checks?.errors.length) { setNotice('Corrija os erros apontados antes de publicar.'); return; }
+    const pending = checks?.warnings.length ? ` Ainda há ${checks.warnings.length} ${checks.warnings.length === 1 ? 'aviso' : 'avisos'} na verificação.` : '';
+    if (!window.confirm(`Publicar este tema na loja?${pending} O tema atual será substituído e continuará disponível nas versões publicadas.`)) return;
     startPublishing(async () => {
       const result = await publishThemeAction(installationId, revision);
       setNotice(result.error ?? result.ok ?? 'Tema publicado.');
@@ -116,6 +121,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
           <div className="flex flex-wrap gap-2"><a className="button-ghost" href={'/previa/tema/' + encodeURIComponent(installationId)} target="_blank" rel="noopener" title={dirty ? 'Salve o rascunho para ver as últimas mudanças' : undefined}>Prévia real ↗</a><button type="button" className="button-ghost" disabled={!dirty || saving || publishing} onClick={save}>{saving ? 'Salvando…' : 'Salvar rascunho'}</button>{publishEnabled && <button type="button" className="button" disabled={dirty || saving || publishing} onClick={publish}>{publishing ? 'Publicando…' : 'Publicar na loja'}</button>}</div>
         </div>
         {!publishEnabled && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Temas avançados ainda estão em teste: você pode montar e salvar este rascunho, mas a publicação será liberada quando a prévia real das páginas estiver pronta. Para mudar a loja agora, use <a className="font-semibold underline" href="/painel/site">Personalizar loja</a>.</p>}
+        <CheckList checks={checks} dirty={dirty} />
         <p role={notice && !dirty ? 'status' : undefined} className={'mt-4 text-sm ' + (notice && !dirty ? 'text-emerald-700' : 'text-slate-600')}>{notice || (dirty ? 'Há alterações não salvas. Salve-as antes de publicar.' : 'Tudo salvo. Este rascunho ainda não altera a loja publicada.')}</p>
       </section>
 
@@ -289,4 +295,19 @@ function SettingField({ name, schema, value, onChange }: { name: string; schema:
   if (schema.type === 'integer' || schema.type === 'number') return <label className="text-sm font-medium">{name}<input className="input" type="number" min={schema.minimum} max={schema.maximum} step={schema.type === 'integer' ? 1 : 'any'} value={typeof value === 'number' ? value : ''} onChange={event => { const next = event.currentTarget.value; if (next !== '') onChange(Number(next)); }} /></label>;
   const isUrl = /(?:url|href)$/i.test(name);
   return <label className="text-sm font-medium">{name}<input className="input" type={isUrl ? 'url' : 'text'} maxLength={schema.maxLength} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.currentTarget.value)} /></label>;
+}
+
+const AREA: Record<string, string> = { content: 'Conteúdo', accessibility: 'Acessibilidade', seo: 'SEO' };
+
+function CheckList({ checks, dirty }: { checks: ThemeCheckResult | null; dirty: boolean }) {
+  if (!checks) return <p className="mt-4 text-sm text-slate-500">Verificando o rascunho…</p>;
+  if (checks.failed) return <p className="mt-4 text-sm text-red-700">{checks.failed}</p>;
+  const total = checks.errors.length + checks.warnings.length;
+  return <details className="mt-4 rounded-lg border p-3 text-sm" open={total > 0 && total <= 6}>
+    <summary className="cursor-pointer font-semibold">{total === 0 ? '✓ Verificação: nenhum problema encontrado' : `Verificação: ${checks.errors.length ? `${checks.errors.length} ${checks.errors.length === 1 ? 'erro' : 'erros'}` : ''}${checks.errors.length && checks.warnings.length ? ' e ' : ''}${checks.warnings.length ? `${checks.warnings.length} ${checks.warnings.length === 1 ? 'aviso' : 'avisos'}` : ''}`}{dirty && <span className="ml-2 font-normal text-slate-500">(da última versão salva)</span>}</summary>
+    {total > 0 && <ul className="mt-2 grid gap-1.5">
+      {checks.errors.map((item, index) => <li key={'e' + index} className="rounded bg-red-50 px-2 py-1 text-red-800"><strong>Erro:</strong> {item.message}</li>)}
+      {checks.warnings.map((item, index) => <li key={'w' + index} className="rounded bg-amber-50 px-2 py-1 text-amber-900"><strong>{AREA[item.area] ?? 'Aviso'}:</strong> {item.message}</li>)}
+    </ul>}
+  </details>;
 }
