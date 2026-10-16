@@ -16,12 +16,16 @@ type BlockDefinition = { type: string; title: string; settingsSchema: { properti
 type SectionDefinition = { type: string; title: string; description: string; maxBlocks: number; blockTypes: string[]; blockDefinitions?: BlockDefinition[]; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
 export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[]; globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
 
+const PAGE_TITLES: Record<string, string> = { home: 'Página inicial', category: 'Categoria', product: 'Produto', search: 'Busca', cart: 'Carrinho', page: 'Página de conteúdo', content: 'Página de conteúdo', blog: 'Blog', 'blog-index': 'Blog', landing: 'Página de campanha', 'blog-post': 'Artigo do blog', article: 'Artigo do blog', 'not-found': 'Página não encontrada (404)', notFound: 'Página não encontrada (404)' };
+const templateName = (manifest: ThemeManifest, pageType: string) => manifest.templates.find(template => template.pageType === pageType)?.title ?? PAGE_TITLES[pageType] ?? pageType;
+
 function labelFor(key: string, schema: FieldSchema) {
   return schema.title ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase());
 }
 
-export function ThemeDraftEditor({ installationId, initialRevision, initialDocument, manifest }: {
+export function ThemeDraftEditor({ installationId, initialRevision, initialDocument, manifest, publishEnabled = false }: {
   installationId: string;
+  publishEnabled?: boolean;
   initialRevision: number;
   initialDocument: ThemeDocument;
   manifest: ThemeManifest;
@@ -32,11 +36,11 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
   const [notice, setNotice] = useState('');
   const [dragged, setDragged] = useState<string | null>(null);
   const [previewSize, setPreviewSize] = useState<'desktop' | 'mobile'>('desktop');
-  const [templateKey, setTemplateKey] = useState(() => Object.keys(initialDocument.templates)[0] ?? 'home');
+  const [templateKey, setTemplateKey] = useState(() => ('home' in initialDocument.templates ? 'home' : Object.keys(initialDocument.templates)[0]) ?? 'home');
   const [saving, startSaving] = useTransition();
   const [publishing, startPublishing] = useTransition();
   const sections = document.templates[templateKey]?.sections ?? [];
-  const templateTitle = manifest.templates.find(template => template.pageType === templateKey)?.title ?? templateKey;
+  const templateTitle = templateName(manifest, templateKey);
 
   function changeDocument(mutator: (current: ThemeDocument) => ThemeDocument) {
     setDocument(current => mutator(current));
@@ -106,8 +110,9 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
       <section className="rounded-2xl border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-sm font-semibold text-brand">RASCUNHO DO TEMA</p><h1 className="mt-1 text-2xl font-bold">{manifest.displayName}</h1><p className="mt-1 text-sm text-slate-500">Versão {manifest.version} · revisão {revision}</p></div>
-          <div className="flex flex-wrap gap-2"><button type="button" className="button-ghost" disabled={!dirty || saving || publishing} onClick={save}>{saving ? 'Salvando…' : 'Salvar rascunho'}</button><button type="button" className="button" disabled={dirty || saving || publishing} onClick={publish}>{publishing ? 'Publicando…' : 'Publicar na loja'}</button></div>
+          <div className="flex flex-wrap gap-2"><a className="button-ghost" href={'/previa/tema/' + encodeURIComponent(installationId)} target="_blank" rel="noopener" title={dirty ? 'Salve o rascunho para ver as últimas mudanças' : undefined}>Prévia real ↗</a><button type="button" className="button-ghost" disabled={!dirty || saving || publishing} onClick={save}>{saving ? 'Salvando…' : 'Salvar rascunho'}</button>{publishEnabled && <button type="button" className="button" disabled={dirty || saving || publishing} onClick={publish}>{publishing ? 'Publicando…' : 'Publicar na loja'}</button>}</div>
         </div>
+        {!publishEnabled && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Temas avançados ainda estão em teste: você pode montar e salvar este rascunho, mas a publicação será liberada quando a prévia real das páginas estiver pronta. Para mudar a loja agora, use <a className="font-semibold underline" href="/painel/site">Personalizar loja</a>.</p>}
         <p role={notice && !dirty ? 'status' : undefined} className={'mt-4 text-sm ' + (notice && !dirty ? 'text-emerald-700' : 'text-slate-600')}>{notice || (dirty ? 'Há alterações não salvas. Salve-as antes de publicar.' : 'Tudo salvo. Este rascunho ainda não altera a loja publicada.')}</p>
       </section>
 
@@ -135,8 +140,8 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
       </section>
 
       <section className="grid gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Seções de {templateTitle}</h2><p className="mt-1 text-sm text-slate-500">Cada página mantém sua própria ordem e configurações no rascunho.</p></div>
-          <label className="min-w-52 text-sm font-medium">Editar página<select className="input" value={templateKey} onChange={event => setTemplateKey(event.currentTarget.value)}>{Object.keys(document.templates).map(pageType => <option key={pageType} value={pageType}>{manifest.templates.find(template => template.pageType === pageType)?.title ?? pageType}</option>)}</select></label>
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Seções: {templateTitle}</h2><p className="mt-1 text-sm text-slate-500">Cada página mantém sua própria ordem e configurações no rascunho.</p></div>
+          <label className="min-w-52 text-sm font-medium">Editar página<select className="input" value={templateKey} onChange={event => setTemplateKey(event.currentTarget.value)}>{Object.keys(document.templates).map(pageType => <option key={pageType} value={pageType}>{templateName(manifest, pageType)}</option>)}</select></label>
         </div>
         {sections.map((section, index) => {
           const definition = manifest.sections.find(item => item.type === section.type);
@@ -205,13 +210,13 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
 
   return <aside className="h-fit rounded-2xl border bg-surface p-4 xl:sticky xl:top-20">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className="font-bold">Prévia: {manifest.templates.find(template => template.pageType === templateKey)?.title ?? templateKey}</h2><p className="mt-1 text-xs text-slate-500">Atualiza enquanto você edita</p></div>
+      <div><h2 className="font-bold">Prévia: {templateName(manifest, templateKey)}</h2><p className="mt-1 text-xs text-slate-500">Atualiza enquanto você edita</p></div>
       <div className="flex rounded-lg border p-1" role="group" aria-label="Tamanho da prévia">
         <button type="button" aria-pressed={previewSize === 'desktop'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'desktop' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('desktop')}>Desktop</button>
         <button type="button" aria-pressed={previewSize === 'mobile'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'mobile' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('mobile')}>Celular</button>
       </div>
     </div>
-    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Prévia indicativa do editor. Ao publicar, a página inicial usa produtos e categorias reais; páginas internas ainda usam os modelos atuais da loja.</p>
+    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita. Para ver a página inicial com seus produtos reais, salve e clique em “Prévia real”. As outras páginas da loja ainda seguem o editor Personalizar loja.</p>
     <div className="overflow-auto rounded-xl border bg-slate-100 p-2">
       <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : '100%', maxWidth: '100%' }}>
         <div style={{ color: textColor, backgroundColor: background, fontFamily }}>

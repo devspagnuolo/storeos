@@ -28,6 +28,9 @@ export class ThemeEngineController {
   @Get('library')
   listLibrary() { return this.themes.listLibrary(); }
 
+  @Get('status')
+  status(@CurrentStore() storeId: string) { return this.themes.status(storeId); }
+
   @Get('installations')
   listInstallations(@CurrentStore() storeId: string) { return this.themes.listInstallations(storeId); }
 

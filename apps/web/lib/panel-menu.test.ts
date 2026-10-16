@@ -14,7 +14,7 @@ describe('menu do painel', () => {
     expect(activeHref('/painel')).toBe('/painel');
     expect(activeHref('/painel/pedidos/abc')).toBe('/painel/pedidos');
     expect(activeHref('/painel/estoque/depositos')).toBe('/painel/estoque/depositos');
-    expect(activeHref('/painel/site/temas/123')).toBe('/painel/site/temas');
+    expect(activeHref('/painel/site/temas/123')).toBe('/painel/site');
     expect(activeHref('/painel/site')).toBe('/painel/site');
     expect(activeHref('/painel/midia')).toBeNull();
   });

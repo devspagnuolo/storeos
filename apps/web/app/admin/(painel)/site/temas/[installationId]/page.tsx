@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ThemeDraftEditor } from '../../../../../../components/admin/theme-draft-editor';
 import { adminFetch } from '../../../../../../lib/admin/session';
+import type { ThemeStatus } from '../../../../../../lib/admin/storefront';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,12 +12,15 @@ type ThemeDraftResponse = {
 
 export default async function EditThemePage({ params }: { params: Promise<{ installationId: string }> }) {
   const { installationId } = await params;
-  const result = await adminFetch<ThemeDraftResponse>(`/themes/installations/${encodeURIComponent(installationId)}/draft`);
+  const [result, status] = await Promise.all([
+    adminFetch<ThemeDraftResponse>(`/themes/installations/${encodeURIComponent(installationId)}/draft`),
+    adminFetch<ThemeStatus>('/themes/status').catch(() => null),
+  ]);
   return <>
-    <Link href="/painel/site/temas" className="text-sm font-medium text-brand hover:underline">← Voltar para temas</Link>
+    <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">Personalizar loja</Link> <span className="text-slate-400">›</span> <Link href="/painel/site/temas" className="font-medium text-brand hover:underline">Escolher tema</Link></nav>
     <div className="mt-4">
-      <ThemeDraftEditor installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} />
+      <ThemeDraftEditor installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} publishEnabled={status?.publishEnabled ?? false} />
     </div>
-    <p className="mt-6 text-xs text-slate-500">Instalação {result.installation.id} · estado {result.installation.status === 'ACTIVE' ? 'ativo no modelo de dados' : 'inativo'}</p>
+    <p className="mt-6 text-xs text-slate-500">{result.installation.status === 'ACTIVE' ? (status?.active?.live ? 'Este tema está publicado e desenha a página inicial da loja.' : 'Este tema está marcado como ativo, mas a loja segue o editor Personalizar loja enquanto a publicação avançada estiver em teste.') : 'Rascunho guardado: este tema não aparece na loja.'}</p>
   </>;
 }

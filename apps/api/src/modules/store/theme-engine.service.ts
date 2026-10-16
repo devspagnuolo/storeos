@@ -1,9 +1,13 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import Ajv, { ValidateFunction } from 'ajv';
 import { ThemeDocument, ThemeDocumentIssue, ThemeReleaseManifest, validateThemeDocument } from '@storeos/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
+import { themeEngineEnabledFor } from './theme-engine-flag';
+
+/** Modelos de página que o runtime público do Theme Engine já desenha. Os demais seguem o editor da loja. */
+export const ENGINE_PUBLIC_TEMPLATES = ['home'] as const;
 
 const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, addUsedSchema: false });
 const schemaCache = new Map<string, ValidateFunction>();
@@ -164,7 +168,36 @@ export class ThemeEngineService {
     return this.prisma.themeDraft.findUniqueOrThrow({ where: { id: current.draft.id } });
   }
  
+  private async publishEnabled(storeId: string) {
+    const store = await this.prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { slug: true } });
+    return themeEngineEnabledFor(store.slug);
+  }
+
+  /** Quem desenha cada página da loja hoje e se a publicação avançada está liberada para ela. */
+  async status(storeId: string) {
+    const [publishEnabled, active] = await Promise.all([
+      this.publishEnabled(storeId),
+      this.prisma.themeInstallation.findFirst({
+        where: { storeId, status: 'ACTIVE' },
+        select: { id: true, release: { select: { version: true, manifest: true } } },
+      }),
+    ]);
+    const live = Boolean(active && publishEnabled);
+    const name = active ? String((active.release.manifest as { displayName?: string }).displayName ?? 'Tema avançado') : null;
+    return {
+      publishEnabled,
+      active: active ? { installationId: active.id, name, version: active.release.version, live } : null,
+      templates: ['home', 'category', 'product', 'visual'].map(pageType => ({
+        pageType,
+        controlledBy: live && (ENGINE_PUBLIC_TEMPLATES as readonly string[]).includes(pageType) ? 'engine' : 'editor',
+      })),
+    };
+  }
+
   async publish(storeId: string, installationId: string, expectedRevision: number, actorId: string) {
+    if (!(await this.publishEnabled(storeId))) {
+      throw new ForbiddenException('A publicação de temas avançados ainda está em teste e não foi liberada para esta loja. Seu rascunho continua salvo; para mudar a loja agora, use Personalizar loja.');
+    }
     const current = await this.getDraft(storeId, installationId);
     if (current.draft.revision !== expectedRevision) {
       throw new ConflictException('O rascunho mudou em outra sessão. Recarregue antes de publicar.');

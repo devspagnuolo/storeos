@@ -18,3 +18,10 @@ export type StoreSetup = {
   steps: { id: string; title: string; description: string; href: string; complete: boolean; level: 'required' | 'recommended' }[];
   payment: { paymentConfigured: boolean; webhookConfigured: boolean; callbackConfigured: boolean; confirmedPayments: number };
 };
+
+/** Quem desenha cada página da loja (GET /themes/status). */
+export type ThemeStatus = {
+  publishEnabled: boolean;
+  active: { installationId: string; name: string; version: string; live: boolean } | null;
+  templates: { pageType: 'home' | 'category' | 'product' | 'visual'; controlledBy: 'editor' | 'engine' }[];
+};
