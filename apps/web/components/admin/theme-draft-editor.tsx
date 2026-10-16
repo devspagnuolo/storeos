@@ -110,7 +110,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
       <section className="rounded-2xl border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-sm font-semibold text-brand">RASCUNHO DO TEMA</p><h1 className="mt-1 text-2xl font-bold">{manifest.displayName}</h1><p className="mt-1 text-sm text-slate-500">Versão {manifest.version} · revisão {revision}</p></div>
-          <div className="flex flex-wrap gap-2"><button type="button" className="button-ghost" disabled={!dirty || saving || publishing} onClick={save}>{saving ? 'Salvando…' : 'Salvar rascunho'}</button>{publishEnabled && <button type="button" className="button" disabled={dirty || saving || publishing} onClick={publish}>{publishing ? 'Publicando…' : 'Publicar na loja'}</button>}</div>
+          <div className="flex flex-wrap gap-2"><a className="button-ghost" href={'/previa/tema/' + encodeURIComponent(installationId)} target="_blank" rel="noopener" title={dirty ? 'Salve o rascunho para ver as últimas mudanças' : undefined}>Prévia real ↗</a><button type="button" className="button-ghost" disabled={!dirty || saving || publishing} onClick={save}>{saving ? 'Salvando…' : 'Salvar rascunho'}</button>{publishEnabled && <button type="button" className="button" disabled={dirty || saving || publishing} onClick={publish}>{publishing ? 'Publicando…' : 'Publicar na loja'}</button>}</div>
         </div>
         {!publishEnabled && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Temas avançados ainda estão em teste: você pode montar e salvar este rascunho, mas a publicação será liberada quando a prévia real das páginas estiver pronta. Para mudar a loja agora, use <a className="font-semibold underline" href="/painel/site">Personalizar loja</a>.</p>}
         <p role={notice && !dirty ? 'status' : undefined} className={'mt-4 text-sm ' + (notice && !dirty ? 'text-emerald-700' : 'text-slate-600')}>{notice || (dirty ? 'Há alterações não salvas. Salve-as antes de publicar.' : 'Tudo salvo. Este rascunho ainda não altera a loja publicada.')}</p>
@@ -216,7 +216,7 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
         <button type="button" aria-pressed={previewSize === 'mobile'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'mobile' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('mobile')}>Celular</button>
       </div>
     </div>
-    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Prévia indicativa do editor. Ao publicar, a página inicial usa produtos e categorias reais; páginas internas ainda usam os modelos atuais da loja.</p>
+    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita. Para ver a página inicial com seus produtos reais, salve e clique em “Prévia real”. As outras páginas da loja ainda seguem o editor Personalizar loja.</p>
     <div className="overflow-auto rounded-xl border bg-slate-100 p-2">
       <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : '100%', maxWidth: '100%' }}>
         <div style={{ color: textColor, backgroundColor: background, fontFamily }}>
