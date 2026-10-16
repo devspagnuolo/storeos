@@ -139,8 +139,11 @@ export function contactPayload(order: OrderForBling) {
   };
 }
 
+/** Ids da conta Bling usados no financeiro do pedido (categoria "Venda de Mercadoria" e forma de pagamento), quando encontrados. */
+export type SalesOrderFinance = { categoryId?: number; paymentFormId?: number };
+
 /** Corpo de POST /pedidos/vendas. `productIds` mapeia SKU → id do produto no Bling, quando existe. */
-export function salesOrderPayload(order: OrderForBling, contactId: number, productIds: Map<string, number>) {
+export function salesOrderPayload(order: OrderForBling, contactId: number, productIds: Map<string, number>, finance: SalesOrderFinance = {}) {
   const discount = Math.round((order.discount + order.promotionDiscount) * 100) / 100;
   const address = order.address;
   const payment = order.paymentMethod ? PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod : undefined;
@@ -157,6 +160,22 @@ export function salesOrderPayload(order: OrderForBling, contactId: number, produ
       fretePorConta: 0, frete: order.shipping,
       ...(address && { etiqueta: { nome: order.customer.name.slice(0, 60), endereco: address.street, numero: address.number, complemento: address.complement ?? '', municipio: address.city, uf: address.state, cep: address.zipCode?.replace(/\D/g, ''), bairro: address.district ?? '' } }),
     },
+    ...(finance.categoryId && { categoria: { id: finance.categoryId } }),
+    // O pagamento já foi aprovado na loja: uma parcela com o total, para a conta a receber nascer certa.
+    ...(finance.paymentFormId && { parcelas: [{ dataVencimento: ymd(order.createdAt), valor: order.total, observacoes: payment ?? '', formaPagamento: { id: finance.paymentFormId } }] }),
     observacoes: [`Pedido ${order.number} da loja virtual.`, order.shippingMethod && `Frete: ${order.shippingMethod}.`, payment && `Pagamento: ${payment}.`, order.couponCode && `Cupom: ${order.couponCode}.`].filter(Boolean).join(' '),
   };
+}
+
+/** Escolhe a forma de pagamento do Bling que corresponde ao meio usado na loja (pela descrição). */
+export function matchPaymentForm(forms: { id: number; descricao?: string }[], method: string | null): number | undefined {
+  const words: Record<string, RegExp> = { PIX: /pix/i, BOLETO: /boleto/i, CREDIT_CARD: /cr[eé]dito|cart[aã]o/i };
+  const pattern = method ? words[method] : undefined;
+  return pattern ? forms.find(form => pattern.test(form.descricao ?? ''))?.id : undefined;
+}
+
+/** Categoria financeira pelo nome (sem diferenciar maiúsculas e acentos). */
+export function matchCategory(categories: { id: number; descricao?: string }[], name: string): number | undefined {
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return categories.find(category => normalize(category.descricao ?? '') === normalize(name))?.id;
 }
