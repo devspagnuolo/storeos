@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ThemeDraftEditor, type LinkOption } from '../../../../../../components/admin/theme-draft-editor';
-import { restoreThemePublicationAction } from '../../../../actions';
+import { restoreThemePublicationAction, upgradeThemeAction } from '../../../../actions';
 import { getCategories, getCollections, getPages } from '../../../../../../lib/api';
 import { adminFetch } from '../../../../../../lib/admin/session';
 import type { ThemeStatus } from '../../../../../../lib/admin/storefront';
@@ -32,11 +32,16 @@ export default async function EditThemePage({ params, searchParams }: { params: 
     ...pages.map(item => ({ group: 'Páginas', label: item.title, href: '/p/' + item.slug })),
   ];
   const publications = (await adminFetch<Publication[]>('/themes/publications').catch(() => [])).filter(item => item.installationId === result.installation.id);
+  const upgrade = (await adminFetch<{ id: string; upgrade: { version: string } | null }[]>('/themes/installations').catch(() => [])).find(item => item.id === result.installation.id)?.upgrade;
   return <>
     <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">Personalizar loja</Link> <span className="text-slate-400">›</span> <Link href="/painel/site/temas" className="font-medium text-brand hover:underline">Escolher tema</Link></nav>
     {query.restaurado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Versão trazida de volta como rascunho. Confira a prévia e publique quando estiver pronta; a loja ainda não mudou.</p>}
     {query.convertido && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Sua loja atual veio para o editor novo como rascunho: cores, aviso do topo, banners e seções da página inicial. Revise a prévia e publique quando estiver pronta; até lá a loja segue como está.</p>}
     {query.atualizado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema atualizado para a versão {query.atualizado.slice(0, 20)} como rascunho, com suas cores, textos e seções. As opções novas (como “no celular” e “Mostrar em”) já vêm preenchidas. A loja só muda quando você publicar.</p>}
+    {upgrade && !query.atualizado && <section className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand/5 p-4 text-sm">
+      <p className="min-w-0"><b>Versão {upgrade.version} disponível</b> com opções novas (por exemplo, o ícone “Programa de pontos” na barra de vantagens). Atualizar mantém suas cores, textos e seções e cria um rascunho; a loja só muda quando você publicar.</p>
+      <form action={upgradeThemeAction}><input type="hidden" name="installationId" value={result.installation.id} /><button className="button" type="submit">Atualizar para a versão {upgrade.version}</button></form>
+    </section>}
     {query.erro && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">{query.erro}</p>}
     <div className="mt-4">
       <ThemeDraftEditor key={query.restaurado ?? 'editor'} installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} publishEnabled={status?.publishEnabled ?? false} links={links} published={latest.publication ? { version: latest.publication.version, document: latest.publication.document } : null} />

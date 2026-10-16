@@ -176,8 +176,8 @@ async function ThemeHomeSection({ section, store, products, categories, primary,
     case 'storeos.benefits.v1': {
       const items = section.blocks.filter(block => block.enabled);
       if (!items.length) return null;
-      if (settings.style === 'cards') return <section className="shell grid gap-3 py-8 sm:grid-cols-2 lg:grid-cols-4">{items.map(block => <article key={block.id} className="rounded-xl border p-5"><BenefitIcon name={block.settings.icon} color={primary} /><h2 className="mt-3 font-semibold">{text(block.settings.title)}</h2><p className="mt-1 text-sm opacity-75">{text(block.settings.text)}</p></article>)}</section>;
-      return <section className="border-y bg-white/50"><ul className="shell grid grid-cols-2 gap-x-4 gap-y-3 py-4 lg:grid-cols-4">{items.map(block => <li key={block.id} className="flex min-w-0 items-center gap-3"><BenefitIcon name={block.settings.icon} color={primary} /><span className="min-w-0"><strong className="block truncate text-sm">{text(block.settings.title)}</strong><span className="block truncate text-xs opacity-70">{text(block.settings.text)}</span></span></li>)}</ul></section>;
+      if (settings.style === 'cards') return <section className="shell flex flex-wrap justify-center gap-3 py-8">{items.map(block => <article key={block.id} className="w-full rounded-xl border p-5 sm:w-[calc(50%-0.375rem)] lg:w-[calc(25%-0.5625rem)]"><BenefitIcon name={block.settings.icon} color={primary} /><h2 className="mt-3 font-semibold">{text(block.settings.title)}</h2><p className="mt-1 text-sm opacity-75">{text(block.settings.text)}</p></article>)}</section>;
+      return <section className="border-y bg-white/50"><ul className="shell flex flex-wrap justify-center gap-x-10 gap-y-4 py-4">{items.map(block => <li key={block.id} className="flex w-full max-w-[20rem] items-center gap-3 sm:w-auto"><BenefitIcon name={block.settings.icon} color={primary} /><span className="min-w-0 break-words"><strong className="block text-sm">{text(block.settings.title)}</strong>{text(block.settings.text) && <span className="block text-xs opacity-70">{text(block.settings.text)}</span>}</span></li>)}</ul></section>;
     }
     case 'storeos.rich-text.v1': {
       const centered = settings.align === 'center';
@@ -205,6 +205,8 @@ const ICONS: Record<string, React.ReactNode> = {
   star: <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z" />,
   pix: <path d="m12 3 9 9-9 9-9-9 9-9Zm-4.5 9h9" />,
   gift: <path d="M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7c-2-4-6-3-5 0M12 7c2-4 6-3 5 0" />,
+  // Programa de pontos: moeda com "P".
+  points: <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM10 17V8h2.8a2.6 2.6 0 0 1 0 5.2H10" />,
 };
 
 /** Ícones fixos do runtime (o tema só escolhe o nome): nada de SVG vindo do tema. */

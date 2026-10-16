@@ -7,7 +7,7 @@ import { settingsIssues } from './theme-engine.service';
 
 function manifests() {
   const read = (folder: string) => readFileSync(join(__dirname, '../../../prisma/migrations', folder, 'migration.sql'), 'utf8');
-  const all = [...read('20261016030000_theme_engine_foundation').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016180000_theme_catalog').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016190000_theme_enterprise').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016200000_theme_unified_editor').matchAll(/\$json\$(\{.*?\})\$json\$/gs)]
+  const all = [...read('20261016030000_theme_engine_foundation').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016180000_theme_catalog').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016190000_theme_enterprise').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016200000_theme_unified_editor').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016210000_theme_points_icon').matchAll(/\$json\$(\{.*?\})\$json\$/gs)]
     .map(match => JSON.parse(match[1]) as ThemeReleaseManifest);
   const find = (slug: string, version: string) => all.find(item => item.slug === slug && item.version === version)!;
   return { v10: find('storeos-editorial', '1.0.0'), v11: find('storeos-editorial', '1.1.0'), all };
@@ -35,7 +35,9 @@ describe('atualização de versão do tema', () => {
     }
     expect(latest.size).toBeGreaterThanOrEqual(19);
     const reference = JSON.stringify(latest.get('storeos-enterprise-pro')!.sections);
-    expect(latest.get('storeos-enterprise-pro')!.version).toBe('1.1.0');
+    expect(latest.get('storeos-enterprise-pro')!.version).toBe('1.2.0');
+    const icons = (latest.get('storeos-enterprise-pro')!.sections.find(section => section.type === 'storeos.benefits.v1')!.blockDefinitions![0].settingsSchema as { properties: { icon: { enum: string[] } } }).properties.icon;
+    expect(icons.enum).toContain('points');
     for (const manifest of latest.values()) expect([manifest.slug, JSON.stringify(manifest.sections) === reference]).toEqual([manifest.slug, true]);
   });
 
