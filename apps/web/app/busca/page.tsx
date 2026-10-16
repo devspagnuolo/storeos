@@ -4,6 +4,7 @@ import { ProductGrid } from '../../components/product-grid';
 import { getCategories, getProducts } from '../../lib/api';
 import { buildTree, flatten } from '../../lib/category-tree';
 import { activeEngineDocument, engineNumber, engineSection, engineText } from '../../lib/theme-engine';
+import { gridColumns } from '../../lib/responsive-grid';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Buscar' };
@@ -27,7 +28,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           <select name="categoria" defaultValue={categoria} aria-label="Filtrar por categoria" className="rounded-xl border border-slate-300 bg-white px-3 py-2.5"><option value="">Todas as categorias</option>{options.map(c => <option key={c.id} value={c.slug}>{'— '.repeat(c.depth - 1)}{c.name}</option>)}</select>
           <button className="button">Buscar</button>
         </form>
-        {results && <div className="mt-10"><p className="mb-6 text-sm text-slate-500">{results.total} resultado(s){q && <> para “{q}”</>}{categoria && <> em {options.find(c => c.slug === categoria)?.name ?? categoria}</>}</p><ProductGrid page={results} basePath="/busca" params={{ q, ...(categoria && { categoria }) }} empty="Nenhum produto encontrado. Tente outro termo." /></div>}
+        {results && <div className="mt-10"><p className="mb-6 text-sm text-slate-500">{results.total} resultado(s){q && <> para “{q}”</>}{categoria && <> em {options.find(c => c.slug === categoria)?.name ?? categoria}</>}</p><ProductGrid page={results} basePath="/busca" params={{ q, ...(categoria && { categoria }) }} empty="Nenhum produto encontrado. Tente outro termo." columns={gridColumns(engineNumber(search?.mobileColumns, 1, 2), undefined, { mobile: 2, desktop: 4 })} /></div>}
       </main>
     </>
   );

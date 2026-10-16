@@ -77,6 +77,11 @@ export class ThemeEngineController {
     return this.themes.publish(storeId, installationId, dto.revision, req.user.sub);
   }
 
+  @Post('installations/:installationId/upgrade')
+  upgrade(@CurrentStore() storeId: string, @Param('installationId') installationId: string, @Req() req: { user: { sub: string } }) {
+    return this.themes.upgrade(storeId, installationId, req.user.sub);
+  }
+
   @Post('installations/:installationId/deactivate')
   deactivate(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
     return this.themes.deactivate(storeId, installationId);

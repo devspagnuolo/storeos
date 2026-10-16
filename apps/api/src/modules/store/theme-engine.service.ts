@@ -6,6 +6,7 @@ import { ThemeDocument, ThemeDocumentIssue, ThemeReleaseManifest, validateThemeD
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { themeEngineEnabledFor } from './theme-engine-flag';
 import { themeChecks } from './theme-engine-checks';
+import { compareVersions, upgradeThemeDocument } from './theme-upgrade';
 
 /**
  * O que o runtime público do Theme Engine já desenha: página inicial completa; em categoria, produto, busca, carrinho, páginas de conteúdo, blog e 404
@@ -14,6 +15,8 @@ import { themeChecks } from './theme-engine-checks';
 export const ENGINE_PUBLIC_TEMPLATES = ['home', 'category', 'product', 'search', 'cart', 'page', 'blog-index', 'blog-post', 'not-found', 'visual'] as const;
 
 const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, addUsedSchema: false });
+// Rótulos das opções de uma lista ("Só no celular"): anotação para o editor, sem efeito na validação.
+ajv.addKeyword({ keyword: 'enumTitles', schemaType: 'array' });
 const schemaCache = new Map<string, ValidateFunction>();
 
 function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): ThemeDocumentIssue[] {
@@ -90,16 +93,29 @@ function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): Them
 export class ThemeEngineService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Catálogo curado: só a versão mais nova de cada tema listado. Versões antigas seguem valendo para quem já instalou. */
   async listLibrary() {
-    return this.prisma.themeRelease.findMany({
+    const releases = await this.prisma.themeRelease.findMany({
       where: { status: 'PUBLISHED', package: { status: 'LISTED' } },
       include: { package: { select: { key: true, name: true, description: true } } },
       orderBy: [{ package: { name: 'asc' } }, { publishedAt: 'desc' }],
     });
+    const latest = new Map<string, (typeof releases)[number]>();
+    for (const release of releases) {
+      const current = latest.get(release.packageId);
+      if (!current || compareVersions(release.version, current.version) > 0) latest.set(release.packageId, release);
+    }
+    return [...latest.values()];
+  }
+
+  /** Versão mais nova publicada do mesmo tema, quando for mais nova que a instalada. */
+  private async newerRelease(packageId: string, version: string) {
+    const releases = await this.prisma.themeRelease.findMany({ where: { packageId, status: 'PUBLISHED' }, select: { id: true, version: true, manifest: true } });
+    return releases.filter(release => compareVersions(release.version, version) > 0).sort((a, b) => compareVersions(b.version, a.version))[0] ?? null;
   }
 
   async listInstallations(storeId: string) {
-    return this.prisma.themeInstallation.findMany({
+    const installations = await this.prisma.themeInstallation.findMany({
       where: { storeId, status: { not: 'REMOVED' } },
       include: {
         release: { include: { package: { select: { key: true, name: true } } } },
@@ -107,7 +123,45 @@ export class ThemeEngineService {
       },
       orderBy: { installedAt: 'desc' },
     });
+    const installedReleases = new Set(installations.map(item => item.releaseId));
+    return Promise.all(installations.map(async item => {
+      const newer = await this.newerRelease(item.release.packageId, item.release.version);
+      return { ...item, upgrade: newer && !installedReleases.has(newer.id) ? { releaseId: newer.id, version: newer.version } : null };
+    }));
   }
+
+  /**
+   * Atualiza um tema instalado para a versão mais nova: cria a instalação da versão nova (inativa) com o
+   * rascunho convertido. Nunca publica e não mexe na instalação antiga, que continua no ar se estiver.
+   */
+  async upgrade(storeId: string, installationId: string, actorId: string) {
+    const current = await this.prisma.themeInstallation.findFirst({
+      where: { id: installationId, storeId, status: { not: 'REMOVED' } },
+      include: { release: true, drafts: { where: { status: 'DRAFT' }, orderBy: { updatedAt: 'desc' }, take: 1 } },
+    });
+    if (!current) throw new NotFoundException('Tema não encontrado nesta loja.');
+    const newer = await this.newerRelease(current.release.packageId, current.release.version);
+    if (!newer) throw new ConflictException('Este tema já está na versão mais nova.');
+    const manifest = newer.manifest as unknown as ThemeReleaseManifest;
+    const source = (current.drafts[0]?.document ?? (current.release.manifest as unknown as ThemeReleaseManifest).defaultDocument) as unknown as ThemeDocument;
+    let document = upgradeThemeDocument(source, manifest);
+    // Se algo do rascunho antigo não couber na versão nova, começa do layout dela mantendo cores e preferências.
+    if (settingsIssues(document, manifest).length) {
+      document = { ...structuredClone(manifest.defaultDocument), global: { ...manifest.defaultDocument.global, designTokens: document.global.designTokens } };
+    }
+    if (settingsIssues(document, manifest).length) document = structuredClone(manifest.defaultDocument);
+    return this.prisma.$transaction(async tx => {
+      const existing = await tx.themeInstallation.findUnique({ where: { storeId_releaseId: { storeId, releaseId: newer.id } } });
+      if (existing && existing.status !== 'REMOVED') throw new ConflictException('A versão nova deste tema já está instalada. Abra-a em “Instalados nesta loja”.');
+      const installation = existing
+        ? await tx.themeInstallation.update({ where: { id_storeId: { id: existing.id, storeId } }, data: { status: 'INACTIVE' } })
+        : await tx.themeInstallation.create({ data: { storeId, releaseId: newer.id, status: 'INACTIVE' } });
+      await tx.themeDraft.updateMany({ where: { storeId, installationId: installation.id, status: 'DRAFT' }, data: { status: 'ARCHIVED' } });
+      const draft = await tx.themeDraft.create({ data: { storeId, installationId: installation.id, document: document as unknown as Prisma.InputJsonValue, updatedBy: actorId } });
+      return { installation, draft, fromVersion: current.release.version, toVersion: newer.version };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
 
   async install(storeId: string, releaseId: string, actorId: string) {
     const release = await this.prisma.themeRelease.findFirst({

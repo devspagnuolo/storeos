@@ -14,7 +14,7 @@ type ThemeDraftResponse = {
 
 type Publication = { id: string; version: number; createdAt: string; installationId: string; themeName: string; themeVersion: string; live: boolean };
 
-export default async function EditThemePage({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ erro?: string; restaurado?: string }> }) {
+export default async function EditThemePage({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ erro?: string; restaurado?: string; atualizado?: string }> }) {
   const { installationId } = await params;
   const query = await searchParams;
   const [result, status, latest] = await Promise.all([
@@ -35,6 +35,7 @@ export default async function EditThemePage({ params, searchParams }: { params: 
   return <>
     <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">Personalizar loja</Link> <span className="text-slate-400">›</span> <Link href="/painel/site/temas" className="font-medium text-brand hover:underline">Escolher tema</Link></nav>
     {query.restaurado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Versão trazida de volta como rascunho. Confira a prévia e publique quando estiver pronta; a loja ainda não mudou.</p>}
+    {query.atualizado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema atualizado para a versão {query.atualizado.slice(0, 20)} como rascunho, com suas cores, textos e seções. As opções novas (como “no celular” e “Mostrar em”) já vêm preenchidas. A loja só muda quando você publicar.</p>}
     {query.erro && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">{query.erro}</p>}
     <div className="mt-4">
       <ThemeDraftEditor key={query.restaurado ?? 'editor'} installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} publishEnabled={status?.publishEnabled ?? false} links={links} published={latest.publication ? { version: latest.publication.version, document: latest.publication.document } : null} />
@@ -47,6 +48,6 @@ export default async function EditThemePage({ params, searchParams }: { params: 
       </li>)}</ul> : <p className="mt-2 text-sm text-slate-500">Este tema ainda não foi publicado. Quando for, cada publicação fica guardada aqui para você voltar atrás.</p>}
       <p className="mt-3 text-xs text-slate-500">Trazer de volta substitui o rascunho atual deste tema, mas não muda a loja: você confere a prévia e publica de novo.</p>
     </section>
-    <p className="mt-6 text-xs text-slate-500">{result.installation.status === 'ACTIVE' ? (status?.active?.live ? 'Este tema está publicado e desenha a página inicial da loja.' : 'Este tema está marcado como ativo, mas a loja segue o editor Personalizar loja enquanto a publicação avançada estiver em teste.') : 'Rascunho guardado: este tema não aparece na loja.'}</p>
+    <p className="mt-6 text-xs text-slate-500">{result.installation.status === 'ACTIVE' ? (status?.active?.live ? 'Este tema está publicado e desenha a loja.' : 'Este tema está marcado como ativo, mas a loja segue o editor Personalizar loja enquanto a publicação avançada estiver em teste.') : 'Rascunho guardado: este tema não aparece na loja.'}</p>
   </>;
 }

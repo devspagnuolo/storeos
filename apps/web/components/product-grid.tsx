@@ -3,13 +3,13 @@ import type { ProductPage } from '../lib/api';
 import { ProductCard } from './product-card';
 
 /** Grade de produtos com paginação por query string, preservando os demais filtros. */
-export function ProductGrid({ page, basePath, params = {}, empty }: { page: ProductPage; basePath: string; params?: Record<string, string>; empty: string }) {
+export function ProductGrid({ page, basePath, params = {}, empty, columns = 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' }: { page: ProductPage; basePath: string; params?: Record<string, string>; empty: string; columns?: string }) {
   if (!page.items.length) return <div className="card p-10 text-center text-slate-500">{empty}</div>;
   const pages = Math.ceil(page.total / page.pageSize);
   const href = (n: number) => `${basePath}?${new URLSearchParams({ ...params, ...(n > 1 && { page: String(n) }) })}`;
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+      <div className={'grid gap-4 ' + columns}>
         {page.items.map(product => <ProductCard product={product} key={product.id} />)}
       </div>
       {pages > 1 && (

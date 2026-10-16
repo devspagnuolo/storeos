@@ -14,7 +14,7 @@ export default async function StorefrontPage({ searchParams }: { searchParams: P
   const drafts = installations.filter(item => item.id !== advanced?.id && item.drafts.length);
   const notices: Record<string, string> = {
     tema: 'Tema aplicado ao rascunho. Troque textos e imagens, escolha seus produtos e publique quando estiver pronta.',
-    voltou: 'Tema avançado desativado. A página inicial voltou a seguir este editor.',
+    voltou: 'Tema avançado desativado. A loja voltou a seguir este editor.',
     restaurado: 'Versão recuperada como rascunho. Revise a prévia ao lado e publique quando estiver pronta.',
   };
   return <>
@@ -25,9 +25,9 @@ export default async function StorefrontPage({ searchParams }: { searchParams: P
     </div>
     <ThemeControl status={status} advancedName={advanced?.release.manifest.displayName} drafts={drafts.map(item => ({ id: item.id, name: item.release.manifest.displayName, updatedAt: item.drafts[0].updatedAt }))} />
     {advanced && <section role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-      <h2 className="font-bold">A página inicial está sob o tema avançado “{advanced.release.manifest.displayName}”</h2>
-      <p className="mt-1">Por isso as mudanças que você publicar aqui na página inicial não aparecem na loja. Categoria, produto e visual continuam seguindo este editor.</p>
-      <form action={deactivateThemeAction} className="mt-3"><input type="hidden" name="installationId" value={advanced.id} /><button className="button-ghost" type="submit">Voltar a usar este editor na página inicial</button></form>
+      <h2 className="font-bold">A loja está sob o tema avançado “{advanced.release.manifest.displayName}”</h2>
+      <p className="mt-1">Por isso as mudanças que você publicar aqui não aparecem nas páginas que o tema desenha (veja o quadro acima). Logo, menus, rodapé e o texto das páginas continuam vindo do painel.</p>
+      <form action={deactivateThemeAction} className="mt-3"><input type="hidden" name="installationId" value={advanced.id} /><button className="button-ghost" type="submit">Voltar a usar este editor</button></form>
     </section>}
     {params.salvo && notices[params.salvo] && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notices[params.salvo]}</p>}
     <div className="mt-6"><StorefrontBuilder key={state.version} state={state} hasBanners={banners.length > 0} institutional={pages.map(p => ({ slug: p.slug, title: p.title }))} /></div>

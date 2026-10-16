@@ -13,7 +13,7 @@ export type ThemeDocument = {
   templates: Record<string, { sections: ThemeSection[] }>;
   global: { designTokens: { colors?: Record<string, string>; typography?: Record<string, string | number>; spacing?: Record<string, string | number>; shape?: Record<string, string | number> }; settings: Record<string, JsonValue> };
 };
-type FieldSchema = { title?: string; type?: string; enum?: (string | number)[]; maxLength?: number; minimum?: number; maximum?: number };
+type FieldSchema = { title?: string; type?: string; enum?: (string | number)[]; enumTitles?: string[]; maxLength?: number; minimum?: number; maximum?: number };
 type BlockDefinition = { type: string; title: string; settingsSchema: { properties?: Record<string, FieldSchema> } };
 type SectionDefinition = { type: string; title: string; description: string; maxBlocks: number; blockTypes: string[]; blockDefinitions?: BlockDefinition[]; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
 export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[]; globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
@@ -28,6 +28,13 @@ export type LinkOption = { group: string; label: string; href: string };
 type FieldEnv = { links: LinkOption[]; issues: Map<string, string> };
 const FieldContext = createContext<FieldEnv>({ links: [], issues: new Map() });
 const HISTORY_LIMIT = 60;
+
+/** Colunas do esboço conforme o tamanho escolhido: no celular vale a opção "no celular" do tema. */
+function sketchColumns(size: 'desktop' | 'tablet' | 'mobile', mobile: JsonValue | undefined, desktop: JsonValue | undefined, mobileDefault: number, desktopDefault: number) {
+  const value = Number(size === 'mobile' ? mobile ?? mobileDefault : desktop ?? desktopDefault);
+  const columns = Number.isFinite(value) ? Math.round(value) : desktopDefault;
+  return size === 'tablet' ? Math.max(2, Math.min(4, columns)) : Math.max(1, Math.min(6, columns));
+}
 
 function labelFor(key: string, schema: FieldSchema) {
   return schema.title ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase());
@@ -318,11 +325,11 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
         <button type="button" aria-pressed={previewSize === 'mobile'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'mobile' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('mobile')}>Celular</button>
       </div>
     </div>
-    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita. Para ver início, categoria, produto, busca, carrinho e a página de erro com seus produtos reais, salve e clique em “Prévia real”.</p>
+    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita; em Celular ele segue as opções “no celular” e “Mostrar em”. Para ver todas as páginas com seus produtos reais, clique em “Prévia real”.</p>
     <div className="overflow-auto rounded-xl border bg-slate-100 p-2">
       <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : previewSize === 'tablet' ? 768 : '100%', maxWidth: '100%' }}>
         <div style={{ color: textColor, backgroundColor: background, fontFamily }}>
-          {sections.filter(section => section.enabled).map(section => <div key={section.id} role="button" tabIndex={0} title="Clique para editar esta seção" aria-label={'Editar ' + (manifest.sections.find(item => item.type === section.type)?.title ?? 'seção')} onClick={() => onSelect(section.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(section.id); } }} className={'cursor-pointer outline-offset-[-2px] hover:outline hover:outline-2 hover:outline-brand/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ' + (selected === section.id ? 'outline outline-2 outline-brand' : '')}>{(() => {
+          {sections.filter(section => section.enabled && !(previewSize === 'mobile' ? section.settings.visibility === 'desktop' : section.settings.visibility === 'mobile')).map(section => <div key={section.id} role="button" tabIndex={0} title="Clique para editar esta seção" aria-label={'Editar ' + (manifest.sections.find(item => item.type === section.type)?.title ?? 'seção')} onClick={() => onSelect(section.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(section.id); } }} className={'cursor-pointer outline-offset-[-2px] hover:outline hover:outline-2 hover:outline-brand/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ' + (selected === section.id ? 'outline outline-2 outline-brand' : '')}>{(() => {
             const definition = manifest.sections.find(item => item.type === section.type);
             const settings = section.settings;
             if (section.type === 'storeos.announcement.v1') {
@@ -354,19 +361,19 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
             </section>;
             if (section.type === 'storeos.search-results.v1') return <section key={section.id} className="px-4 py-7"><h3 className="text-lg font-bold">{String(settings.heading ?? 'Resultados')}</h3><p className="mt-1 text-xs text-slate-500">3 produtos encontrados · demonstração</p><div className="mt-4 grid grid-cols-2 gap-3">{['Produto encontrado', 'Outra opção'].map((item, index) => <div key={item} className="rounded-lg border"><div className="aspect-[4/5] bg-slate-100" /><p className="p-2 text-xs">{item}<br /><strong>R$ {index ? '129,90' : '89,90'}</strong></p></div>)}</div></section>;
             if (section.type === 'storeos.cart-summary.v1') return <section key={section.id} className="mx-auto max-w-sm px-4 py-10"><h3 className="text-xl font-bold">{String(settings.heading ?? 'Seu carrinho')}</h3><div className="my-5 rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">Seu carrinho de demonstração está vazio</div>{Boolean(settings.showShippingQuote) && <p className="mb-4 text-xs text-slate-500">Calcule o frete informando seu CEP.</p>}<span className="block rounded-lg px-4 py-3 text-center text-sm font-semibold text-white" style={{ backgroundColor: primary }}>{String(settings.buttonLabel ?? 'Continuar')}</span></section>;
-            if (section.type === 'storeos.content-page.v1') return <section key={section.id} className="mx-auto max-w-2xl px-5 py-10"><h3 className="text-2xl font-bold">{String(settings.heading ?? '')}</h3><p className="mt-4 whitespace-pre-wrap text-sm leading-6">{String(settings.body ?? '')}</p></section>;
+            if (section.type === 'storeos.content-page.v1') return <section key={section.id} className={'mx-auto px-5 py-10 ' + (settings.width === 'wide' ? 'max-w-4xl' : 'max-w-2xl')}>{settings.showTitle !== false && <h3 className="text-2xl font-bold">{String(settings.heading ?? 'Sobre a loja')}</h3>}{settings.showUpdatedAt === true && <p className="mt-1 text-xs text-slate-500">Atualizada em 16 de outubro</p>}<p className="mt-4 whitespace-pre-wrap text-sm leading-6">{String(settings.body ?? 'O texto de cada página vem de Painel → Páginas. Aqui você escolhe só como ele aparece.')}</p></section>;
             if (section.type === 'storeos.blog-list.v1') return <section key={section.id} className="px-4 py-8"><h3 className="text-xl font-bold">{String(settings.heading ?? 'Blog')}</h3><div className="mt-4 grid gap-3 sm:grid-cols-2">{['Como escolher seu próximo look', 'Novidades da coleção'].map(title => <article key={title} className="rounded-lg border p-4"><div className="mb-3 aspect-video rounded bg-slate-100" /><h4 className="font-semibold">{title}</h4><p className="mt-2 text-xs text-slate-500">Artigo demonstrativo</p></article>)}</div></section>;
             if (section.type === 'storeos.blog-post.v1') return <article key={section.id} className="mx-auto max-w-2xl px-5 py-10"><p className="text-xs text-slate-500">Blog · autora · data</p><h3 className="mt-2 text-2xl font-bold">Título do artigo demonstrativo</h3><div className="my-5 aspect-video rounded-xl bg-slate-100" /><p className="text-sm leading-6">Conteúdo demonstrativo do artigo para visualizar a composição do tema.</p></article>;
             if (section.type === 'storeos.not-found.v1') return <section key={section.id} className="px-5 py-14 text-center"><p className="text-5xl font-bold" style={{ color: primary }}>404</p><h3 className="mt-3 text-xl font-bold">{String(settings.heading ?? '')}</h3><p className="mt-2 text-sm">{String(settings.message ?? '')}</p><span className="mt-5 inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: primary }}>{String(settings.buttonLabel ?? 'Voltar')}</span></section>;
             if (section.type === 'storeos.category-grid.v1') return <section key={section.id} className="px-4 py-6">
               <h3 className="text-lg font-bold">{String(settings.heading ?? '')}</h3><p className="mb-4 mt-1 text-xs text-slate-500">{String(settings.subheading ?? '')}</p>
-              <div className="grid grid-cols-2 gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(2, Math.min(6, Number(settings.columns ?? 4)))}, minmax(0, 1fr))` }}>
-                {['Novidades', 'Mais vendidos', 'Vestidos', 'Acessórios'].slice(0, Math.max(2, Math.min(6, Number(settings.columns ?? 4)))).map(category => <div key={category} className="rounded-lg border p-3 text-center text-xs">{category}</div>)}
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${sketchColumns(previewSize, settings.mobileColumns, settings.columns, 2, 4)}, minmax(0, 1fr))` }}>
+                {['Novidades', 'Mais vendidos', 'Vestidos', 'Acessórios', 'Blusas', 'Calças'].slice(0, Math.max(2, sketchColumns(previewSize, settings.mobileColumns, settings.columns, 2, 4))).map(category => <div key={category} className="rounded-lg border p-3 text-center text-xs">{category}</div>)}
               </div>
             </section>;
             if (section.type === 'storeos.product-collection.v1') return <section key={section.id} className="px-4 py-6">
               <h3 className="text-lg font-bold">{String(settings.heading ?? '')}</h3><p className="mb-4 mt-1 text-xs text-slate-500">{String(settings.subheading ?? '')}</p>
-              <div className="grid grid-cols-2 gap-3">{['Peça em destaque', 'Novidade da coleção'].slice(0, Number(settings.limit ?? 8) > 1 ? 2 : 1).map((product, index) => <div key={product} className="overflow-hidden rounded-lg border">
+              <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${sketchColumns(previewSize, settings.mobileColumns, settings.columns, 2, 4)}, minmax(0, 1fr))` }}>{['Peça em destaque', 'Novidade da coleção', 'Mais vendida', 'Lançamento', 'Clássico', 'Promoção'].slice(0, Math.min(Number(settings.limit ?? 8), sketchColumns(previewSize, settings.mobileColumns, settings.columns, 2, 4))).map((product, index) => <div key={product} className="overflow-hidden rounded-lg border">
                 <div className="flex aspect-[4/5] items-center justify-center bg-slate-100 text-2xl text-slate-400">◇</div><div className="p-2"><p className="text-xs">{product}</p><p className="mt-1 text-sm font-bold">R$ {index ? '129,90' : '89,90'}</p></div>
               </div>)}</div>
             </section>;
@@ -388,7 +395,7 @@ function SettingField({ path, name, schema, value, onChange }: { path: string; n
   const key = path.split('.').pop() ?? '';
   const hint = issue ? <span role="note" className="mt-1 block text-xs font-normal text-amber-800">{issue}</span> : null;
   if (schema.type === 'boolean') return <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={Boolean(value ?? false)} onChange={event => onChange(event.currentTarget.checked)} />{name}{hint}</label>;
-  if (schema.enum) return <label className="text-sm font-medium">{name}<select className="input" value={String(value ?? schema.enum[0] ?? '')} onChange={event => onChange(event.currentTarget.value)}>{schema.enum.map(option => <option key={String(option)} value={option}>{String(option)}</option>)}</select>{hint}</label>;
+  if (schema.enum) return <label className="text-sm font-medium">{name}<select className="input" value={String(value ?? schema.enum[0] ?? '')} onChange={event => onChange(event.currentTarget.value)}>{schema.enum.map((option, index) => <option key={String(option)} value={option}>{schema.enumTitles?.[index] ?? String(option)}</option>)}</select>{hint}</label>;
   if (schema.type === 'integer' || schema.type === 'number') return <label className="text-sm font-medium">{name}<input className="input" type="number" min={schema.minimum} max={schema.maximum} step={schema.type === 'integer' ? 1 : 'any'} value={typeof value === 'number' ? value : ''} onChange={event => { const next = event.currentTarget.value; if (next !== '') onChange(Number(next)); }} />{(schema.minimum !== undefined || schema.maximum !== undefined) && <span className="mt-1 block text-xs font-normal text-slate-500">De {schema.minimum ?? 0} a {schema.maximum ?? '…'}</span>}{hint}</label>;
   const text = typeof value === 'string' ? value : '';
   if (/image(url)?$/i.test(key)) return <ImageField name={name} value={text} onChange={onChange} hint={hint} />;
