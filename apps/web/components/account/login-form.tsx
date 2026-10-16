@@ -3,21 +3,23 @@ import { useActionState } from 'react';
 import { loginAction, type LoginState } from '../../app/conta/actions';
 
 /** Entrar sem senha: o cliente recebe um código de 6 números no e-mail usado nas compras. */
-export function LoginForm() {
+export function LoginForm({ returnTo }: { returnTo?: 'checkout' }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, { step: 'email' });
+  const back = returnTo && <input type="hidden" name="voltar" value={returnTo} />;
   return <div className="card mx-auto w-full max-w-md p-6 sm:p-8">
     <h1 className="text-2xl font-bold">Entrar na minha conta</h1>
+    {returnTo === 'checkout' && <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Depois de entrar, você volta para finalizar a compra com seus dados já preenchidos.</p>}
     {state.step === 'email' ? <>
       <p className="mt-2 text-sm text-slate-600">Use o e-mail das suas compras. Enviamos um código para você entrar, sem precisar de senha.</p>
       <form action={action} className="mt-6 grid gap-4">
-        <input type="hidden" name="intent" value="request" />
+        <input type="hidden" name="intent" value="request" />{back}
         <label className="text-sm font-medium">E-mail<input name="email" type="email" required autoComplete="email" defaultValue={state.email} className="input mt-1" /></label>
         <button disabled={pending} className="button w-full">{pending ? 'Enviando…' : 'Receber código'}</button>
       </form>
     </> : <>
       <p className="mt-2 text-sm text-slate-600">Se <strong className="text-slate-900">{state.email}</strong> tiver compras na loja, enviamos um código de 6 números. Ele vale por 15 minutos.</p>
       <form action={action} className="mt-6 grid gap-4">
-        <input type="hidden" name="email" value={state.email} />
+        <input type="hidden" name="email" value={state.email} />{back}
         <label className="text-sm font-medium">Código<input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="\d{3}\s?\d{3}" maxLength={7} required autoFocus className="input mt-1 text-center font-mono text-2xl tracking-[0.4em]" /></label>
         <button name="intent" value="verify" disabled={pending} className="button w-full">{pending ? 'Conferindo…' : 'Entrar'}</button>
         <div className="flex flex-wrap justify-between gap-2 text-sm">

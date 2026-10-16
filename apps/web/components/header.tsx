@@ -20,24 +20,32 @@ function SubList({ items, depth = 0 }: { items: MenuLink[]; depth?: number }) {
   );
 }
 
-/** Painel largo com uma coluna por subitem (título em negrito e, abaixo, os níveis seguintes). Na lista de um item comum, os subitens sem filhos ficam juntos numa coluna só. */
+/** Subitens sem filhos lado a lado, numa fileira centralizada logo abaixo do menu (quebram linha se não couberem). */
+function InlineList({ items }: { items: MenuLink[] }) {
+  return (
+    <ul className="flex flex-wrap justify-center gap-x-8 gap-y-2">
+      {items.map(item => <li key={`${item.href}-${item.label}`}><Link href={item.href} className="block whitespace-nowrap py-1 text-slate-700 hover:text-brand">{item.label}</Link></li>)}
+    </ul>
+  );
+}
+
+/** Painel largo com uma coluna por subitem (título em negrito e, abaixo, os níveis seguintes). Os subitens sem filhos ficam em sequência horizontal. */
 function MegaPanel({ item, headings }: { item: MenuLink; headings: boolean }) {
-  const hasGroups = item.children.some(child => child.children.length > 0);
   const leaves = headings ? [] : item.children.filter(child => !child.children.length);
   const columns = headings ? item.children : item.children.filter(child => child.children.length > 0);
   return (
     <div className="invisible absolute inset-x-0 top-full z-40 border-t border-slate-200 bg-white opacity-0 shadow-lg transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 max-lg:hidden">
       <div className="shell max-h-[70vh] overflow-y-auto py-6">
-        {headings || hasGroups ? (
-          <div className="grid gap-x-8 gap-y-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-            {leaves.length > 0 && <div><SubList items={leaves} /></div>}
+        {leaves.length > 0 && <InlineList items={leaves} />}
+        {columns.length > 0 && (
+          <div className={`grid gap-x-8 gap-y-6 ${leaves.length ? 'mt-6 border-t border-slate-100 pt-6' : ''}`} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
             {columns.map(child => (
               <div key={`${child.href}-${child.label}`}>
                 <Link href={child.href} className="block pb-2 text-sm font-bold tracking-wide hover:text-brand">{child.label}</Link>
                 {child.children.length > 0 && <SubList items={child.children} />}
               </div>))}
           </div>
-        ) : <SubList items={item.children} />}
+        )}
       </div>
     </div>
   );

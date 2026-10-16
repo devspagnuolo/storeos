@@ -39,6 +39,9 @@ export class AccountController {
   @Get('me')
   async me(@Headers('x-customer-token') token?: string) { return this.account.me(await this.account.authenticate(token)); }
 
+  @Get('checkout')
+  async checkout(@Headers('x-customer-token') token?: string) { return this.account.checkoutProfile(await this.account.authenticate(token)); }
+
   @Patch('me')
   async update(@Body() dto: UpdateAccountDto, @Headers('x-customer-token') token?: string) { return this.account.update(await this.account.authenticate(token), dto); }
 

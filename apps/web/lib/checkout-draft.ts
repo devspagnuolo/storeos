@@ -58,3 +58,17 @@ export const formatPhone = (value: string) => {
   if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 };
+
+type AccountData = { name: string; email: string; phone: string | null; address: { zipCode?: string; street?: string; number?: string; complement?: string; district?: string; city?: string; state?: string } | null };
+
+/**
+ * Cliente logado: nome, telefone e o último endereço vêm da conta; o que ela já tinha digitado neste aparelho
+ * (mesmo CPF) prevalece, porque é mais recente. O e-mail é sempre o da conta.
+ */
+export function draftFromAccount(account: AccountData, local: DraftData = {}): DraftData {
+  const base: DraftData = { name: account.name, phone: account.phone ? formatPhone(account.phone) : undefined, ...account.address };
+  const merged: DraftData = { ...base };
+  for (const [key, value] of Object.entries(local) as [keyof DraftData, string | undefined][]) if (value?.trim()) merged[key] = value;
+  merged.email = account.email;
+  return Object.fromEntries(Object.entries(merged).filter(([, value]) => value !== undefined && value !== null)) as DraftData;
+}
