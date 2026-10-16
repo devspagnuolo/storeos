@@ -22,7 +22,7 @@ export function BannerCarousel({ slides }: { slides: BannerSlide[] }) {
           const picture = (
             <picture>
               {slide.mobileImageUrl && <source media="(max-width: 767px)" srcSet={slide.mobileImageUrl} />}
-              <img src={slide.imageUrl} alt={slide.title ?? ''} className="h-auto max-h-[560px] w-full object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
+              <img src={slide.imageUrl} alt={slide.title ?? ''} className="mx-auto block h-auto max-h-[85vh] w-full object-contain" loading={i === 0 ? 'eager' : 'lazy'} />
             </picture>
           );
           return (

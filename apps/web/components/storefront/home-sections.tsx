@@ -37,12 +37,12 @@ function Hero({ p }: { p: SectionProps }) {
   if (layout === 'centered') {
     return <section className="hero"><div className="shell text-center" style={pad}>
       <div className="mx-auto max-w-3xl"><h1 className="text-4xl font-black leading-[1.05] sm:text-6xl">{p.title}</h1>{p.description && <p className="hero-muted mx-auto mt-5 max-w-xl text-lg">{p.description}</p>}{action}</div>
-      {p.imageUrl && <div className="mx-auto mt-10 aspect-[16/8] max-w-5xl overflow-hidden rounded-3xl"><img src={p.imageUrl} alt={p.imageAlt ?? ''} className="h-full w-full object-cover" /></div>}
+      {p.imageUrl && <div className="mx-auto mt-10 max-w-5xl overflow-hidden rounded-3xl"><img src={p.imageUrl} alt={p.imageAlt ?? ''} className="block h-auto max-h-[85vh] w-full object-contain" /></div>}
     </div></section>;
   }
   return <section className="hero"><div className="shell grid min-h-[440px] items-center gap-10 md:grid-cols-2" style={pad}>
     <div><h1 className="text-4xl font-black leading-tight sm:text-6xl">{p.title}</h1>{p.description && <p className="hero-muted mt-6 max-w-lg">{p.description}</p>}{action}</div>
-    <div className="aspect-[4/3] overflow-hidden rounded-3xl bg-brand p-2">{p.imageUrl ? <img src={p.imageUrl} alt={p.imageAlt ?? ''} className="h-full w-full rounded-2xl object-cover" /> : <div className="h-full rounded-2xl border border-white/30 bg-white/10" />}</div>
+    {p.imageUrl ? <div className="overflow-hidden rounded-3xl bg-brand p-2"><img src={p.imageUrl} alt={p.imageAlt ?? ''} className="block h-auto max-h-[85vh] w-full rounded-2xl object-contain" /></div> : <div className="aspect-[4/3] overflow-hidden rounded-3xl bg-brand p-2"><div className="h-full rounded-2xl border border-white/30 bg-white/10" /></div>}
   </div></section>;
 }
 
