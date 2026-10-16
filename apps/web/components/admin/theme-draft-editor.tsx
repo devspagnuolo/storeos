@@ -181,7 +181,8 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
     const id = crypto.randomUUID();
     const settings = Object.fromEntries(Object.entries(definition.settingsSchema.properties ?? {}).map(([key, schema]) => [
       key,
-      schema.type === 'boolean' ? false : schema.type === 'integer' || schema.type === 'number' ? schema.minimum ?? 0 : '',
+      // Lista de opções começa na primeira opção válida (texto vazio seria recusado na verificação).
+      Array.isArray(schema.enum) && schema.enum.length ? schema.enum[0] as JsonValue : schema.type === 'boolean' ? false : schema.type === 'integer' || schema.type === 'number' ? schema.minimum ?? 0 : '',
     ])) as Record<string, JsonValue>;
     updateSection(sectionId, section => section.blocks.length >= (manifest.sections.find(item => item.type === section.type)?.maxBlocks ?? 0)
       ? section
@@ -379,9 +380,9 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
               <div>{settings.eyebrow ? <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: primary }}>{String(settings.eyebrow)}</p> : null}
                 <h3 className="text-2xl font-bold">{String(settings.title ?? '')}</h3><p className="mt-2 text-sm">{String(settings.subtitle ?? '')}</p>
                 {settings.ctaLabel ? <span className="mt-4 inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: primary }}>{String(settings.ctaLabel)}</span> : null}
-                {section.blocks.some(block => block.enabled) && <ul className="mt-4 flex flex-wrap gap-2">{section.blocks.filter(block => block.enabled).map(block => <li key={block.id} className="rounded-full border px-3 py-1 text-xs">{String(block.settings.title ?? '')}{block.settings.text ? ` · ${String(block.settings.text)}` : ''}</li>)}</ul>}
+                {section.blocks.some(block => block.enabled && block.type !== 'storeos.hero.slide.v1') && <ul className="mt-4 flex flex-wrap gap-2">{section.blocks.filter(block => block.enabled && block.type !== 'storeos.hero.slide.v1').map(block => <li key={block.id} className="rounded-full border px-3 py-1 text-xs">{String(block.settings.title ?? '')}{block.settings.text ? ` · ${String(block.settings.text)}` : ''}</li>)}</ul>}
               </div>
-              <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed bg-white/70 text-xs text-slate-500">{settings.imageUrl ? 'Imagem do banner configurada' : 'Espaço do banner'}</div>
+              <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed bg-white/70 text-xs text-slate-500">{(() => { const extra = section.blocks.filter(block => block.enabled && block.type === 'storeos.hero.slide.v1').length; return extra ? `${extra + 1} banners se revezando` : settings.imageUrl ? 'Imagem do banner configurada' : 'Espaço do banner'; })()}</div>
             </section>;
             if (section.type === 'storeos.product-detail.v1') return <section key={section.id} className="grid gap-5 px-4 py-8 sm:grid-cols-2">
               <div className="flex aspect-[4/5] items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-500">Galeria demonstrativa do produto</div>

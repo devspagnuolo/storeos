@@ -1166,6 +1166,21 @@ export async function deactivateThemeAction(form: FormData): Promise<void> {
 }
 
 /** Instala um release publicado como rascunho inativo; não altera a vitrine ativa. */
+/** Leva a loja atual (editor clássico) para o editor de temas como rascunho do tema "Minha loja". Não publica. */
+export async function convertStorefrontAction(): Promise<void> {
+  let installationId = '';
+  try {
+    const result = await adminFetch<{ installation: { id: string } }>('/themes/installations/from-storefront', { method: 'POST', body: {} });
+    installationId = result.installation.id;
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : 'Não foi possível levar a loja para o editor novo.';
+    redirect(`/admin/site/temas?erro=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/admin/site/temas');
+  revalidatePath('/admin/site');
+  redirect(`/admin/site/temas/${encodeURIComponent(installationId)}?convertido=1`);
+}
+
 export async function installThemeAction(form: FormData): Promise<void> {
   const releaseId = String(form.get('releaseId') ?? '').trim();
   if (!releaseId || releaseId.length > 100) redirect('/admin/site/temas?erro=Identificador+de+tema+inv%C3%A1lido.');

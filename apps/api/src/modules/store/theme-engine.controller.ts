@@ -56,6 +56,12 @@ export class ThemeEngineController {
     return this.themes.install(storeId, dto.releaseId, req.user.sub);
   }
 
+  /** Leva a loja atual (editor clássico) para o editor de temas como rascunho. Não publica. */
+  @Post('installations/from-storefront')
+  fromStorefront(@CurrentStore() storeId: string, @Req() req: { user: { sub: string } }) {
+    return this.themes.fromStorefront(storeId, req.user.sub);
+  }
+
   @Get('installations/:installationId/draft')
   getDraft(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
     return this.themes.getDraft(storeId, installationId);

@@ -69,6 +69,19 @@ async function ThemeHomeSection({ section, store, products, categories, primary,
       const imageUrl = text(settings.imageUrl);
       const mobileImageUrl = text(settings.mobileImageUrl);
       const centered = settings.mobileAlign === 'center';
+      // Com "Outro banner" adicionado, o banner principal vira um carrossel: ele mesmo primeiro, depois os outros.
+      const extra = section.blocks.filter(block => block.enabled && block.type === 'storeos.hero.slide.v1');
+      if (extra.length) {
+        const slides = [
+          { id: section.id, imageUrl, mobileImageUrl, title: text(settings.title, store.name), subtitle: text(settings.subtitle), ctaLabel: text(settings.ctaLabel), ctaUrl: text(settings.ctaUrl, '/categorias'), light: false },
+          ...extra.map(block => ({ id: block.id, imageUrl: text(block.settings.imageUrl), mobileImageUrl: text(block.settings.mobileImageUrl), title: text(block.settings.title), subtitle: text(block.settings.subtitle), ctaLabel: text(block.settings.ctaLabel), ctaUrl: text(block.settings.ctaUrl), light: block.settings.textTone === 'light' })),
+        ];
+        const highlights = section.blocks.filter(block => block.enabled && block.type === 'storeos.hero.highlight.v1');
+        return <>
+          <EngineCarousel slides={slides} autoplay={settings.autoplay !== false} interval={columns(settings.interval, 3, 10) ?? 6} large primary={primary} />
+          {highlights.length > 0 && <ul className="shell flex flex-wrap gap-3 py-4">{highlights.map(block => <li key={block.id} className="rounded-full border px-4 py-2 text-sm">{text(block.settings.title)}{block.settings.text ? ` · ${text(block.settings.text)}` : ''}</li>)}</ul>}
+        </>;
+      }
       return <section className="shell grid gap-8 py-10 md:grid-cols-2 md:items-center md:py-16">
         <div className={centered ? 'text-center md:text-left' : undefined}>
           {settings.eyebrow && <p className="mb-3 text-sm font-semibold uppercase tracking-wider" style={{ color: primary }}>{text(settings.eyebrow)}</p>}
@@ -80,7 +93,7 @@ async function ThemeHomeSection({ section, store, products, categories, primary,
           {mobileImageUrl && imageUrl && <source media="(max-width: 767px)" srcSet={mobileImageUrl} />}
           <img src={imageUrl || mobileImageUrl} alt={text(settings.title, store.name)} className="max-h-[520px] w-full object-cover" />
         </picture></div> : <div className="hidden min-h-64 items-center justify-center rounded-2xl bg-slate-100 text-6xl md:flex" aria-hidden>✦</div>}
-        {section.blocks.some(block => block.enabled) && <ul className="flex flex-wrap gap-3 md:col-span-2">{section.blocks.filter(block => block.enabled).map(block => <li key={block.id} className="rounded-full border px-4 py-2 text-sm">{text(block.settings.title)}{block.settings.text ? ` · ${text(block.settings.text)}` : ''}</li>)}</ul>}
+        {section.blocks.some(block => block.enabled) && <ul className="flex flex-wrap gap-3 md:col-span-2">{section.blocks.filter(block => block.enabled && block.type !== 'storeos.hero.slide.v1').map(block => <li key={block.id} className="rounded-full border px-4 py-2 text-sm">{text(block.settings.title)}{block.settings.text ? ` · ${text(block.settings.text)}` : ''}</li>)}</ul>}
       </section>;
     }
     case 'storeos.category-grid.v1':
