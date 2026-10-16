@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { deactivateThemeAction, installThemeAction } from '../../../actions';
+import { deactivateThemeAction, installThemeAction, upgradeThemeAction } from '../../../actions';
 import { ReadyThemeGallery, type ReadyThemeCard } from '../../../../../components/admin/ready-themes';
 import { adminFetch } from '../../../../../lib/admin/session';
 import type { ThemeStatus } from '../../../../../lib/admin/storefront';
@@ -10,10 +10,29 @@ type ThemeRelease = {
   id: string;
   version: string;
   publishedAt: string | null;
-  manifest: { displayName: string; slug: string; version: string; author?: { name?: string }; templates?: { pageType: string; title: string }[] };
+  manifest: {
+    displayName: string; slug: string; version: string; author?: { name?: string }; templates?: { pageType: string; title: string }[];
+    defaultDocument?: { global?: { designTokens?: { colors?: Record<string, string>; typography?: { fontFamily?: string }; shape?: { buttonRadius?: string } } } };
+  };
   package: { key: string; name: string; description: string | null };
 };
-type ThemeInstallation = { id: string; releaseId: string; status: string; installedAt: string; release: ThemeRelease; drafts: { revision: number; updatedAt: string }[] };
+type ThemeInstallation = { id: string; releaseId: string; status: string; installedAt: string; release: ThemeRelease; drafts: { revision: number; updatedAt: string }[]; upgrade?: { releaseId: string; version: string } | null };
+
+const HEX = /^#[0-9a-f]{6}$/i;
+const FONT_SAMPLES: Record<string, { label: string; family: string }> = { serif: { label: 'Serifada', family: 'Georgia, serif' }, 'sans-serif': { label: 'Sem serifa', family: 'Arial, sans-serif' }, system: { label: 'Padrão', family: 'system-ui, sans-serif' } };
+
+/** Miniatura do tema feita só com os tokens validados do manifesto: cores, fonte e formato do botão. */
+function ThemeSwatch({ theme }: { theme: ThemeRelease }) {
+  const tokens = theme.manifest.defaultDocument?.global?.designTokens ?? {};
+  const color = (key: string, fallback: string) => (HEX.test(tokens.colors?.[key] ?? '') ? tokens.colors![key] : fallback);
+  const font = FONT_SAMPLES[tokens.typography?.fontFamily ?? 'system'] ?? FONT_SAMPLES.system;
+  const radius = /^(?:[0-9]{1,2}px|9999px)$/.test(tokens.shape?.buttonRadius ?? '') ? tokens.shape!.buttonRadius : '12px';
+  return <div className="flex min-h-40 flex-col justify-between gap-4 p-5" style={{ backgroundColor: color('background', '#FFFFFF'), color: color('text', '#0F172A'), fontFamily: font.family }} aria-hidden>
+    <div className="flex items-center justify-between text-xs"><strong>Sua loja</strong><span className="opacity-60">Buscar · Carrinho</span></div>
+    <div><p className="text-xl font-bold leading-tight">{theme.manifest.displayName}</p><span className="mt-3 inline-block px-4 py-1.5 text-xs font-semibold text-white" style={{ backgroundColor: color('primary', '#6D28D9'), borderRadius: radius }}>Comprar agora</span></div>
+    <div className="flex gap-1.5">{['primary', 'background', 'text'].map(key => <span key={key} className="h-4 w-8 rounded border border-black/10" style={{ backgroundColor: color(key, '#FFFFFF') }} />)}<span className="ml-auto text-xs opacity-70">Fonte {font.label.toLowerCase()}</span></div>
+  </div>;
+}
 
 export default async function ThemesPage({ searchParams }: { searchParams: Promise<{ instalado?: string; erro?: string }> }) {
   const [ready, library, installations, status, params] = await Promise.all([
@@ -44,25 +63,23 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
     <section className="mt-12 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
       <h2 className="font-bold">Temas avançados (em teste)</h2>
       <p className="mt-1">Instalar cria um rascunho e não muda o site. {status?.publishEnabled
-        ? <>Ao publicar um tema desta biblioteca, ele passa a desenhar só a <strong>página inicial</strong>; categoria, produto, cores e marca continuam no editor “Personalizar loja”.</>
+        ? <>Ao publicar um tema deste catálogo, ele passa a desenhar a loja inteira (início, categorias, produto, busca, carrinho, páginas, blog e 404) com as suas cores; textos de páginas e produtos continuam vindo do painel.</>
         : <>Você pode montar e salvar o rascunho, mas a publicação ainda não está liberada: ela chega quando a prévia real de todas as páginas estiver pronta. Até lá, sua loja segue o editor “Personalizar loja”.</>}</p>
     </section>
 
     <section className="mt-10">
-      <div className="mb-4 flex items-end justify-between gap-4"><div><h2 className="text-xl font-bold">Biblioteca avançada STOREOS</h2><p className="mt-1 text-sm text-slate-500">Temas oficiais publicados e compatíveis com o runtime da plataforma.</p></div><span className="text-sm text-slate-500">{library.length} {library.length === 1 ? 'tema' : 'temas'}</span></div>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-bold">Catálogo de temas STOREOS</h2><p className="mt-1 text-sm text-slate-500">Temas oficiais revisados pela STOREOS: desenham todas as páginas da loja, funcionam no celular e nunca mudam preços, estoque ou pagamento.</p></div><span className="text-sm text-slate-500">{library.length} {library.length === 1 ? 'tema' : 'temas'}</span></div>
       {library.length ? <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {library.map(theme => {
           const installed = installedReleaseIds.has(theme.id);
           const installedItem = installations.find(item => item.releaseId === theme.id);
           const templateCount = theme.manifest.templates?.length ?? 0;
           return <article key={theme.id} className="overflow-hidden rounded-2xl border bg-surface shadow-sm">
-            <div className="flex min-h-40 items-end bg-gradient-to-br from-violet-100 via-fuchsia-50 to-amber-50 p-5">
-              <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-violet-900">STOREOS · {theme.manifest.version}</div>
-            </div>
+            <ThemeSwatch theme={theme} />
             <div className="grid gap-4 p-5">
               <div><h3 className="text-lg font-bold">{theme.manifest.displayName}</h3><p className="mt-1 text-sm text-slate-600">{theme.package.description ?? 'Tema responsivo para sua loja virtual.'}</p></div>
-              <div className="flex flex-wrap gap-2 text-xs text-slate-500"><span className="rounded-full bg-slate-100 px-2.5 py-1">Por {theme.manifest.author?.name ?? 'STOREOS'}</span><span className="rounded-full bg-slate-100 px-2.5 py-1">{templateCount} modelos de página</span></div>
-              {installed ? <div className="grid gap-2"><p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">{installedItem?.status === 'ACTIVE' && status?.active?.live ? 'Publicado na página inicial' : 'Instalado como rascunho'}</p><Link className="button-ghost text-center" href={'/painel/site/temas/' + (installedItem?.id ?? '')}>Continuar editando</Link></div> : <form action={installThemeAction}><input type="hidden" name="releaseId" value={theme.id} /><button className="button w-full" type="submit">Instalar tema</button></form>}
+              <div className="flex flex-wrap gap-2 text-xs text-slate-500"><span className="rounded-full bg-slate-100 px-2.5 py-1">Por {theme.manifest.author?.name ?? 'STOREOS'}</span><span className="rounded-full bg-slate-100 px-2.5 py-1">{templateCount} modelos de página</span><span className="rounded-full bg-slate-100 px-2.5 py-1">Versão {theme.manifest.version}</span><span className="rounded-full bg-slate-100 px-2.5 py-1">Ajustes para celular</span></div>
+              {installed ? <div className="grid gap-2"><p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">{installedItem?.status === 'ACTIVE' && status?.active?.live ? 'Publicado na loja' : 'Instalado como rascunho'}</p><Link className="button-ghost text-center" href={'/painel/site/temas/' + (installedItem?.id ?? '')}>Continuar editando</Link></div> : <form action={installThemeAction}><input type="hidden" name="releaseId" value={theme.id} /><button className="button w-full" type="submit">Instalar tema</button></form>}
             </div>
           </article>;
         })}
@@ -71,9 +88,9 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
 
     <section className="mt-10">
       <h2 className="text-xl font-bold">Instalados nesta loja</h2>
-      {installations.length ? <div className="mt-4 grid gap-3">{installations.map(item => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-surface p-4">
+      {installations.length ? <div className="mt-4 grid gap-3">{installations.map(item => <article key={item.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border bg-surface p-4">
         <div><h3 className="font-semibold">{item.release.manifest.displayName}</h3><p className="mt-1 text-sm text-slate-500">Versão {item.release.version} · instalado em {new Date(item.installedAt).toLocaleDateString('pt-BR')} · rascunho {item.drafts[0]?.revision ?? '—'}</p></div>
-        <div className="flex items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.status === 'ACTIVE' && status?.active?.live ? 'No ar (página inicial)' : 'Rascunho'}</span><Link className="button-ghost" href={'/painel/site/temas/' + item.id}>Continuar editando</Link>{item.status === 'ACTIVE' && <form action={deactivateThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button-ghost" type="submit">Desativar e voltar ao editor</button></form>}</div>
+        <div className="flex flex-wrap items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.status === 'ACTIVE' && status?.active?.live ? 'No ar' : 'Rascunho'}</span><Link className="button-ghost" href={'/painel/site/temas/' + item.id}>Continuar editando</Link>{item.upgrade && <form action={upgradeThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button" type="submit" title="Cria um rascunho na versão nova com suas cores, textos e seções; nada é publicado">Atualizar para a versão {item.upgrade.version}</button></form>}{item.status === 'ACTIVE' && <form action={deactivateThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button-ghost" type="submit">Desativar e voltar ao editor</button></form>}</div>
       </article>)}</div> : <p className="mt-3 rounded-xl border border-dashed p-6 text-sm text-slate-500">Você ainda não instalou um tema.</p>}
     </section>
   </>;

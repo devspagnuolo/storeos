@@ -1183,6 +1183,23 @@ export async function installThemeAction(form: FormData): Promise<void> {
   redirect(`/admin/site/temas/${encodeURIComponent(installationId)}`);
 }
 
+/** Atualiza um tema instalado para a versão nova do catálogo: cria o rascunho convertido e abre o editor. Não publica. */
+export async function upgradeThemeAction(form: FormData): Promise<void> {
+  const installationId = String(form.get('installationId') ?? '').trim();
+  if (!/^[a-zA-Z0-9_-]{1,96}$/.test(installationId)) redirect('/admin/site/temas?erro=Tema+inv%C3%A1lido.');
+  let target = '';
+  try {
+    const result = await adminFetch<{ installation: { id: string }; toVersion: string }>(`/themes/installations/${encodeURIComponent(installationId)}/upgrade`, { method: 'POST' });
+    target = `/admin/site/temas/${encodeURIComponent(result.installation.id)}?atualizado=${encodeURIComponent(result.toVersion)}`;
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : 'Não foi possível atualizar o tema.';
+    redirect(`/admin/site/temas?erro=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/admin/site/temas');
+  revalidatePath('/admin/site');
+  redirect(target);
+}
+
 
 export type ThemeDraftSaveResult = { ok?: string; error?: string; revision?: number };
 

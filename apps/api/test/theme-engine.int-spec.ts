@@ -172,4 +172,50 @@ describe('motor de temas', () => {
     expect((await api('/themes/publications', { token: editorB })).body).toEqual([]);
     expect((await api(`/themes/installations/${id}/published`, { token: editorB })).status).toBe(404);
   });
+
+  it('catálogo mostra só a versão mais nova e atualiza o rascunho para a 1.1 sem publicar', async () => {
+    const { store } = await createStore(1);
+    const editor = await login(api, store, ['settings.write']);
+    const library = await api('/themes/library', { token: editor });
+    const byKey = Object.fromEntries(library.body.map((item: { package: { key: string }; version: string }) => [item.package.key, item.version]));
+    expect(byKey).toMatchObject({ 'storeos-editorial': '1.1.0', 'storeos-boutique': '1.0.0', 'storeos-vitrine': '1.0.0' });
+    expect(library.body.filter((item: { package: { key: string } }) => item.package.key === 'storeos-editorial')).toHaveLength(1);
+
+    // Todos os temas do catálogo instalam (layout inicial válido no validador completo).
+    for (const release of library.body) expect((await api('/themes/installations', { method: 'POST', token: editor, body: { releaseId: release.id } })).status).toBe(201);
+
+    // Quem instalou a 1.0 antes do catálogo novo vê a atualização e a aplica.
+    const old = await api('/themes/installations', { method: 'POST', token: editor, body: { releaseId: 'system-storeos-editorial-v1' } });
+    expect(old.status).toBe(201);
+    const oldId = old.body.installation.id as string;
+    const edited = structuredClone(old.body.draft.document);
+    edited.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1').settings.title = 'Mantido na atualização';
+    const revision = (await api(`/themes/installations/${oldId}/draft`, { method: 'PATCH', token: editor, body: { revision: old.body.draft.revision, document: edited } })).body.revision;
+    expect((await api(`/themes/installations/${oldId}/publish`, { method: 'POST', token: editor, body: { revision } })).status).toBe(201);
+
+    // A 1.1 já foi instalada acima: atualizar avisa em vez de sobrescrever aquele rascunho.
+    let list = await api('/themes/installations', { token: editor });
+    expect(list.body.find((item: { id: string }) => item.id === oldId).upgrade).toBeNull();
+    expect((await api(`/themes/installations/${oldId}/upgrade`, { method: 'POST', token: editor })).status).toBe(409);
+
+    const other = await createStore(1);
+    const editorB = await login(api, other.store, ['settings.write']);
+    const oldB = await api('/themes/installations', { method: 'POST', token: editorB, body: { releaseId: 'system-storeos-editorial-v1' } });
+    const oldBId = oldB.body.installation.id as string;
+    const editedB = structuredClone(oldB.body.draft.document);
+    editedB.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1').settings.title = 'Mantido na atualização';
+    await api(`/themes/installations/${oldBId}/draft`, { method: 'PATCH', token: editorB, body: { revision: oldB.body.draft.revision, document: editedB } });
+    expect((await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editor })).status).toBe(404);
+    list = await api('/themes/installations', { token: editorB });
+    expect(list.body[0].upgrade).toMatchObject({ version: '1.1.0' });
+    const upgraded = await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editorB });
+    expect(upgraded.status).toBe(201);
+    expect(upgraded.body).toMatchObject({ fromVersion: '1.0.0', toVersion: '1.1.0' });
+    const doc = upgraded.body.draft.document;
+    const hero = doc.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1');
+    expect(hero.settings).toMatchObject({ title: 'Mantido na atualização', visibility: 'all' });
+    expect((await api(`/store/public/${other.store.slug}`)).body.publishedTheme).toBeNull();
+    expect((await api(`/themes/installations/${upgraded.body.installation.id}/validate`, { method: 'POST', token: editorB })).body.errors).toEqual([]);
+    expect((await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editorB })).status).toBe(409);
+  });
 });
