@@ -37,7 +37,7 @@ const SOCIAL: { key: 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'pinteres
 ];
 
 /** Rodapé da vitrine em colunas configuradas em /painel/rodape. Fica de fora do painel e do checkout, que têm o próprio foco. */
-export function Footer({ categories, pages = [], config, whatsappNumber }: { categories: Category[]; pages?: PageLink[]; config?: FooterConfig; whatsappNumber?: string | null }) {
+export function Footer({ categories, pages = [], hasBlog = false, config, whatsappNumber }: { categories: Category[]; pages?: PageLink[]; hasBlog?: boolean; config?: FooterConfig; whatsappNumber?: string | null }) {
   const { name } = useStoreBrand();
   const { footer: footerMenu } = useStoreMenus();
   const pathname = usePathname();
@@ -49,7 +49,7 @@ export function Footer({ categories, pages = [], config, whatsappNumber }: { cat
     ? footerMenu.map(item => ({ label: item.label, href: item.href }))
     : [{ label: 'Ver Tudo', href: '/categorias' }, ...categories.filter(category => !category.parentId).slice(0, 12).map(category => ({ label: category.name, href: `/categorias/${category.slug}` }))];
   // Páginas marcadas "mostrar no rodapé" (políticas, trocas, FAQ) vêm antes dos links que o lojista montou.
-  const importantLinks = [...pages.filter(page => page.showInFooter).map(page => ({ label: page.title, href: `/p/${page.slug}` })), ...links.items]
+  const importantLinks = [...pages.filter(page => page.showInFooter).map(page => ({ label: page.title, href: `/p/${page.slug}` })), ...(hasBlog ? [{ label: 'Blog', href: '/blog' }] : []), ...links.items]
     .filter((item, index, all) => all.findIndex(other => other.href === item.href && other.label === item.label) === index);
 
   const whatsapp = whatsappDigits(contact.whatsapp || whatsappNumber);

@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ThemeDocument } from '@storeos/contracts';
 import { ThemeEngineHome } from '../../../../components/storefront/theme-engine-home';
-import { getCategories, getProducts, getStore } from '../../../../lib/api';
+import { getCategories, getPages, getPosts, getProducts, getStore } from '../../../../lib/api';
+import { BlogIndexView, BlogPostView } from '../../../../components/blog/blog-pages';
+import { ContentPageView } from '../../../../components/blog/content-page-view';
 import { adminFetch } from '../../../../lib/admin/session';
 import { engineStyle, setEngineDraft } from '../../../../lib/theme-engine';
 import CategoryPage from '../../../categorias/[slug]/page';
@@ -18,7 +20,7 @@ type DraftResponse = {
   installation: { release: { manifest: { displayName: string; slug: string; version: string } } };
   draft: { revision: number; document: ThemeDocument };
 };
-const PAGES = { inicio: 'Página inicial', categoria: 'Categoria', produto: 'Produto', busca: 'Busca', carrinho: 'Carrinho', erro: 'Página não encontrada' } as const;
+const PAGES = { inicio: 'Página inicial', categoria: 'Categoria', produto: 'Produto', busca: 'Busca', carrinho: 'Carrinho', conteudo: 'Página de conteúdo', blog: 'Blog', artigo: 'Artigo', erro: 'Página não encontrada' } as const;
 type PageKey = keyof typeof PAGES;
 
 /**
@@ -31,11 +33,13 @@ export default async function ThemeDraftPreview({ params, searchParams }: { para
   if (!/^[a-zA-Z0-9_-]{1,96}$/.test(installationId)) notFound();
   const requested = (await searchParams).pagina ?? 'inicio';
   const page: PageKey = requested in PAGES ? requested as PageKey : 'inicio';
-  const [result, store, categories, products] = await Promise.all([
+  const [result, store, categories, products, pages, posts] = await Promise.all([
     adminFetch<DraftResponse>(`/themes/installations/${encodeURIComponent(installationId)}/draft`).catch(() => null),
     getStore(),
     getCategories(),
     getProducts({ pageSize: 1 }),
+    page === 'conteudo' ? getPages() : Promise.resolve([]),
+    page === 'artigo' ? getPosts({ limit: 1 }) : Promise.resolve({ items: [], total: 0 }),
   ]);
   if (!result) notFound();
   const document = result.draft.document;
@@ -50,6 +54,9 @@ export default async function ThemeDraftPreview({ params, searchParams }: { para
   else if (page === 'produto') body = product ? await ProductPage({ params: Promise.resolve({ slug: product.slug }) }) : <Empty text="Publique um produto para ver esta página." />;
   else if (page === 'busca') body = await SearchPage({ searchParams: Promise.resolve(category ? { categoria: category.slug } : {}) });
   else if (page === 'carrinho') body = await CartPage();
+  else if (page === 'conteudo') body = pages[0] ? await ContentPageView({ slug: pages[0].slug }) : <Empty text="Publique uma página em Páginas para ver esta prévia." />;
+  else if (page === 'blog') body = await BlogIndexView({});
+  else if (page === 'artigo') body = posts.items[0] ? await BlogPostView({ slug: posts.items[0].slug }) : <Empty text="Publique um artigo no Blog para ver esta prévia." />;
   else if (page === 'erro') body = await NotFound();
   else body = <ThemeEngineHome theme={{ document, release: { manifest } }} store={store} />;
 

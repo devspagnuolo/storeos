@@ -3,7 +3,12 @@ import { Prisma } from '@prisma/client';
 import { MENU_KEYS, MenuItem, MenuKey, normalizeMenu, resolveMenu } from './menu-rules';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
-export type PageInput = { slug?: string; title?: string; body?: string; published?: boolean; showInFooter?: boolean; position?: number; seoDescription?: string };
+export type PageInput = {
+  slug?: string; title?: string; body?: string; published?: boolean; showInFooter?: boolean; position?: number; seoDescription?: string;
+  kind?: 'PAGE' | 'POST'; excerpt?: string; coverImageUrl?: string; authorName?: string;
+};
+
+const POST_SUMMARY = { slug: true, title: true, excerpt: true, coverImageUrl: true, authorName: true, publishedAt: true } as const;
 
 const unique = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
@@ -18,23 +23,45 @@ export class ContentService {
   async listPublished(storeSlug: string) {
     const storeId = await this.storeId(storeSlug);
     if (!storeId) return [];
-    return this.prisma.page.findMany({ where: { storeId, published: true }, orderBy: [{ position: 'asc' }, { title: 'asc' }], select: { slug: true, title: true, showInFooter: true } });
+    return this.prisma.page.findMany({ where: { storeId, published: true, kind: 'PAGE' }, orderBy: [{ position: 'asc' }, { title: 'asc' }], select: { slug: true, title: true, showInFooter: true } });
+  }
+
+  /** Artigos publicados do blog, do mais recente para o mais antigo. */
+  async listPosts(storeSlug: string, limit = 12, page = 1) {
+    const storeId = await this.storeId(storeSlug);
+    if (!storeId) return { items: [], total: 0 };
+    const where = { storeId, published: true, kind: 'POST' as const };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.page.findMany({ where, orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }], take: limit, skip: (page - 1) * limit, select: POST_SUMMARY }),
+      this.prisma.page.count({ where }),
+    ]);
+    return { items, total };
+  }
+
+  async postBySlug(storeSlug: string, slug: string) {
+    const storeId = await this.storeId(storeSlug);
+    const post = storeId && await this.prisma.page.findFirst({ where: { storeId, slug, published: true, kind: 'POST' }, select: { ...POST_SUMMARY, body: true, seoDescription: true, updatedAt: true } });
+    if (!post) throw new NotFoundException('Artigo não encontrado');
+    return post;
   }
 
   async bySlug(storeSlug: string, slug: string) {
     const storeId = await this.storeId(storeSlug);
-    const page = storeId && await this.prisma.page.findFirst({ where: { storeId, slug, published: true }, select: { slug: true, title: true, body: true, seoDescription: true, updatedAt: true } });
+    const page = storeId && await this.prisma.page.findFirst({ where: { storeId, slug, published: true, kind: 'PAGE' }, select: { slug: true, title: true, body: true, seoDescription: true, updatedAt: true } });
     if (!page) throw new NotFoundException('Página não encontrada');
     return page;
   }
 
-  adminList(storeId: string) {
-    return this.prisma.page.findMany({ where: { storeId }, orderBy: [{ position: 'asc' }, { title: 'asc' }] });
+  adminList(storeId: string, kind: 'PAGE' | 'POST' = 'PAGE') {
+    return this.prisma.page.findMany({
+      where: { storeId, kind },
+      orderBy: kind === 'POST' ? [{ publishedAt: { sort: 'desc', nulls: 'first' } }, { createdAt: 'desc' }] : [{ position: 'asc' }, { title: 'asc' }],
+    });
   }
 
   async create(storeId: string, input: PageInput & { slug: string; title: string; body: string }) {
     try {
-      return await this.prisma.page.create({ data: { ...input, storeId } });
+      return await this.prisma.page.create({ data: { ...input, storeId, publishedAt: input.published ? new Date() : null } });
     } catch (error) {
       if (unique(error)) throw new ConflictException('Já existe uma página com essa URL');
       throw error;
@@ -45,6 +72,8 @@ export class ContentService {
     try {
       const done = await this.prisma.page.updateMany({ where: { id, storeId }, data: input });
       if (!done.count) throw new NotFoundException('Página não encontrada');
+      // A data do artigo é a da primeira publicação; editar depois não muda a ordem do blog.
+      if (input.published) await this.prisma.page.updateMany({ where: { id, storeId, publishedAt: null }, data: { publishedAt: new Date() } });
     } catch (error) {
       if (unique(error)) throw new ConflictException('Já existe uma página com essa URL');
       throw error;
@@ -72,7 +101,7 @@ export class ContentService {
       this.prisma.category.findMany({ where: { storeId }, select: { slug: true } }),
       this.prisma.collection.findMany({ where: { storeId, active: true }, select: { slug: true } }),
       this.prisma.brand.findMany({ where: { storeId }, select: { slug: true } }),
-      this.prisma.page.findMany({ where: { storeId, published: true }, select: { slug: true } }),
+      this.prisma.page.findMany({ where: { storeId, published: true, kind: 'PAGE' }, select: { slug: true } }),
     ]);
     const set = (rows: { slug: string }[]) => new Set(rows.map(r => r.slug));
     return { configured: true, items: resolveMenu(menu.items as unknown as MenuItem[], { categories: set(categories), collections: set(collections), brands: set(brands), pages: set(pages) }) };
@@ -86,7 +115,7 @@ export class ContentService {
       this.prisma.category.findMany({ where: { storeId }, select: { id: true, name: true, slug: true, parentId: true }, orderBy: [{ position: 'asc' }, { name: 'asc' }] }),
       this.prisma.collection.findMany({ where: { storeId }, select: { name: true, slug: true }, orderBy: { name: 'asc' } }),
       this.prisma.brand.findMany({ where: { storeId }, select: { name: true, slug: true }, orderBy: { name: 'asc' } }),
-      this.prisma.page.findMany({ where: { storeId, published: true }, select: { title: true, slug: true }, orderBy: { title: 'asc' } }),
+      this.prisma.page.findMany({ where: { storeId, published: true, kind: 'PAGE' }, select: { title: true, slug: true }, orderBy: { title: 'asc' } }),
     ]);
     return { key, configured: !!menu, items: (menu?.items ?? []) as unknown as MenuItem[], options: { categories, collections, brands, pages: pages.map(p => ({ name: p.title, slug: p.slug })) } };
   }

@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, Length, Matches, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Length, Matches, Max, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { IsArray, ArrayMaxSize } from 'class-validator';
@@ -16,6 +17,10 @@ class CreatePageDto {
   @IsOptional() @IsBoolean() showInFooter?: boolean;
   @IsOptional() @IsInt() @Min(0) @Max(1000) position?: number;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
+  @IsOptional() @IsIn(['PAGE', 'POST']) kind?: 'PAGE' | 'POST';
+  @IsOptional() @IsString() @MaxLength(300) excerpt?: string;
+  @IsOptional() @IsString() @MaxLength(500) @Matches(/^(https:\/\/|\/)/, { message: 'Use uma imagem da biblioteca ou um endereço https.' }) coverImageUrl?: string;
+  @IsOptional() @IsString() @MaxLength(80) authorName?: string;
 }
 class UpdatePageDto {
   @IsOptional() @Matches(SLUG) @MaxLength(80) slug?: string;
@@ -25,7 +30,18 @@ class UpdatePageDto {
   @IsOptional() @IsBoolean() showInFooter?: boolean;
   @IsOptional() @IsInt() @Min(0) @Max(1000) position?: number;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
+  @IsOptional() @IsIn(['PAGE', 'POST']) kind?: 'PAGE' | 'POST';
+  @IsOptional() @IsString() @MaxLength(300) excerpt?: string;
+  @IsOptional() @IsString() @MaxLength(500) @Matches(/^(https:\/\/|\/)/, { message: 'Use uma imagem da biblioteca ou um endereço https.' }) coverImageUrl?: string;
+  @IsOptional() @IsString() @MaxLength(80) authorName?: string;
 }
+
+class PostsQuery {
+  @IsString() store!: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(48) limit?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(500) page?: number;
+}
+class AdminPagesQuery { @IsOptional() @IsIn(['PAGE', 'POST']) kind?: 'PAGE' | 'POST'; }
 
 class SaveMenuDto { @IsArray() @ArrayMaxSize(30) items!: unknown[]; }
 
@@ -33,7 +49,9 @@ class SaveMenuDto { @IsArray() @ArrayMaxSize(30) items!: unknown[]; }
   constructor(private readonly content: ContentService) {}
   @Get('pages') list(@Query() { store }: StoreQuery) { return this.content.listPublished(store); }
   @Get('pages/:slug') page(@Query() { store }: StoreQuery, @Param('slug') slug: string) { return this.content.bySlug(store, slug); }
-  @Get('admin/pages') @RequirePermissions(Permissions.SETTINGS_WRITE) adminList(@CurrentStore() storeId: string) { return this.content.adminList(storeId); }
+  @Get('posts') posts(@Query() { store, limit, page }: PostsQuery) { return this.content.listPosts(store, limit, page); }
+  @Get('posts/:slug') post(@Query() { store }: StoreQuery, @Param('slug') slug: string) { return this.content.postBySlug(store, slug); }
+  @Get('admin/pages') @RequirePermissions(Permissions.SETTINGS_WRITE) adminList(@CurrentStore() storeId: string, @Query() { kind }: AdminPagesQuery) { return this.content.adminList(storeId, kind); }
   @Post('admin/pages') @RequirePermissions(Permissions.SETTINGS_WRITE) create(@CurrentStore() storeId: string, @Body() dto: CreatePageDto) { return this.content.create(storeId, dto); }
   @Patch('admin/pages/:id') @RequirePermissions(Permissions.SETTINGS_WRITE) update(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdatePageDto) { return this.content.update(storeId, id, dto); }
   @Delete('admin/pages/:id') @HttpCode(204) @RequirePermissions(Permissions.SETTINGS_WRITE) remove(@CurrentStore() storeId: string, @Param('id') id: string) { return this.content.remove(storeId, id); }

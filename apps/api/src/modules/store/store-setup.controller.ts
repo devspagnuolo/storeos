@@ -25,7 +25,7 @@ export class StoreSetupController {
       this.prisma.product.count({ where: { storeId, status: 'ACTIVE', price: { lte: 0 } } }),
       this.prisma.shippingRule.count({ where: { storeId, active: true } }),
       this.prisma.payment.count({ where: { status: 'PAID', order: { storeId } } }),
-      this.prisma.page.findMany({ where: { storeId, published: true }, select: { slug: true } }),
+      this.prisma.page.findMany({ where: { storeId, published: true, kind: 'PAGE' }, select: { slug: true } }),
       this.prisma.blingConnection.count({ where: { storeId } }),
       this.prisma.storeDomain.count({ where: { storeId, status: 'ACTIVE' } }),
     ]);

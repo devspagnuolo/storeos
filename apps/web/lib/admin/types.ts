@@ -62,7 +62,7 @@ export type LoyaltySummary = {
   entries: { id: string; type: 'EARN' | 'REVERSAL' | 'REDEEM' | 'ADJUST'; points: number; note: string | null; createdAt: string }[];
 };
 
-export type AdminPage = { id: string; slug: string; title: string; body: string; published: boolean; showInFooter: boolean; position: number; seoDescription: string | null };
+export type AdminPage = { id: string; slug: string; title: string; body: string; published: boolean; showInFooter: boolean; position: number; seoDescription: string | null; kind?: 'PAGE' | 'POST'; excerpt?: string | null; coverImageUrl?: string | null; authorName?: string | null; publishedAt?: string | null };
 export type EmailLogEntry = { id: string; template: string; toEmail: string; subject: string; status: 'SENT' | 'SIMULATED' | 'FAILED'; error: string | null; createdAt: string };
 export type EmailLogPage = { items: EmailLogEntry[]; total: number; provider: 'resend' | 'simulated' };
 export type AdminPromotion = { id: string; name: string; type: 'PERCENT_OFF' | 'BUY_X_PAY_Y' | 'CART_PERCENT'; value: string; buyQty: number | null; payQty: number | null; minSubtotal: string | null; skus: string[]; active: boolean; startsAt: string | null; endsAt: string | null };

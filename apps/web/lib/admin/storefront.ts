@@ -23,5 +23,5 @@ export type StoreSetup = {
 export type ThemeStatus = {
   publishEnabled: boolean;
   active: { installationId: string; name: string; version: string; live: boolean } | null;
-  templates: { pageType: 'home' | 'category' | 'product' | 'search' | 'cart' | 'not-found' | 'visual'; controlledBy: 'editor' | 'engine' }[];
+  templates: { pageType: 'home' | 'category' | 'product' | 'search' | 'cart' | 'page' | 'blog-index' | 'blog-post' | 'not-found' | 'visual'; controlledBy: 'editor' | 'engine' }[];
 };

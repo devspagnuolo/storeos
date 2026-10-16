@@ -38,4 +38,43 @@ describe('páginas institucionais', () => {
     expect((await api(`/content/admin/pages/${draft.body.id}`, { method: 'DELETE', token: admin })).status).toBe(204);
     expect((await api(`/content/pages/trocas?store=${store.slug}`)).status).toBe(404);
   });
+
+  it('blog: artigos ficam fora das páginas, ordenam pela primeira publicação e só aparecem publicados', async () => {
+    const { store } = await createStore();
+    const admin = await login(api, store, ['settings.write']);
+    const create = (slug: string, published: boolean) => api('/content/admin/pages', { method: 'POST', token: admin, body: {
+      slug, title: `Artigo ${slug}`, body: 'Texto do artigo.', kind: 'POST', published, excerpt: 'Resumo', authorName: 'Equipe', coverImageUrl: 'https://cdn.exemplo.com/capa.jpg',
+    } });
+    const first = await create('primeiro', true);
+    expect(first.status).toBe(201);
+    expect(first.body.publishedAt).toBeTruthy();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const draft = await create('segundo', false);
+    expect(draft.body.publishedAt).toBeNull();
+    expect((await api('/content/admin/pages', { method: 'POST', token: admin, body: { slug: 'x', title: 'Capa ruim', body: 'x', kind: 'POST', coverImageUrl: 'javascript:alert(1)' } })).status).toBe(400);
+
+    // Artigo não é página institucional: fora de /content/pages e do rodapé.
+    expect((await api(`/content/pages?store=${store.slug}`)).body).toEqual([]);
+    expect((await api(`/content/pages/primeiro?store=${store.slug}`)).status).toBe(404);
+    expect((await api(`/content/posts/segundo?store=${store.slug}`)).status).toBe(404);
+
+    const before = await api(`/content/posts?store=${store.slug}`);
+    expect(before.body).toMatchObject({ total: 1, items: [{ slug: 'primeiro', excerpt: 'Resumo', authorName: 'Equipe' }] });
+
+    await api(`/content/admin/pages/${draft.body.id}`, { method: 'PATCH', token: admin, body: { published: true } });
+    const after = await api(`/content/posts?store=${store.slug}&limit=1`);
+    expect(after.body.total).toBe(2);
+    expect(after.body.items.map((post: { slug: string }) => post.slug)).toEqual(['segundo']);
+    const post = await api(`/content/posts/segundo?store=${store.slug}`);
+    expect(post.body).toMatchObject({ title: 'Artigo segundo', body: 'Texto do artigo.' });
+
+    // Editar de novo não muda a data de publicação.
+    const publishedAt = post.body.publishedAt;
+    await api(`/content/admin/pages/${draft.body.id}`, { method: 'PATCH', token: admin, body: { title: 'Artigo segundo editado', published: true } });
+    expect((await api(`/content/posts/segundo?store=${store.slug}`)).body.publishedAt).toBe(publishedAt);
+
+    const adminPosts = await api('/content/admin/pages?kind=POST', { token: admin });
+    expect(adminPosts.body).toHaveLength(2);
+    expect((await api('/content/admin/pages', { token: admin })).body).toHaveLength(0);
+  });
 });
