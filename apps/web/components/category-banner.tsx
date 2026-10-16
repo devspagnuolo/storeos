@@ -7,7 +7,7 @@ export function CategoryBanner({ category }: { category: Category }) {
     <div className="w-full bg-slate-100">
       <picture>
         {category.bannerMobileUrl && <source media="(max-width: 640px)" srcSet={category.bannerMobileUrl} />}
-        <img src={category.bannerUrl} alt={category.name} className="mx-auto max-h-[420px] w-full object-cover" />
+        <img src={category.bannerUrl} alt={category.name} className="mx-auto block h-auto max-h-[85vh] w-full object-contain" />
       </picture>
     </div>
   );

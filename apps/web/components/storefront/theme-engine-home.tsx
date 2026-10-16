@@ -91,7 +91,7 @@ async function ThemeHomeSection({ section, store, products, categories, primary,
         </div>
         {imageUrl || mobileImageUrl ? <div className="overflow-hidden rounded-2xl"><picture>
           {mobileImageUrl && imageUrl && <source media="(max-width: 767px)" srcSet={mobileImageUrl} />}
-          <img src={imageUrl || mobileImageUrl} alt={text(settings.title, store.name)} className="max-h-[520px] w-full object-cover" />
+          <img src={imageUrl || mobileImageUrl} alt={text(settings.title, store.name)} className="mx-auto block h-auto max-h-[85vh] w-full object-contain" />
         </picture></div> : <div className="hidden min-h-64 items-center justify-center rounded-2xl bg-slate-100 text-6xl md:flex" aria-hidden>✦</div>}
         {section.blocks.some(block => block.enabled) && <ul className="flex flex-wrap gap-3 md:col-span-2">{section.blocks.filter(block => block.enabled && block.type !== 'storeos.hero.slide.v1').map(block => <li key={block.id} className="rounded-full border px-4 py-2 text-sm">{text(block.settings.title)}{block.settings.text ? ` · ${text(block.settings.text)}` : ''}</li>)}</ul>}
       </section>;

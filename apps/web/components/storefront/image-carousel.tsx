@@ -18,7 +18,7 @@ export function ImageCarousel({ slides, autoplay }: { slides: Slide[]; autoplay:
   return <section aria-roledescription="carrossel" aria-label="Imagens em destaque" className="relative overflow-hidden bg-slate-100" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
     <div className="flex transition-transform duration-500 ease-out motion-reduce:transition-none" style={{ transform: `translateX(-${index * 100}%)` }}>
       {slides.map((slide, i) => {
-        const img = <img src={slide.imageUrl} alt={slide.alt ?? ''} loading={i === 0 ? 'eager' : 'lazy'} className="h-auto max-h-[560px] w-full object-cover" />;
+        const img = <img src={slide.imageUrl} alt={slide.alt ?? ''} loading={i === 0 ? 'eager' : 'lazy'} className="mx-auto block h-auto max-h-[85vh] w-full object-contain" />;
         return <div key={i} className="w-full shrink-0" role="group" aria-label={`${i + 1} de ${count}`} aria-hidden={i !== index}>
           {slide.href ? (/^https:/.test(slide.href) ? <a href={slide.href} rel="noopener noreferrer" tabIndex={i === index ? 0 : -1}>{img}</a> : <Link href={slide.href} tabIndex={i === index ? 0 : -1}>{img}</Link>) : img}
         </div>;

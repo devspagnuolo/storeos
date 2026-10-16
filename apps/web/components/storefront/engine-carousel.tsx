@@ -36,11 +36,11 @@ export function EngineCarousel({ slides, autoplay, interval, large, primary }: {
 
   return <section aria-roledescription="carrossel" aria-label="Destaques" className="relative" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={() => setPaused(false)}>
     <div ref={track} className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {slides.map((slide, index) => <div key={slide.id} role="group" aria-roledescription="banner" aria-label={`${index + 1} de ${slides.length}`} className={'relative w-full shrink-0 snap-start overflow-hidden ' + (large ? 'min-h-[22rem] md:min-h-[32rem]' : 'min-h-[16rem] md:min-h-[24rem]')}>
+      {slides.map((slide, index) => <div key={slide.id} role="group" aria-roledescription="banner" aria-label={`${index + 1} de ${slides.length}`} className={'relative flex w-full shrink-0 snap-start flex-col items-center justify-center overflow-hidden bg-slate-100 ' + (slide.imageUrl || slide.mobileImageUrl ? '' : large ? 'min-h-[22rem] md:min-h-[32rem]' : 'min-h-[16rem] md:min-h-[24rem]')}>
         {slide.imageUrl || slide.mobileImageUrl
-          ? <picture>{slide.mobileImageUrl && slide.imageUrl && <source media="(max-width: 767px)" srcSet={slide.mobileImageUrl} />}<img src={slide.imageUrl || slide.mobileImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading={index === 0 ? 'eager' : 'lazy'} /></picture>
+          ? <picture className="block w-full">{slide.mobileImageUrl && slide.imageUrl && <source media="(max-width: 767px)" srcSet={slide.mobileImageUrl} />}<img src={slide.imageUrl || slide.mobileImageUrl} alt={slide.title} className="block h-auto max-h-[85vh] w-full object-contain" loading={index === 0 ? 'eager' : 'lazy'} /></picture>
           : <div className="absolute inset-0" style={{ background: `linear-gradient(120deg, ${primary}22, ${primary}55)` }} aria-hidden />}
-        <div className={'shell relative flex h-full flex-col justify-center py-12 md:px-16 ' + (slide.light ? 'text-white' : '')}>
+        <div className={(slide.imageUrl || slide.mobileImageUrl ? 'relative w-full md:absolute md:inset-0 ' + (slide.light ? 'md:text-white' : '') : 'relative ' + (slide.light ? 'text-white' : '')) + ' shell flex h-full flex-col justify-center py-6 md:px-16 md:py-12' + (slide.title || slide.subtitle || slide.ctaLabel ? '' : ' hidden')}>
           <div className="max-w-xl">
             {slide.title && <h2 className="text-3xl font-bold leading-tight md:text-5xl">{slide.title}</h2>}
             {slide.subtitle && <p className="mt-3 text-lg opacity-90">{slide.subtitle}</p>}
