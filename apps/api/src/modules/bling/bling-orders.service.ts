@@ -4,7 +4,7 @@ import { BlingSyncStatus, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { BlingAuthService } from './bling-auth.service';
 import { contactPayload, OrderForBling, salesOrderPayload } from './bling-mapper';
-import { BlingClient } from './bling.client';
+import { BlingApiError, BlingClient } from './bling.client';
 
 const MAX_ATTEMPTS = 6;
 const BATCH = 5;
@@ -85,7 +85,22 @@ export class BlingOrdersService {
     for (const row of rows) {
       try {
         const token = await this.auth.accessToken(row.storeId);
-        await this.client.request(token, `/pedidos/vendas/${encodeURIComponent(row.blingOrderId!)}/situacoes/${encodeURIComponent(situationId)}`, { method: 'PATCH' });
+        const path = `/pedidos/vendas/${encodeURIComponent(row.blingOrderId!)}`;
+        try {
+          await this.client.request(token, `${path}/situacoes/${encodeURIComponent(situationId)}`, { method: 'PATCH' });
+        } catch (error) {
+          if (!(error instanceof BlingApiError) || error.status !== 404) throw error;
+          // 404 vem quando o pedido já está nessa situação ou foi excluído no Bling: confere antes de insistir.
+          const current = await this.client.request<{ data?: { situacao?: { id?: number | string } } }>(token, path).catch((lookup: unknown) => {
+            if (lookup instanceof BlingApiError && lookup.status === 404) return null;
+            throw lookup;
+          });
+          if (current && String(current.data?.situacao?.id ?? '') !== situationId) throw error;
+          if (!current) {
+            await this.prisma.blingOrderSync.update({ where: { id: row.id }, data: { blingSituationId: situationId, blingSituationName: 'Excluído no Bling', lastError: null } });
+            continue;
+          }
+        }
         await this.prisma.blingOrderSync.update({ where: { id: row.id }, data: { blingSituationId: situationId, blingSituationName: 'Cancelado', lastError: null } });
       } catch (error) {
         const message = (error as Error).message.slice(0, 500);
