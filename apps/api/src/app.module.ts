@@ -7,6 +7,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
+import { AccountModule } from './modules/account/account.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -43,6 +44,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     CatalogModule,
     OrdersModule,
     CheckoutModule,
+    AccountModule,
     ShippingModule,
     PromotionsModule,
     InventoryModule,

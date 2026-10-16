@@ -1,5 +1,7 @@
 'use client';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import type { MenuLink } from '../lib/api';
 import { CartLink } from './cart-link';
 import { SearchBox } from './search-box';
@@ -41,8 +43,22 @@ function MegaPanel({ item, headings }: { item: MenuLink; headings: boolean }) {
   );
 }
 
+/** O cookie de sessão é httpOnly; este cookie-sinal só diz que há alguém logado, para trocar "Entrar" por "Minha conta". */
+function useCustomerSignedIn() {
+  const pathname = usePathname();
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    const check = () => setSignedIn(document.cookie.split('; ').some(part => part === 'storeos_customer_in=1'));
+    check();
+    window.addEventListener('storeos:account', check);
+    return () => window.removeEventListener('storeos:account', check);
+  }, [pathname]);
+  return signedIn;
+}
+
 export function Header() {
   const { name, logoUrl } = useStoreBrand();
+  const signedIn = useCustomerSignedIn();
   const { main } = useStoreMenus();
   const items: MenuLink[] = [{ label: 'Ver Tudo', href: '/categorias', children: main }, ...main];
   return (
@@ -53,7 +69,7 @@ export function Header() {
         </Link>
         <SearchBox className="hidden max-w-md flex-1 md:block" />
         <div className="flex shrink-0 items-center gap-3">
-          <Link href="/conta" className="text-sm font-medium hover:text-brand">Entrar</Link>
+          <Link href="/conta" className="text-sm font-medium hover:text-brand">{signedIn ? 'Minha conta' : 'Entrar'}</Link>
           <CartLink />
         </div>
       </div>
