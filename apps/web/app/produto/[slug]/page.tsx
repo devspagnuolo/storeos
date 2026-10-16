@@ -9,6 +9,7 @@ import { resolveSiteUrl } from '../../../lib/store-host';
 import { HomeSections } from '../../../components/storefront/home-sections';
 import { getProduct, getReviews, getStore } from '../../../lib/api';
 import { formatPrice } from '../../../lib/format';
+import { activeEngineDocument, engineFlag, engineSection, engineText } from '../../../lib/theme-engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const slug = (await params).slug;
-  const [product, reviews, store] = await Promise.all([getProduct(slug), getReviews(slug), getStore()]);
+  const [product, reviews, store, engine] = await Promise.all([getProduct(slug), getReviews(slug), getStore(), activeEngineDocument()]);
+  // Tema avançado: só opções de apresentação. Preço, estoque, opções e compra nunca mudam por tema.
+  const detail = engineSection(engine, 'product', 'storeos.product-detail.v1');
   if (!product) notFound();
   const image = product.images?.[0];
   const siteUrl = await resolveSiteUrl();
@@ -50,15 +53,15 @@ export default async function ProductPage({ params }: Props) {
             {reviews.summary.count > 0 && <a href="#avaliacoes" className="mt-1 flex items-center gap-2 text-sm"><Stars value={reviews.summary.average} /><span className="text-slate-500">{reviews.summary.average.toFixed(1).replace('.', ',')} ({reviews.summary.count})</span></a>}
             <p className="mt-4 text-3xl font-black">{formatPrice(product.price)}</p>
             <p className="mt-1 text-sm text-slate-500">ou no PIX, com confirmação rápida</p>
-            {product.description && <p className="mt-6 leading-relaxed text-slate-700">{product.description}</p>}
-            <AddToCart product={{ id: product.id, slug: product.slug, name: product.name, price: product.price, image: image?.url }} available={product.available} variants={product.variants ?? []} />
-            <p className="mt-8 text-xs text-slate-400">SKU {product.sku}</p>
+            {product.description && engineFlag(detail?.showDescription, true) && <p className="mt-6 leading-relaxed text-slate-700">{product.description}</p>}
+            <AddToCart product={{ id: product.id, slug: product.slug, name: product.name, price: product.price, image: image?.url }} available={product.available} variants={product.variants ?? []} buttonLabel={engineText(detail?.buttonLabel) || undefined} />
+            {engineFlag(detail?.showSku, true) && <p className="mt-8 text-xs text-slate-400">SKU {product.sku}</p>}
           </div>
         </div>
         <ReviewsSection productSlug={product.slug} reviews={reviews} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([jsonLd, breadcrumb]).replace(/</g, '\\u003c') }} />
       </main>
-      <HomeSections sections={store.themeConfig?.pages?.product?.sections ?? []} />
+      {!engine && <HomeSections sections={store.themeConfig?.pages?.product?.sections ?? []} />}
     </>
   );
 }

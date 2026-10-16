@@ -109,7 +109,7 @@ describe('motor de temas', () => {
     const live = await api('/themes/status', { token: editor });
     expect(live.body.active.live).toBe(true);
     expect(live.body.templates.find((t: { pageType: string }) => t.pageType === 'home').controlledBy).toBe('engine');
-    expect(live.body.templates.find((t: { pageType: string }) => t.pageType === 'product').controlledBy).toBe('editor');
+    expect(live.body.templates.find((t: { pageType: string }) => t.pageType === 'product').controlledBy).toBe('engine');
 
     process.env.THEME_ENGINE_PILOT_STORES = '';
     expect((await api(`/store/public/${store.slug}`)).body.publishedTheme).toBeNull();

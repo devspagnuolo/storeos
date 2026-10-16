@@ -17,7 +17,10 @@ type SectionDefinition = { type: string; title: string; description: string; max
 export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[]; globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
 
 const PAGE_TITLES: Record<string, string> = { home: 'Página inicial', category: 'Categoria', product: 'Produto', search: 'Busca', cart: 'Carrinho', page: 'Página de conteúdo', content: 'Página de conteúdo', blog: 'Blog', 'blog-index': 'Blog', landing: 'Página de campanha', 'blog-post': 'Artigo do blog', article: 'Artigo do blog', 'not-found': 'Página não encontrada (404)', notFound: 'Página não encontrada (404)' };
-const templateName = (manifest: ThemeManifest, pageType: string) => manifest.templates.find(template => template.pageType === pageType)?.title ?? PAGE_TITLES[pageType] ?? pageType;
+const templateName = (manifest: ThemeManifest, pageType: string) => {
+  const title = manifest.templates.find(template => template.pageType === pageType)?.title;
+  return title && title !== pageType ? title : PAGE_TITLES[pageType] ?? pageType;
+};
 
 function labelFor(key: string, schema: FieldSchema) {
   return schema.title ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase());
@@ -216,7 +219,7 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
         <button type="button" aria-pressed={previewSize === 'mobile'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'mobile' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('mobile')}>Celular</button>
       </div>
     </div>
-    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita. Para ver a página inicial com seus produtos reais, salve e clique em “Prévia real”. As outras páginas da loja ainda seguem o editor Personalizar loja.</p>
+    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita. Para ver início, categoria, produto e busca com seus produtos reais, salve e clique em “Prévia real”.</p>
     <div className="overflow-auto rounded-xl border bg-slate-100 p-2">
       <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : '100%', maxWidth: '100%' }}>
         <div style={{ color: textColor, backgroundColor: background, fontFamily }}>

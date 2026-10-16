@@ -9,11 +9,11 @@ import { useCart } from '../lib/cart';
 import { track } from '../lib/track';
 import { formatPrice } from '../lib/format';
 
-type Props = { product: { id: string; slug: string; name: string; price: string; image?: string }; available: number; variants?: ProductVariant[] };
+type Props = { product: { id: string; slug: string; name: string; price: string; image?: string }; available: number; variants?: ProductVariant[]; buttonLabel?: string };
 
 const labelOf = (variant: ProductVariant) => variant.attributes.map(a => a.value).join(' / ');
 
-export function AddToCart({ product, available: initialAvailable, variants: initialVariants = [] }: Props) {
+export function AddToCart({ product, available: initialAvailable, variants: initialVariants = [], buttonLabel = 'Adicionar ao carrinho' }: Props) {
   const add = useCart(state => state.add);
   const cartItems = useCart(state => state.items);
   const { slug: storeSlug } = useStoreBrand();
@@ -67,7 +67,7 @@ export function AddToCart({ product, available: initialAvailable, variants: init
           {Array.from({ length: Math.max(Math.min(max, 10), 1) }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
         </select>
         <button className="button disabled:opacity-60" disabled={!ready} onClick={() => { add({ productId: product.id, ...(selected && { variantId: selected.id, variantLabel: labelOf(selected) }), slug: product.slug, name: product.name, price: price, image: product.image }, quantity); track('add_to_cart', { value: Number(price) * quantity, items: [{ id: product.id, name: product.name, price: Number(price), quantity }] }); router.push('/carrinho'); }}>
-          {hasVariants && !selected ? 'Escolha as opções' : hasVariants && stock < 1 ? 'Opção esgotada' : 'Adicionar ao carrinho'}
+          {hasVariants && !selected ? 'Escolha as opções' : hasVariants && stock < 1 ? 'Opção esgotada' : buttonLabel}
         </button>
         {(!hasVariants || selected) && stock > 0 && max < 1 && <p className="w-full text-sm text-amber-700">Você já tem no carrinho todas as {stock} unidades disponíveis.</p>}
         {ready && stock <= 5 && <p className="w-full text-sm text-amber-700">Restam apenas {stock} {stock === 1 ? 'unidade' : 'unidades'}{inCart ? ` (${inCart} já no seu carrinho)` : ''}.</p>}
