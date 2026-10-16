@@ -5,7 +5,7 @@ import { accountApiUrl, accountFetch, clearCustomerSession, saveCustomerSession 
 import type { AccountProfile } from '../../lib/account/types';
 import { resolveStoreSlug } from '../../lib/store-host';
 
-export type LoginState = { step: 'email' | 'code'; email?: string; error?: string; info?: string };
+export type LoginState = { step: 'email' | 'code'; email?: string; name?: string; error?: string; info?: string };
 
 const post = (path: string, body: unknown) => fetch(`${accountApiUrl}/account${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
 
@@ -13,25 +13,28 @@ const post = (path: string, body: unknown) => fetch(`${accountApiUrl}/account${p
 export async function loginAction(state: LoginState, form: FormData): Promise<LoginState> {
   const intent = String(form.get('intent') ?? 'request');
   const email = String(form.get('email') ?? state.email ?? '').trim().toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) return { step: 'email', email, error: 'Informe um e-mail válido.' };
+  // Criar conta manda o nome junto; entrar não.
+  const name = String(form.get('name') ?? state.name ?? '').trim().slice(0, 120) || undefined;
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { step: 'email', email, name, error: 'Informe um e-mail válido.' };
+  if (name !== undefined && name.length < 2) return { step: 'email', email, name, error: 'Informe seu nome.' };
   const storeSlug = await resolveStoreSlug();
   try {
-    if (intent === 'change') return { step: 'email', email };
+    if (intent === 'change') return { step: 'email', email, name };
     if (intent === 'request' || intent === 'resend') {
-      const response = await post('/login/request', { storeSlug, email });
-      if (response.status === 429) return { step: intent === 'resend' ? 'code' : 'email', email, error: 'Muitas tentativas. Aguarde um minuto e tente de novo.' };
-      if (!response.ok) return { step: 'email', email, error: 'Não foi possível enviar o código agora. Tente novamente.' };
-      return { step: 'code', email, info: intent === 'resend' ? 'Enviamos um novo código.' : undefined };
+      const response = await post('/login/request', { storeSlug, email, ...(name && { name }) });
+      if (response.status === 429) return { step: intent === 'resend' ? 'code' : 'email', email, name, error: 'Muitas tentativas. Aguarde um minuto e tente de novo.' };
+      if (!response.ok) return { step: 'email', email, name, error: 'Não foi possível enviar o código agora. Tente novamente.' };
+      return { step: 'code', email, name, info: intent === 'resend' ? 'Enviamos um novo código.' : undefined };
     }
     const code = String(form.get('code') ?? '').replace(/\D/g, '');
-    if (code.length !== 6) return { step: 'code', email, error: 'O código tem 6 números.' };
-    const response = await post('/login/verify', { storeSlug, email, code });
-    if (response.status === 429) return { step: 'code', email, error: 'Muitas tentativas. Aguarde um minuto e tente de novo.' };
-    if (!response.ok) return { step: 'code', email, error: 'Código inválido ou expirado. Confira o e-mail ou peça um novo código.' };
+    if (code.length !== 6) return { step: 'code', email, name, error: 'O código tem 6 números.' };
+    const response = await post('/login/verify', { storeSlug, email, code, ...(name && { name }) });
+    if (response.status === 429) return { step: 'code', email, name, error: 'Muitas tentativas. Aguarde um minuto e tente de novo.' };
+    if (!response.ok) return { step: 'code', email, name, error: 'Código inválido ou expirado. Confira o e-mail ou peça um novo código.' };
     const session = await response.json() as { token: string; expiresAt: string };
     await saveCustomerSession(session.token, session.expiresAt);
   } catch {
-    return { step: state.step, email, error: 'Não foi possível conectar agora. Tente novamente em instantes.' };
+    return { step: state.step, email, name, error: 'Não foi possível conectar agora. Tente novamente em instantes.' };
   }
   redirect(form.get('voltar') === 'checkout' ? '/checkout' : '/conta');
 }

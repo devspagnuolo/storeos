@@ -25,6 +25,27 @@ async function signIn(storeSlug: string, email = 'maria@example.com') {
 }
 
 describe('área do cliente', () => {
+  it('cria conta sem compra: código no e-mail, conta nasce ao confirmar e quem já tem conta continua a mesma', async () => {
+    const { store, product } = await createStore(5);
+    sent.length = 0;
+    expect((await api('/account/login/request', { method: 'POST', body: { storeSlug: store.slug, email: 'Nova@Example.com', name: 'Ana Nova' } })).status).toBe(202);
+    const code = codeFor('nova@example.com')!;
+    expect(code).toBeDefined();
+    expect(await prisma.customer.count({ where: { storeId: store.id, email: 'nova@example.com' } })).toBe(0);
+    const verified = await api('/account/login/verify', { method: 'POST', body: { storeSlug: store.slug, email: 'nova@example.com', code, name: 'Ana Nova' } });
+    expect(verified.status).toBe(200);
+    expect(await prisma.customer.findFirstOrThrow({ where: { storeId: store.id, email: 'nova@example.com' } })).toMatchObject({ name: 'Ana Nova', marketingOptIn: false });
+    expect((await api('/account/me', { headers: { 'x-customer-token': verified.body.token } })).status).toBe(200);
+
+    // Quem já comprou e usa "criar conta" só entra; o nome cadastrado não muda.
+    await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }]) });
+    sent.length = 0;
+    await api('/account/login/request', { method: 'POST', body: { storeSlug: store.slug, email: 'maria@example.com', name: 'Outro Nome' } });
+    const again = await api('/account/login/verify', { method: 'POST', body: { storeSlug: store.slug, email: 'maria@example.com', code: codeFor('maria@example.com'), name: 'Outro Nome' } });
+    expect(again.status).toBe(200);
+    expect((await prisma.customer.findFirstOrThrow({ where: { storeId: store.id, email: 'maria@example.com' } })).name).toBe('Maria Silva');
+  });
+
   it('entra com código por e-mail e vê só os próprios pedidos, com detalhe e Pix pendente', async () => {
     const { store, product } = await createStore(5);
     const first = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }], 'PIX') });

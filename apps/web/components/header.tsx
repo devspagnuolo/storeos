@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { MenuLink } from '../lib/api';
+import { AccountMenu } from './account-menu';
 import { CartLink } from './cart-link';
 import { SearchBox } from './search-box';
 import { useStoreBrand, useStoreMenus } from './store-name';
@@ -71,13 +72,13 @@ export function Header() {
   const items: MenuLink[] = [{ label: 'Ver Tudo', href: '/categorias', children: main }, ...main];
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-surface/95 backdrop-blur">
-      <div className="shell flex h-16 items-center justify-between gap-4">
+      <div className="shell flex min-h-16 items-center justify-between gap-4 py-1">
         <Link href="/" className="flex shrink-0 items-center gap-3 text-xl font-black tracking-tight" aria-label={`${name}: página inicial`}>
           {logoUrl ? <img src={logoUrl} alt={name} className="max-h-10 max-w-40 object-contain" /> : name}
         </Link>
         <SearchBox className="hidden max-w-md flex-1 md:block" />
-        <div className="flex shrink-0 items-center gap-3">
-          <Link href="/conta" className="text-sm font-medium hover:text-brand">{signedIn ? 'Minha conta' : 'Entrar'}</Link>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+          <AccountMenu signedIn={signedIn} />
           <CartLink />
         </div>
       </div>
