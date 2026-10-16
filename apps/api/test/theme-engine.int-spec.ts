@@ -178,7 +178,7 @@ describe('motor de temas', () => {
     const editor = await login(api, store, ['settings.write']);
     const library = await api('/themes/library', { token: editor });
     const byKey = Object.fromEntries(library.body.map((item: { package: { key: string }; version: string }) => [item.package.key, item.version]));
-    expect(byKey).toMatchObject({ 'storeos-editorial': '1.1.0', 'storeos-boutique': '1.0.0', 'storeos-vitrine': '1.0.0' });
+    expect(byKey).toMatchObject({ 'storeos-editorial': '1.1.0', 'storeos-boutique': '1.0.0', 'storeos-vitrine': '1.0.0', 'storeos-enterprise-pro': '1.0.0', 'storeos-mercado-total': '1.0.0', 'storeos-premium-fashion': '1.0.0' });
     expect(library.body.filter((item: { package: { key: string } }) => item.package.key === 'storeos-editorial')).toHaveLength(1);
 
     // Todos os temas do catálogo instalam (layout inicial válido no validador completo).

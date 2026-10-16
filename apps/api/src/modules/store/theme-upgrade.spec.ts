@@ -6,7 +6,7 @@ import { compareVersions, upgradeThemeDocument } from './theme-upgrade';
 
 function manifests() {
   const read = (folder: string) => readFileSync(join(__dirname, '../../../prisma/migrations', folder, 'migration.sql'), 'utf8');
-  const all = [...read('20261016030000_theme_engine_foundation').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016180000_theme_catalog').matchAll(/\$json\$(\{.*?\})\$json\$/gs)]
+  const all = [...read('20261016030000_theme_engine_foundation').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016180000_theme_catalog').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016190000_theme_enterprise').matchAll(/\$json\$(\{.*?\})\$json\$/gs)]
     .map(match => JSON.parse(match[1]) as ThemeReleaseManifest);
   const find = (slug: string, version: string) => all.find(item => item.slug === slug && item.version === version)!;
   return { v10: find('storeos-editorial', '1.0.0'), v11: find('storeos-editorial', '1.1.0'), all };

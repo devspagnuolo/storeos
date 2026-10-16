@@ -45,7 +45,7 @@ export function ImageUploader({ name, kind, multiple = false, initial = [], onUp
   });
 
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 p-3">
+    <div className="min-w-0 rounded-xl border border-dashed border-slate-300 p-3">
       <label htmlFor={inputId} className="text-sm font-medium">{label ?? (multiple ? 'Imagens' : 'Imagem')}</label>
       <p className="mt-1 text-xs text-slate-500">{guidelineText(kind)}</p>
       <div className="mt-2 flex flex-wrap items-center gap-3">

@@ -15,8 +15,8 @@ export type ThemeDocument = {
 };
 type FieldSchema = { title?: string; type?: string; enum?: (string | number)[]; enumTitles?: string[]; maxLength?: number; minimum?: number; maximum?: number };
 type BlockDefinition = { type: string; title: string; settingsSchema: { properties?: Record<string, FieldSchema> } };
-type SectionDefinition = { type: string; title: string; description: string; maxBlocks: number; blockTypes: string[]; blockDefinitions?: BlockDefinition[]; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
-export type ThemeManifest = { displayName: string; version: string; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[]; globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
+type SectionDefinition = { type: string; title: string; description: string; allowedPageTypes?: string[]; maxBlocks: number; blockTypes: string[]; blockDefinitions?: BlockDefinition[]; settingsSchema: { properties?: Record<string, FieldSchema> }; required?: boolean };
+export type ThemeManifest = { displayName: string; version: string; defaultDocument?: { templates: Record<string, { sections: ThemeSection[] } | undefined> }; templates: { pageType: string; title: string; required: boolean }[]; sections: SectionDefinition[]; globalSettingsSchema?: { properties?: Record<string, FieldSchema> } };
 
 const PAGE_TITLES: Record<string, string> = { home: 'Página inicial', category: 'Categoria', product: 'Produto', search: 'Busca', cart: 'Carrinho', page: 'Página de conteúdo', content: 'Página de conteúdo', blog: 'Blog', 'blog-index': 'Blog', landing: 'Página de campanha', 'blog-post': 'Artigo do blog', article: 'Artigo do blog', 'not-found': 'Página não encontrada (404)', notFound: 'Página não encontrada (404)' };
 const templateName = (manifest: ThemeManifest, pageType: string) => {
@@ -153,6 +153,30 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
     });
   }
 
+  /** Seções que este modelo de página aceita, para "Adicionar seção" (o tema decide; nada fora da lista entra). */
+  const addable = manifest.sections.filter(definition => !definition.required && definition.allowedPageTypes?.includes(templateKey));
+
+  function addSection(type: string) {
+    const definition = manifest.sections.find(item => item.type === type);
+    if (!definition || sections.length >= 30) return;
+    // Começa com os textos de exemplo do próprio tema, quando ele traz essa seção pronta em alguma página.
+    const sample = Object.values(manifest.defaultDocument?.templates ?? {}).flatMap(template => template?.sections ?? []).find(item => item.type === type);
+    const id = type.replace(/^storeos\.|\.v\d+$/g, '') + '-' + crypto.randomUUID().slice(0, 8);
+    const created: ThemeSection = { id, type, enabled: true, settings: structuredClone(sample?.settings ?? {}), blocks: (sample?.blocks ?? []).map(block => ({ ...structuredClone(block), id: crypto.randomUUID() })) };
+    changeDocument(current => {
+      const list = [...current.templates[templateKey].sections];
+      const footer = list.findIndex(item => item.type === 'storeos.footer.v1');
+      list.splice(footer >= 0 ? footer : list.length, 0, created);
+      return { ...current, templates: { ...current.templates, [templateKey]: { ...current.templates[templateKey], sections: list } } };
+    });
+    selectSection(id);
+  }
+
+  function removeSection(id: string, title: string) {
+    if (!window.confirm(`Remover a seção “${title}” desta página? Dá para desfazer com Ctrl+Z.`)) return;
+    changeDocument(current => ({ ...current, templates: { ...current.templates, [templateKey]: { ...current.templates[templateKey], sections: current.templates[templateKey].sections.filter(item => item.id !== id) } } }));
+  }
+
   function addBlock(sectionId: string, definition: BlockDefinition) {
     const id = crypto.randomUUID();
     const settings = Object.fromEntries(Object.entries(definition.settingsSchema.properties ?? {}).map(([key, schema]) => [
@@ -268,6 +292,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
                 const enabled = event.currentTarget.checked;
                 updateSection(section.id, current => ({ ...current, enabled }));
               }} />Visível</label>
+              {!isRequired && <button type="button" className="rounded border px-2 py-1 text-red-700" aria-label={'Remover ' + definition.title} title="Remover seção" onClick={() => removeSection(section.id, definition.title)}>✕</button>}
             </div>
             {isRequired && <p className="mt-2 text-xs text-slate-500">Seção estrutural obrigatória do tema.</p>}
             <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2 [&>*]:min-w-0">
@@ -275,11 +300,11 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
               {!Object.keys(definition.settingsSchema.properties ?? {}).length && <p className="text-sm text-slate-500">Esta seção não tem opções configuráveis nesta versão.</p>}
               {definition.blockDefinitions?.map(blockDefinition => {
                 const blockInstances = section.blocks.filter(block => block.type === blockDefinition.type);
-                return <div key={blockDefinition.type} className="grid gap-3 border-t pt-4 sm:col-span-2">
+                return <div key={blockDefinition.type} className="grid gap-3 border-t pt-4 sm:col-span-2 [&>*]:min-w-0">
                   <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="text-sm font-semibold">{blockDefinition.title}</h4><p className="text-xs text-slate-500">{blockInstances.length} de {definition.maxBlocks} blocos</p></div>
                     <button type="button" className="rounded-lg border px-3 py-2 text-sm font-semibold" disabled={section.blocks.length >= definition.maxBlocks} onClick={() => addBlock(section.id, blockDefinition)}>+ Adicionar bloco</button>
                   </div>
-                  {blockInstances.map((block, blockIndex) => <fieldset key={block.id} className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
+                  {blockInstances.map((block, blockIndex) => <fieldset key={block.id} className="grid min-w-0 gap-3 rounded-xl border p-3 sm:grid-cols-2 [&>*]:min-w-0">
                     <legend className="px-1 text-xs font-medium text-slate-500">{blockDefinition.title} {blockIndex + 1}</legend>
                     {Object.entries(blockDefinition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} path={`$.templates.${templateKey}.sections[${index}].blocks[${section.blocks.indexOf(block)}].settings.${key}`} name={labelFor(key, schema)} schema={schema} value={block.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, blocks: current.blocks.map(item => item.id === block.id ? { ...item, settings: { ...item.settings, [key]: value } } : item) }))} />)}
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={block.enabled} onChange={event => { const enabled = event.currentTarget.checked; updateSection(section.id, current => ({ ...current, blocks: current.blocks.map(item => item.id === block.id ? { ...item, enabled } : item) })); }} />Visível</label>
@@ -290,6 +315,13 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
             </div>
           </article>;
         })}
+        {addable.length > 0 && <label className="rounded-2xl border border-dashed p-4 text-sm font-medium">+ Adicionar seção nesta página
+          <select className="input mt-2" value="" disabled={sections.length >= 30} onChange={event => { if (event.currentTarget.value) addSection(event.currentTarget.value); }}>
+            <option value="">Escolha o tipo de seção…</option>
+            {addable.map(definition => <option key={definition.type} value={definition.type}>{definition.title}{definition.description && definition.description !== definition.title ? ` — ${definition.description}` : ''}</option>)}
+          </select>
+          {sections.length >= 30 && <span className="mt-1 block text-xs font-normal text-amber-800">Limite de 30 seções por página.</span>}
+        </label>}
       </section>
     </div>
 
@@ -377,6 +409,22 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
                 <div className="flex aspect-[4/5] items-center justify-center bg-slate-100 text-2xl text-slate-400">◇</div><div className="p-2"><p className="text-xs">{product}</p><p className="mt-1 text-sm font-bold">R$ {index ? '129,90' : '89,90'}</p></div>
               </div>)}</div>
             </section>;
+            const items = section.blocks.filter(block => block.enabled);
+            if (section.type === 'storeos.carousel.v1') {
+              const first = items[0]?.settings ?? {};
+              return <section key={section.id} className="relative px-5 py-10" style={{ background: `linear-gradient(120deg, ${primary}22, ${primary}55)` }}>
+                <h3 className="text-2xl font-bold">{String(first.title ?? 'Banner')}</h3><p className="mt-2 text-sm">{String(first.subtitle ?? '')}</p>
+                {first.ctaLabel ? <span className="mt-4 inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: primary }}>{String(first.ctaLabel)}</span> : null}
+                <p className="mt-4 flex gap-1.5">{items.map((block, index) => <span key={block.id} className={'h-2 rounded-full ' + (index ? 'w-2 bg-slate-400' : 'w-5 bg-slate-800')} />)}<span className="ml-2 text-xs text-slate-500">{items.length} {items.length === 1 ? 'banner' : 'banners'}{settings.autoplay ? ' · troca sozinho' : ''}</span></p>
+              </section>;
+            }
+            if (section.type === 'storeos.benefits.v1') return <section key={section.id} className="grid grid-cols-2 gap-2 border-y px-4 py-3">{items.map(block => <div key={block.id} className="text-xs"><strong className="block" style={{ color: primary }}>{String(block.settings.title ?? '')}</strong><span className="text-slate-500">{String(block.settings.text ?? '')}</span></div>)}</section>;
+            if (section.type === 'storeos.image.v1') return <section key={section.id} className="px-4 py-6">{settings.heading ? <h3 className="mb-3 text-lg font-bold">{String(settings.heading)}</h3> : null}<div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${previewSize === 'mobile' ? 1 : Math.max(1, Math.min(4, Number(settings.columns ?? 2)))}, minmax(0, 1fr))` }}>{items.map(block => <div key={block.id} className="flex aspect-video items-end rounded-lg p-2 text-xs font-semibold" style={{ background: `linear-gradient(135deg, ${primary}1f, ${primary}4d)` }}>{block.settings.imageUrl ? '🖼 ' : ''}{String(block.settings.label ?? '')}</div>)}</div></section>;
+            if (section.type === 'storeos.testimonials.v1') return <section key={section.id} className="px-4 py-6"><h3 className="text-lg font-bold">{String(settings.heading ?? '')}</h3><div className="mt-3 grid gap-2 sm:grid-cols-3">{items.slice(0, 3).map(block => <figure key={block.id} className="rounded-lg border p-3 text-xs"><p style={{ color: primary }}>{'★'.repeat(Math.max(1, Math.min(5, Number(block.settings.rating ?? 5))))}</p><blockquote className="mt-1">“{String(block.settings.text ?? '')}”</blockquote><figcaption className="mt-2 font-semibold">{String(block.settings.name ?? '')}</figcaption></figure>)}</div></section>;
+            if (section.type === 'storeos.faq.v1') return <section key={section.id} className="px-4 py-6"><h3 className="text-lg font-bold">{String(settings.heading ?? '')}</h3><ul className="mt-3 divide-y rounded-lg border text-xs">{items.map(block => <li key={block.id} className="flex justify-between p-3 font-semibold">{String(block.settings.question ?? '')}<span>+</span></li>)}</ul></section>;
+            if (section.type === 'storeos.video.v1') return <section key={section.id} className="px-4 py-6">{settings.heading ? <h3 className="mb-3 text-lg font-bold">{String(settings.heading)}</h3> : null}<div className="flex aspect-video items-center justify-center rounded-lg bg-slate-900 text-xs text-white">{settings.videoUrl ? '▶ Vídeo configurado' : 'Cole o link do YouTube ou Vimeo'}</div></section>;
+            if (section.type === 'storeos.rich-text.v1') return <section key={section.id} className={'px-5 py-8 ' + (settings.align === 'center' ? 'text-center' : '')}><h3 className="text-xl font-bold">{String(settings.heading ?? '')}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{String(settings.body ?? '')}</p></section>;
+            if (section.type === 'storeos.newsletter.v1') return <section key={section.id} className="px-4 py-6 text-center"><h3 className="text-lg font-bold">{String(settings.heading ?? 'Receba novidades')}</h3><p className="mt-1 text-xs text-slate-500">{String(settings.text ?? '')}</p><div className="mx-auto mt-3 flex max-w-xs gap-2"><span className="flex-1 rounded border px-2 py-1.5 text-left text-xs text-slate-400">Seu e-mail</span><span className="rounded px-3 py-1.5 text-xs font-semibold text-white" style={{ backgroundColor: primary }}>Quero</span></div></section>;
             if (section.type === 'storeos.footer.v1') return <footer key={section.id} className="border-t px-4 py-6 text-xs">
               <p>{String(settings.text ?? '')}</p><p className="mt-2 text-slate-500">{String(globalSettings.footerNote ?? '© Sua loja')}</p>{settings.showNewsletter ? <p className="mt-3 font-semibold">Receba novidades por e-mail</p> : null}
             </footer>;
@@ -408,7 +456,7 @@ function SettingField({ path, name, schema, value, onChange }: { path: string; n
 }
 
 function ImageField({ name, value, onChange, hint }: { name: string; value: string; onChange: (value: JsonValue) => void; hint: React.ReactNode }) {
-  return <div className="grid gap-2 sm:col-span-2"><span className="text-sm font-medium">{name}</span>
+  return <div className="grid min-w-0 gap-2 sm:col-span-2 [&>*]:min-w-0"><span className="text-sm font-medium">{name}</span>
     {value && <div className="flex items-center gap-3 rounded-xl border bg-slate-50 p-2"><img src={value} alt="" className="h-16 w-24 rounded-lg object-cover" /><button type="button" className="text-sm text-slate-500 underline hover:text-red-700" onClick={() => onChange('')}>Remover imagem</button></div>}
     <ImageUploader key={value || 'vazio'} kind="banner" label={value ? 'Trocar imagem' : 'Enviar imagem do computador'} onUploaded={urls => { if (urls[0]) onChange(urls[0]); }} />
     <label className="text-xs text-slate-500">Ou cole o endereço da imagem (https://…)<input type="url" className="input" value={value} onChange={event => onChange(event.currentTarget.value)} /></label>{hint}</div>;
