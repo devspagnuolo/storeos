@@ -54,6 +54,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
   useEffect(() => { let alive = true; validateThemeDraftAction(installationId).then(result => { if (alive) setChecks(result); }); return () => { alive = false; }; }, [installationId, revision]);
   const [selected, setSelected] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  const [mobileView, setMobileView] = useState<'edit' | 'preview'>('edit');
   // Desfazer/refazer: pilhas de versões do documento inteiro (limitadas) — vale para qualquer campo, ordem ou bloco.
   const past = useRef<ThemeDocument[]>([]);
   const future = useRef<ThemeDocument[]>([]);
@@ -114,7 +115,9 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
 
   function selectSection(id: string) {
     setSelected(id);
-    window.document.getElementById('secao-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setMobileView('edit');
+    // Espera a aba "Editar" aparecer (celular) antes de rolar até a seção.
+    window.requestAnimationFrame(() => window.document.getElementById('secao-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
   function updateSection(id: string, change: (section: ThemeSection) => ThemeSection) {
@@ -188,8 +191,13 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
     return () => window.clearTimeout(timer);
   }, [document, dirty, saving, publishing, conflict]);
 
-  return <FieldContext.Provider value={{ links, issues }}><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
-    <div className="grid content-start gap-6">
+  return <FieldContext.Provider value={{ links, issues }}>
+    {/* No celular e no tablet, editar e prévia viram abas; no computador ficam lado a lado. */}
+    <div role="tablist" aria-label="Modo do editor" className="sticky top-16 z-10 mb-4 flex rounded-xl border bg-surface p-1 xl:hidden">
+      {(['edit', 'preview'] as const).map(mode => <button key={mode} type="button" role="tab" aria-selected={mobileView === mode} className={'flex-1 rounded-lg px-3 py-2 text-sm font-semibold ' + (mobileView === mode ? 'bg-slate-900 text-white' : 'text-slate-600')} onClick={() => setMobileView(mode)}>{mode === 'edit' ? 'Editar' : 'Prévia'}</button>)}
+    </div>
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
+    <div className={'min-w-0 content-start gap-6 xl:grid [&>*]:min-w-0 ' + (mobileView === 'edit' ? 'grid' : 'hidden')}>
       <section className="rounded-2xl border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-sm font-semibold text-brand">RASCUNHO DO TEMA</p><h1 className="mt-1 text-2xl font-bold">{manifest.displayName}</h1><p className="mt-1 text-sm text-slate-500">Versão {manifest.version} · revisão {revision}</p></div>
@@ -203,7 +211,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
 
       <section className="rounded-2xl border bg-surface p-5">
         <div><h2 className="text-lg font-bold">Identidade visual</h2><p className="mt-1 text-sm text-slate-500">A prévia acompanha as cores e a tipografia escolhidas.</p></div>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
           {([['primary', 'Cor principal', '#6D28D9'], ['background', 'Fundo', '#FFFFFF'], ['text', 'Texto', '#0F172A']] as const).map(([key, label, fallback]) =>
             <label key={key} className="flex items-center gap-3 text-sm font-medium">{label}<input aria-label={label} type="color" value={colors[key] ?? fallback} onChange={event => {
               const value = event.currentTarget.value.toUpperCase();
@@ -224,9 +232,9 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
         </div>
       </section>
 
-      <section className="grid gap-4">
+      <section className="grid gap-4 [&>*]:min-w-0">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Seções: {templateTitle}</h2><p className="mt-1 text-sm text-slate-500">Cada página mantém sua própria ordem e configurações no rascunho.</p></div>
-          <label className="min-w-52 text-sm font-medium">Editar página<select className="input" value={templateKey} onChange={event => setTemplateKey(event.currentTarget.value)}>{Object.keys(document.templates).map(pageType => <option key={pageType} value={pageType}>{templateName(manifest, pageType)}</option>)}</select></label>
+          <label className="w-full text-sm font-medium sm:w-auto sm:min-w-52">Editar página<select className="input" value={templateKey} onChange={event => setTemplateKey(event.currentTarget.value)}>{Object.keys(document.templates).map(pageType => <option key={pageType} value={pageType}>{templateName(manifest, pageType)}</option>)}</select></label>
         </div>
         {sections.map((section, index) => {
           const definition = manifest.sections.find(item => item.type === section.type);
@@ -249,7 +257,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
               }} />Visível</label>
             </div>
             {isRequired && <p className="mt-2 text-xs text-slate-500">Seção estrutural obrigatória do tema.</p>}
-            <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2">
+            <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2 [&>*]:min-w-0">
               {Object.entries(definition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} path={`$.templates.${templateKey}.sections[${index}].settings.${key}`} name={labelFor(key, schema)} schema={schema} value={section.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, settings: { ...current.settings, [key]: value } }))} />)}
               {!Object.keys(definition.settingsSchema.properties ?? {}).length && <p className="text-sm text-slate-500">Esta seção não tem opções configuráveis nesta versão.</p>}
               {definition.blockDefinitions?.map(blockDefinition => {
@@ -272,7 +280,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
       </section>
     </div>
 
-    <ThemeDraftPreview document={document} manifest={manifest} templateKey={templateKey} previewSize={previewSize} onPreviewSizeChange={setPreviewSize} selected={selected} onSelect={selectSection} />
+    <div className={'min-w-0 xl:block ' + (mobileView === 'preview' ? 'block' : 'hidden')}><ThemeDraftPreview document={document} manifest={manifest} templateKey={templateKey} previewSize={previewSize} onPreviewSizeChange={setPreviewSize} selected={selected} onSelect={selectSection} /></div>
   </div></FieldContext.Provider>;
 }
 
@@ -304,7 +312,7 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
         <button type="button" aria-pressed={previewSize === 'mobile'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'mobile' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('mobile')}>Celular</button>
       </div>
     </div>
-    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita. Para ver início, categoria, produto e busca com seus produtos reais, salve e clique em “Prévia real”.</p>
+    <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita. Para ver início, categoria, produto, busca, carrinho e a página de erro com seus produtos reais, salve e clique em “Prévia real”.</p>
     <div className="overflow-auto rounded-xl border bg-slate-100 p-2">
       <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : previewSize === 'tablet' ? 768 : '100%', maxWidth: '100%' }}>
         <div style={{ color: textColor, backgroundColor: background, fontFamily }}>
