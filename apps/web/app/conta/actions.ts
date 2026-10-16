@@ -33,7 +33,7 @@ export async function loginAction(state: LoginState, form: FormData): Promise<Lo
   } catch {
     return { step: state.step, email, error: 'Não foi possível conectar agora. Tente novamente em instantes.' };
   }
-  redirect('/conta');
+  redirect(form.get('voltar') === 'checkout' ? '/checkout' : '/conta');
 }
 
 export async function logoutAction() {

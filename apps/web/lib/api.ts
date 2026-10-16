@@ -43,6 +43,16 @@ export const getCollections = () => get<Collection[]>(store => `/catalog/collect
 
 export const getProduct = (slug: string) => get<ProductDetail | null>(store => `/catalog/products/${encodeURIComponent(slug)}?store=${encodeURIComponent(store)}`, null);
 
+export type FooterLink = { label: string; href: string };
+/** Rodapé configurado em /painel/rodape. A API já entrega limpo e com os padrões preenchidos. */
+export type FooterConfig = {
+  departments: { enabled: boolean; title: string };
+  links: { enabled: boolean; title: string; items: FooterLink[] };
+  contact: { enabled: boolean; title: string; whatsapp: string; phone: string; email: string; address: string; hours: string };
+  social: { enabled: boolean; title: string; instagram: string; facebook: string; tiktok: string; youtube: string; pinterest: string; newsletter: boolean };
+  legal: { companyName: string; document: string; text: string };
+};
+
 export type PageLink = { slug: string; title: string; showInFooter: boolean };
 export type ContentPage = { slug: string; title: string; body: string; seoDescription: string | null; updatedAt: string };
 
@@ -55,7 +65,7 @@ export type HomeSection = { id: string; type: SectionType; hidden: boolean; prop
 export type StorefrontDesign = { preset?: string; font?: string; buttonRadius?: string; containerWidth?: string; spacing?: string; cardStyle?: string; headingFont?: string; heroTone?: string; mode?: string; logoUrl?: string | null; faviconUrl?: string | null; backgroundColor?: string; textColor?: string };
 export type StorefrontConfig = { announcementText?: string; heroTitle?: string; heroDescription?: string; heroCta?: string; heroImageUrl?: string | null; accentColor?: string; design?: StorefrontDesign; home?: { sections: HomeSection[] }; pages?: { category?: { sections: HomeSection[] }; product?: { sections: HomeSection[] } } };
 export type StoreMarketing = { ga4?: string; gtm?: string; metaPixel?: string; googleVerification?: string; homeTitle?: string; homeDescription?: string };
-export type StoreInfo = { slug: string; name: string; open?: boolean; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig; publishedTheme?: { version: number; document: ThemeDocument; documentHash: string; release: { version: string; manifest: Pick<ThemeReleaseManifest, 'displayName' | 'slug' | 'version'>; package: { key: string; name: string } } } | null; whatsappNumber?: string | null; whatsappMessage?: string | null; marketing?: StoreMarketing; freeShipping?: FreeShipping | null };
+export type StoreInfo = { slug: string; name: string; open?: boolean; logoUrl: string | null; faviconUrl: string | null; themeConfig?: StorefrontConfig; publishedTheme?: { version: number; document: ThemeDocument; documentHash: string; release: { version: string; manifest: Pick<ThemeReleaseManifest, 'displayName' | 'slug' | 'version'>; package: { key: string; name: string } } } | null; whatsappNumber?: string | null; whatsappMessage?: string | null; marketing?: StoreMarketing; freeShipping?: FreeShipping | null; footer?: FooterConfig };
 
 export const getStore = () => get<StoreInfo>(store => `/store/public/${encodeURIComponent(store)}`, { slug: defaultStoreSlug, name: 'Loja', logoUrl: null, faviconUrl: null, themeConfig: {} });
 

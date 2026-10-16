@@ -8,12 +8,13 @@ import { ShippingOptions } from '../../components/shipping-options';
 import { cartSubtotalCents, lineKey, useCart } from '../../lib/cart';
 import { CartLines, hasStockIssues } from '../../components/cart/cart-lines';
 import { useAvailability } from '../../lib/availability';
-import { clearLocalDraft, confirmCustomer, DraftData, formatPhone, identifyCustomer, mergeAddress, readLocalDraft, saveDraft, writeLocalDraft } from '../../lib/checkout-draft';
+import { clearLocalDraft, confirmCustomer, DraftData, draftFromAccount, formatPhone, identifyCustomer, mergeAddress, readLocalDraft, saveDraft, writeLocalDraft } from '../../lib/checkout-draft';
 import { track } from '../../lib/track';
 import { CheckoutForm, CheckoutResult, PromotionPreview, captureCart, previewCoupon, previewPromotions, submitCheckout } from '../../lib/checkout';
 import { formatPrice } from '../../lib/format';
 import { formatCpf, getPaymentConfig, isValidCpf, PaymentConfig } from '../../lib/payment';
 import { useStoreBrand } from '../../components/store-name';
+import { signedInCustomerAction, type SignedInCustomer } from './actions';
 import { formatCep, lookupCep, onlyDigits, quoteShipping, rememberCep, ShippingQuote } from '../../lib/shipping';
 
 type Field = { name: keyof DraftData; label: string; required?: boolean; className?: string; pattern?: string; type?: string; autoComplete?: string; inputMode?: 'numeric' | 'tel' | 'email' };
@@ -30,7 +31,7 @@ const addressFields: Field[] = [
   { name: 'city', label: 'Cidade', required: true, autoComplete: 'address-level2' },
   { name: 'state', label: 'UF', required: true, pattern: '[A-Za-z]{2}', autoComplete: 'address-level1' },
 ];
-const inputClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal';
+const inputClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal read-only:bg-slate-50 read-only:text-slate-600';
 
 function PaymentIcon({ kind }: { kind: 'pix' | 'card' | 'boleto' }) {
   if (kind === 'pix') return <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true"><path d="m12 2.8 4.2 4.2L12 11.2 7.8 7 12 2.8Zm0 10 4.2 4.2-4.2 4.2-4.2-4.2 4.2-4.2ZM2.8 12l4.2-4.2L11.2 12 7 16.2 2.8 12Zm10 0L17 7.8l4.2 4.2-4.2 4.2-4.2-4.2Z" fill="currentColor" /></svg>;
@@ -51,6 +52,9 @@ export default function CheckoutPage() {
   const [confirmEmail, setConfirmEmail] = useState('');
   const [confirmError, setConfirmError] = useState<string>();
   const [data, setData] = useState<DraftData>({});
+  // Cliente com sessão em "Minha conta" pula CPF e confirmação de e-mail: os dados vêm direto da conta.
+  const [account, setAccount] = useState<SignedInCustomer | null>(null);
+  const [checkingAccount, setCheckingAccount] = useState(false);
   const [greeting, setGreeting] = useState<string>();
   const [cepLookup, setCepLookup] = useState<'idle' | 'loading' | 'success' | 'not-found'>('idle');
   const cepLookupId = useRef(0);
@@ -83,6 +87,23 @@ export default function CheckoutPage() {
     const local = readLocalDraft();
     if (local.cpf) setCpf(formatCpf(local.cpf));
     void getPaymentConfig().then(setPayConfig);
+    if (document.cookie.split('; ').some(part => part === 'storeos_customer_in=1')) {
+      setCheckingAccount(true);
+      void signedInCustomerAction().then(customer => {
+        if (!customer) return;
+        setAccount(customer);
+        const first = customer.name.trim().split(/\s+/)[0];
+        if (customer.document && isValidCpf(customer.document)) {
+          setCpf(formatCpf(customer.document));
+          setGreeting(`Olá, ${first}! Você já entrou na sua conta, então trouxemos seus dados. Confira o endereço antes de pagar.`);
+          const saved = readLocalDraft();
+          openForm(draftFromAccount(customer, saved.cpf && onlyDigits(saved.cpf) === customer.document ? saved.data : {}));
+        } else {
+          setGreeting(`Olá, ${first}! Falta só o seu CPF para a nota fiscal.`);
+        }
+      }).finally(() => setCheckingAccount(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cada campo é gravado na hora (neste aparelho) e, logo depois, no servidor; assim o cliente pode voltar e continuar.
@@ -121,6 +142,8 @@ export default function CheckoutPage() {
   async function onIdentify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isValidCpf(cpf)) return;
+    // Logado mas sem CPF salvo: não precisa confirmar e-mail, a sessão já prova quem é.
+    if (account) { setGreeting('Pronto! Os dados da sua conta já estão preenchidos. Confira antes de pagar.'); openForm(draftFromAccount(account, localFor(cpf))); return; }
     setIdentify({ state: 'loading' });
     try {
       const result = await identifyCustomer(slug, cpf);
@@ -265,10 +288,12 @@ export default function CheckoutPage() {
                 <li className={'flex items-center gap-2 font-semibold ' + (step === 'form' ? 'text-brand' : 'text-slate-400')}><span className={'grid h-7 w-7 place-items-center rounded-full text-xs ' + (step === 'form' ? 'bg-brand text-brand-fg' : 'bg-slate-100')}>2</span>Entrega e pagamento</li>
               </ol>
 
-              {step === 'cpf' ? (
+              {step === 'cpf' && checkingAccount ? (
+                <section className="card p-6" aria-busy="true"><p className="text-sm text-slate-500">Carregando os dados da sua conta…</p></section>
+              ) : step === 'cpf' ? (
                 <section className="card p-6">
                   <h2 className="text-lg font-bold">Informe seu CPF para começar</h2>
-                  <p className="mt-1 text-sm text-slate-500">Se você já comprou aqui, recuperamos seus dados. Se for a primeira vez, abrimos o cadastro e salvamos tudo enquanto você preenche.</p>
+                  {account ? <p className="mt-1 text-sm text-slate-500">{greeting}</p> : <p className="mt-1 text-sm text-slate-500">Se você já comprou aqui, recuperamos seus dados. Se for a primeira vez, abrimos o cadastro e salvamos tudo enquanto você preenche. Já tem conta? <Link href="/conta?voltar=checkout" className="font-medium text-brand underline">Entre</Link> e pule esta etapa.</p>}
                   <form onSubmit={onIdentify} className="mt-5 flex flex-wrap items-end gap-3">
                     <label className="text-sm font-medium">CPF
                       <input value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setIdentify({ state: 'idle' }); }} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" required autoFocus aria-invalid={cpf.length === 14 && !isValidCpf(cpf)} aria-describedby="cpf-help" className={inputClass + ' sm:w-56'} />
@@ -294,13 +319,15 @@ export default function CheckoutPage() {
                 <form id="checkout-form" onSubmit={onSubmit} className="card grid gap-4 p-6 sm:grid-cols-2">
                   <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
                     <h2 className="text-lg font-bold">Seus dados</h2>
-                    <span className="text-sm text-slate-500">CPF {cpf} · <button type="button" onClick={() => setStep('cpf')} className="font-medium text-brand underline">trocar</button></span>
+                    {account
+                      ? <span className="text-sm text-slate-500">Conta {account.email} · CPF {cpf}</span>
+                      : <span className="text-sm text-slate-500">CPF {cpf} · <button type="button" onClick={() => setStep('cpf')} className="font-medium text-brand underline">trocar</button></span>}
                   </div>
                   {greeting && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 sm:col-span-2">{greeting}</p>}
                   {contactFields.map(f => (
                     <label key={f.name} className={`text-sm font-medium ${f.className ?? ''}`}>{f.label}{!f.required && <span className="font-normal text-slate-400"> (opcional)</span>}
-                      <input name={f.name} required={f.required} type={f.type ?? 'text'} inputMode={f.inputMode} autoComplete={f.autoComplete} value={data[f.name] ?? ''} onChange={e => update(f.name, f.name === 'phone' ? formatPhone(e.target.value) : e.target.value)} onBlur={f.name === 'email' ? () => void captureCart(slug, data.email ?? '', data.name ?? '', items) : undefined} className={inputClass} />
-                      {f.name === 'email' && <span className="mt-1 block text-xs font-normal text-slate-500">Enviamos a confirmação do pedido para este e-mail.</span>}
+                      <input name={f.name} required={f.required} type={f.type ?? 'text'} inputMode={f.inputMode} autoComplete={f.autoComplete} readOnly={Boolean(account) && f.name === 'email'} value={data[f.name] ?? ''} onChange={e => update(f.name, f.name === 'phone' ? formatPhone(e.target.value) : e.target.value)} onBlur={f.name === 'email' ? () => void captureCart(slug, data.email ?? '', data.name ?? '', items) : undefined} className={inputClass} />
+                      {f.name === 'email' && <span className="mt-1 block text-xs font-normal text-slate-500">{account ? 'E-mail da sua conta. A confirmação do pedido vai para ele.' : 'Enviamos a confirmação do pedido para este e-mail.'}</span>}
                     </label>
                   ))}
                   <h2 className="mt-2 text-lg font-bold sm:col-span-2">Entrega</h2>
@@ -313,7 +340,7 @@ export default function CheckoutPage() {
                       <input name={f.name} required={f.required} pattern={f.pattern} type="text" autoComplete={f.autoComplete} value={data[f.name] ?? ''} onChange={e => update(f.name, f.name === 'state' ? e.target.value.toUpperCase().slice(0, 2) : e.target.value)} className={inputClass} />
                     </label>
                   ))}
-                  <p className="text-xs text-slate-500 sm:col-span-2">Tudo o que você preenche fica salvo: se precisar sair, é só voltar e informar o CPF.</p>
+                  {!account && <p className="text-xs text-slate-500 sm:col-span-2">Tudo o que você preenche fica salvo: se precisar sair, é só voltar e informar o CPF.</p>}
                   <fieldset className="sm:col-span-2">
                     <legend className="mb-2 font-bold">Opções de entrega</legend>
                     {quote ? <ShippingOptions quote={quote} name="shippingRuleId" selected={shippingRuleId} onSelect={setShippingRuleId} /> : <p className="text-sm text-slate-500">{quoteError ?? 'Informe o CEP para ver as opções de entrega.'}</p>}

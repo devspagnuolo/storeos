@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Put, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { IsObject, IsOptional, IsString, IsUrl, Length, MaxLength } from 'class-validator';
@@ -7,8 +7,13 @@ import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { readMarketingConfig } from '../seo/seo-rules';
+import { readFooterConfig } from './footer-config';
 import { StoreAssetsService } from './store-assets.service';
 import { StorefrontService } from './storefront.service';
+
+class UpdateFooterDto {
+  @IsObject() footer!: Record<string, unknown>;
+}
 
 class UpdateStoreDto {
   @IsOptional() @IsString() @Length(2, 80) name?: string;
@@ -49,10 +54,10 @@ export class StoreController {
   async publicInfo(@Param('slug') slug: string) {
     const store = await this.prisma.store.findUnique({
       where: { slug },
-      select: { id: true, slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, whatsappNumber: true, whatsappMessage: true, marketingConfig: true, storefrontOpen: true },
+      select: { id: true, slug: true, name: true, logoUrl: true, faviconUrl: true, themeConfig: true, whatsappNumber: true, whatsappMessage: true, marketingConfig: true, footerConfig: true, storefrontOpen: true },
     });
     if (!store) throw new NotFoundException('Loja não encontrada');
-    const { id: storeId, marketingConfig, storefrontOpen, ...rest } = store;
+    const { id: storeId, marketingConfig, footerConfig, storefrontOpen, ...rest } = store;
     const [primary, activeTheme, freeRules] = await Promise.all([
       this.prisma.storeDomain.findFirst({ where: { storeId, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } }),
       this.prisma.themeEnginePublication.findFirst({
@@ -75,6 +80,7 @@ export class StoreController {
       } : null,
       open: storefrontOpen,
       marketing: readMarketingConfig(marketingConfig),
+      footer: readFooterConfig(footerConfig),
       primaryDomain: primary?.hostname ?? null,
       freeShipping: freeShippingSummary(freeRules),
     };
@@ -99,6 +105,21 @@ export class StoreController {
       await this.storefront.legacyPublish(storeId, dto.themeConfig, req.user.sub);
     }
     return view(await this.prisma.store.update({ where: { id: storeId }, data }));
+  }
+
+  @Get('footer')
+  @RequirePermissions(Permissions.SETTINGS_WRITE)
+  async footer(@CurrentStore() storeId: string) {
+    const store = await this.prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { footerConfig: true, whatsappNumber: true } });
+    return { footer: readFooterConfig(store.footerConfig), whatsappNumber: store.whatsappNumber };
+  }
+
+  @Put('footer')
+  @RequirePermissions(Permissions.SETTINGS_WRITE)
+  async updateFooter(@CurrentStore() storeId: string, @Body() dto: UpdateFooterDto) {
+    const footer = readFooterConfig(dto.footer);
+    await this.prisma.store.update({ where: { id: storeId }, data: { footerConfig: footer } });
+    return { footer };
   }
 
   @Post('logo')

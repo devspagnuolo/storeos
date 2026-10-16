@@ -63,6 +63,8 @@ model Store {
   /// Pedido pago segue sozinho: separação, nota fiscal (Bling), etiqueta (SuperFrete) e entrega.
   orderAutomation        Boolean                 @default(false)
   marketingConfig        Json?
+  /// Rodapé da vitrine: título e conteúdo de cada seção (departamentos, links, contato, redes sociais).
+  footerConfig           Json?
   draftThemeConfig       Json?
   storefrontVersion      Int                     @default(0)
   storefrontPublishedAt  DateTime?
