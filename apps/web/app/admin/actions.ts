@@ -267,7 +267,7 @@ export async function savePageAction(_: FormState, form: FormData): Promise<Form
     throw error;
   }
   revalidatePath('/admin/paginas');
-  return { ok: id ? 'Página salva.' : 'Página criada.' };
+  return { ok: id ? 'Página salva.' : `Página "${title}" criada. Ela aparece na lista abaixo.` };
 }
 
 export async function deletePageAction(form: FormData) {
