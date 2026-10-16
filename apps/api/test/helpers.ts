@@ -14,6 +14,7 @@ export async function startApp(customize: (builder: TestingModuleBuilder) => Tes
   process.env.PAYMENT_EXPIRY_JOB = 'off';
   process.env.OUTBOX_WORKER = 'off';
   process.env.BLING_WORKER = 'off';
+  process.env.ORDER_AUTOMATION_WORKER = 'off';
   const moduleRef = await customize(Test.createTestingModule({ imports: [AppModule] })).compile();
   const app = configureApp(moduleRef.createNestApplication<NestExpressApplication>({ rawBody: true }));
   await app.listen(0);

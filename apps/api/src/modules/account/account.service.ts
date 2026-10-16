@@ -31,7 +31,7 @@ export class AccountService {
     const message = loginCodeMail({ name: customer.name, storeName: store.name, code });
     try {
       const result = await this.mail.send({ to: email, subject: message.subject, text: message.text, html: message.html, from: process.env.MAIL_FROM ?? `${store.name} <pedidos@example.com>` });
-      await this.prisma.emailLog.create({ data: { storeId: store.id, template: 'account.login-code', toEmail: email, subject: message.subject, body: message.text.replace(code, '••••••'), status: result.status, providerId: result.providerId } });
+      await this.prisma.emailLog.create({ data: { storeId: store.id, template: 'account.login-code', toEmail: email, subject: message.subject.replace(code, '••••••'), body: message.text.replace(code, '••••••'), status: result.status, providerId: result.providerId } });
     } catch (error) {
       this.logger.error(`Falha ao enviar código de acesso: ${(error as Error).message}`);
     }

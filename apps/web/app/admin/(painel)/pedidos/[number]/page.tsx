@@ -8,13 +8,15 @@ import { formatDateTime, orderStatusLabel, paymentMethodLabel } from '../../../.
 import { adminFetch, ApiError } from '../../../../../lib/admin/session';
 import type { OrderDetail, OrderRefunds } from '../../../../../lib/admin/types';
 import { formatPrice } from '../../../../../lib/format';
-import { requestBlingInvoiceAction } from '../../../actions';
+import { requestBlingInvoiceAction, requestShippingLabelAction } from '../../../actions';
 
 export const dynamic = 'force-dynamic';
 
 const paymentStatusLabel: Record<string, string> = { PENDING: 'Pendente', AUTHORIZED: 'Autorizado', PAID: 'Pago', FAILED: 'Recusado', REFUNDED: 'Reembolsado', CANCELLED: 'Cancelado' };
 
-export default async function OrderPage({ params, searchParams }: { params: Promise<{ number: string }>; searchParams: Promise<{ nfSolicitada?: string; nfErro?: string }> }) {
+const labelStatus: Record<string, string> = { PENDING: 'Na fila', CREATED: 'Lançada; aguardando pagamento', PAID: 'Paga; aguardando rastreio', RELEASED: 'Emitida', DELIVERED: 'Entregue', CANCELLED: 'Cancelada', FAILED: 'Com erro' };
+
+export default async function OrderPage({ params, searchParams }: { params: Promise<{ number: string }>; searchParams: Promise<{ nfSolicitada?: string; nfErro?: string; etiquetaErro?: string }> }) {
   const [{ number }, query] = await Promise.all([params, searchParams]);
   const order = await adminFetch<OrderDetail>(`/orders/${encodeURIComponent(number)}`).catch(error => {
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -65,6 +67,19 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
             {(!invoice || ['FAILED', 'REJECTED'].includes(invoice.status)) && <form action={requestBlingInvoiceAction} className="mt-4"><input type="hidden" name="number" value={order.number} /><button className="button w-full">Solicitar NF-e no Bling</button></form>}
             <p className="mt-3 text-xs text-slate-500">Disponível após o pagamento confirmado e o pedido registrado no Bling. O ERP aplica a configuração fiscal da loja.</p>
           </section>
+          {(order.shippingLabel || order.status === 'INVOICED' || query.etiquetaErro) && <section className="card p-5 text-sm">
+            <h2 className="font-bold">Etiqueta · SuperFrete</h2>
+            {query.etiquetaErro && <p role="alert" className="mt-2 rounded bg-red-50 p-2 text-red-700">{query.etiquetaErro}</p>}
+            {order.shippingLabel ? <>
+              <p className="mt-3">Status: <strong>{labelStatus[order.shippingLabel.status] ?? order.shippingLabel.status}</strong></p>
+              {order.shippingLabel.trackingCode && <p className="mt-1 text-slate-600">Rastreio {order.shippingLabel.trackingCode}</p>}
+              {order.shippingLabel.price && <p className="mt-1 text-slate-600">Custo {formatPrice(order.shippingLabel.price)}</p>}
+              {order.shippingLabel.lastError && <p className="mt-2 text-red-700">{order.shippingLabel.lastError}</p>}
+              {order.shippingLabel.labelUrl && <a href={order.shippingLabel.labelUrl} target="_blank" rel="noreferrer" className="button mt-4 block w-full text-center">Imprimir etiqueta</a>}
+            </> : <p className="mt-2 text-slate-500">Ainda não há etiqueta para este pedido.</p>}
+            {order.status === 'INVOICED' && (!order.shippingLabel || ['PENDING', 'CREATED', 'PAID', 'FAILED'].includes(order.shippingLabel.status)) && <form action={requestShippingLabelAction} className="mt-4"><input type="hidden" name="number" value={order.number} /><button className="button w-full">{order.shippingLabel ? 'Tentar de novo' : 'Gerar etiqueta'}</button></form>}
+            <p className="mt-3 text-xs text-slate-500">A etiqueta é paga com o saldo da conta SuperFrete. Com a automação ligada (em Frete), isso acontece sozinho depois da nota fiscal.</p>
+          </section>}
           <section className="card p-5 text-sm">
             <h2 className="font-bold">Cliente</h2>
             <p className="mt-2">{order.customer?.name}</p><p className="text-slate-500">{order.customer?.email}</p>

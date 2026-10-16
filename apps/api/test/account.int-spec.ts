@@ -73,7 +73,9 @@ describe('área do cliente', () => {
     // Depois de 5 erros, nem o código certo vale.
     expect((await api('/account/login/verify', { method: 'POST', body: { storeSlug: store.slug, email: 'maria@example.com', code } })).status).toBe(400);
     // O e-mail registrado no log não guarda o código.
-    expect((await prisma.emailLog.findFirstOrThrow({ where: { storeId: store.id, template: 'account.login-code' } })).body).not.toContain(code);
+    const log = await prisma.emailLog.findFirstOrThrow({ where: { storeId: store.id, template: 'account.login-code' } });
+    expect(log.body).not.toContain(code);
+    expect(log.subject).not.toContain(code);
   });
 
   it('código usado não vale de novo e sessão de uma loja não abre outra', async () => {

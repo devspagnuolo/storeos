@@ -702,6 +702,36 @@ export async function resendBlingOrderAction(form: FormData) {
   revalidatePath('/admin/bling');
 }
 
+export async function requestShippingLabelAction(form: FormData) {
+  const number = String(form.get('number') ?? '');
+  const path = `/admin/pedidos/${encodeURIComponent(number)}`;
+  try {
+    await adminFetch(`/orders/${encodeURIComponent(number)}/label`, { method: 'POST', body: {} });
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : 'Não foi possível gerar a etiqueta.';
+    redirect(`${path}?etiquetaErro=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(path);
+  redirect(path);
+}
+
+export async function saveOrderAutomationAction(_: FormState, form: FormData): Promise<FormState> {
+  const text = (name: string) => String(form.get(name) ?? '').trim();
+  const sender = {
+    name: text('name'), document: text('document'), phone: text('phone') || undefined, street: text('street'), number: text('number'),
+    complement: text('complement') || undefined, district: text('district'), city: text('city'), state: text('state').toUpperCase(),
+  };
+  const hasSender = Object.values(sender).some(Boolean);
+  try {
+    await adminFetch('/fulfillment/automation', { method: 'PUT', body: { enabled: form.get('enabled') === 'on', ...(hasSender && { sender }) } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/frete');
+  return { ok: form.get('enabled') === 'on' ? 'Automação ligada. Os próximos pedidos pagos seguem sozinhos.' : 'Salvo. A automação está desligada.' };
+}
+
 export async function requestBlingInvoiceAction(form: FormData) {
   const number = String(form.get('number') ?? '');
   try {
