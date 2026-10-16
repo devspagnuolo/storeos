@@ -6,8 +6,11 @@ import { ThemeDocument, ThemeDocumentIssue, ThemeReleaseManifest, validateThemeD
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { themeEngineEnabledFor } from './theme-engine-flag';
 
-/** Modelos de página que o runtime público do Theme Engine já desenha. Os demais seguem o editor da loja. */
-export const ENGINE_PUBLIC_TEMPLATES = ['home'] as const;
+/**
+ * O que o runtime público do Theme Engine já desenha: página inicial completa; em categoria, produto e busca
+ * as opções de apresentação do tema; e cores, fonte e botões em toda a loja. O resto segue o editor da loja.
+ */
+export const ENGINE_PUBLIC_TEMPLATES = ['home', 'category', 'product', 'search', 'visual'] as const;
 
 const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, addUsedSchema: false });
 const schemaCache = new Map<string, ValidateFunction>();
@@ -187,7 +190,7 @@ export class ThemeEngineService {
     return {
       publishEnabled,
       active: active ? { installationId: active.id, name, version: active.release.version, live } : null,
-      templates: ['home', 'category', 'product', 'visual'].map(pageType => ({
+      templates: ['home', 'category', 'product', 'search', 'visual'].map(pageType => ({
         pageType,
         controlledBy: live && (ENGINE_PUBLIC_TEMPLATES as readonly string[]).includes(pageType) ? 'engine' : 'editor',
       })),

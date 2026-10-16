@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { ThemeDocument, ThemeSectionInstance } from '@storeos/contracts';
-import { Footer } from '../footer';
 import { Header } from '../header';
 import { NewsletterForm } from '../newsletter-form';
 import { ProductGrid } from '../product-grid';
@@ -89,7 +88,8 @@ async function ThemeHomeSection({ section, store, products, categories, primary,
     case 'storeos.newsletter.v1':
       return <section className="shell py-8"><NewsletterForm /></section>;
     case 'storeos.footer.v1':
-      return <Footer categories={categories ?? []} />;
+      // O rodapé configurável da loja já é desenhado pelo layout em todas as páginas.
+      return null;
     default:
       // Seção ainda não conectada ao runtime público: não exibe conteúdo de demonstração nem texto de configuração.
       return null;

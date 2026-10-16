@@ -6,6 +6,7 @@ import { Header } from '../../../components/header';
 import { ProductGrid } from '../../../components/product-grid';
 import { HomeSections } from '../../../components/storefront/home-sections';
 import { getCategories, getProducts, getStore } from '../../../lib/api';
+import { activeEngineDocument, engineNumber, engineSection, engineText } from '../../../lib/theme-engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +22,12 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 export default async function CategoryPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const page = Math.max(Number((await searchParams).page) || 1, 1);
-  const [categories, products, store] = await Promise.all([getCategories(), getProducts({ category: slug, page }), getStore()]);
+  const engine = await activeEngineDocument();
+  const grid = engineSection(engine, 'category', 'storeos.product-collection.v1');
+  const pageSize = engineNumber(grid?.limit, 1, 24);
+  const [categories, products, store] = await Promise.all([getCategories(), getProducts({ category: slug, page, ...(pageSize && { pageSize }) }), getStore()]);
   const category = categories.find(c => c.slug === slug);
   if (!category) notFound();
-  return <><Header />{category.bannerUrl && <CategoryBanner category={category} />}<main className="shell py-12"><p className="text-sm font-semibold text-brand">CATEGORIA</p><h1 className="text-3xl font-bold">{category.name}</h1>{category.description && <p className="mt-2 text-slate-500">{category.description}</p>}<div className="mt-6"><CategoryNav categories={categories} active={slug} /></div><div className="mt-8"><ProductGrid page={products} basePath={`/categorias/${slug}`} empty="Nenhum produto nesta categoria ainda." /></div></main><HomeSections sections={store.themeConfig?.pages?.category?.sections ?? []} /></>;
+  const subheading = engineText(grid?.subheading);
+  return <><Header />{category.bannerUrl && <CategoryBanner category={category} />}<main className="shell py-12"><p className="text-sm font-semibold uppercase text-brand">{engineText(grid?.heading, 'Categoria')}</p><h1 className="text-3xl font-bold">{category.name}</h1>{category.description && <p className="mt-2 text-slate-500">{category.description}</p>}{subheading && <p className="mt-2 text-slate-500">{subheading}</p>}<div className="mt-6"><CategoryNav categories={categories} active={slug} /></div><div className="mt-8"><ProductGrid page={products} basePath={`/categorias/${slug}`} empty="Nenhum produto nesta categoria ainda." /></div></main>{!engine && <HomeSections sections={store.themeConfig?.pages?.category?.sections ?? []} />}</>;
 }

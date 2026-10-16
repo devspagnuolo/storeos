@@ -18,7 +18,9 @@ e como voltar atrás. Complementa `theme-engine-architecture.md` (modelo-alvo).
 | Tema avançado: desativar | `/painel/site` e temas | `POST /themes/installations/:id/deactivate` | Instalação INACTIVE; publicações ficam no histórico | Sim: a home volta ao editor |
 | Situação | `/painel/site`, temas | `GET /themes/status` (novo) | Leitura: quem desenha cada página e se a publicação avançada está liberada | Não |
 
-Runtime público: `GET /store/public/:slug` devolve `themeConfig` (editor) e `publishedTheme`
+Runtime público (com a chave ligada, desde a Fase 2): cores/fonte/botões do tema em toda a loja via `engineStyle`; home pelo `ThemeEngineHome`; categoria, produto e busca leem as opções do tema via `lib/theme-engine.ts` e escondem as seções extras do editor legado nessas páginas. Preço, estoque, opções e compra nunca mudam por tema.
+
+`GET /store/public/:slug` devolve `themeConfig` (editor) e `publishedTheme`
 (Theme Engine). `app/page.tsx` usa `ThemeEngineHome` quando há `publishedTheme`, senão `StorefrontHome`.
 Categoria, produto, busca, carrinho e páginas de conteúdo sempre seguem `themeConfig`.
 
@@ -74,7 +76,7 @@ capturas são feitas manualmente com Playwright antes de cada fase.
 |---|---|
 | 0 — inventário e proteção | Feito (este documento, chave, testes). Capturas automáticas no CI pendentes |
 | 1 — jornada unificada | Feito: uma entrada "Personalizar loja" no menu, "Trocar tema" leva à escolha, instalar abre direto o rascunho, quadro "Quem desenha cada página", rascunhos com "Continuar editando", publicação avançada só com chave |
-| 2 — prévia real de todas as páginas | A fazer. Requisito para liberar a chave fora do piloto |
+| 2 — prévia real de todas as páginas | Em andamento: prévia privada `/previa/tema/:id?pagina=inicio|categoria|produto|busca` desenhada pelas mesmas páginas da vitrine com dados reais; o tema publicado aplica cores, fonte e botões em toda a loja e as opções de categoria (título, subtítulo, itens por página), produto (descrição, SKU, texto do botão) e busca (título, itens por página). Falta: carrinho, páginas de conteúdo, blog e 404 |
 | 3 — inspetor por schema, seletores | A fazer |
 | 4 — validação, histórico, comparação, rollback do motor | A fazer (o editor já tem histórico e restaurar) |
 | 5 — catálogo curado | A fazer |

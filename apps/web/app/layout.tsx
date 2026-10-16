@@ -7,6 +7,7 @@ import { Footer } from '../components/footer';
 import { TopBar } from '../components/storefront/top-bar';
 import { WhatsAppButton } from '../components/whatsapp-button';
 import { defaultMenu, getCategories, getMenu, getPages, getStore } from '../lib/api';
+import { engineStyle } from '../lib/theme-engine';
 import { themeAttributes, themeStyle } from '../lib/theme';
 import './globals.css';
 
@@ -66,5 +67,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const showTopBar = !inAdmin && !['/previa', '/criar-loja'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
   const engineSettings = publishedTheme?.document.global.settings;
   const announcement = publishedTheme ? (engineSettings?.showAnnouncement === false ? '' : String(engineSettings?.announcementText ?? '')) : themeConfig?.announcementText;
-  return <html lang="pt-BR"><body className={!inAdmin && attributes.dark ? 'dark' : undefined} data-hero={inAdmin ? undefined : attributes.heroTone} style={themeStyle(themeConfig ?? {}, { admin: inAdmin })}><TrackingScripts marketing={marketing} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} /><StoreNameProvider name={name} slug={slug} logoUrl={design?.logoUrl ?? logoUrl} menus={menus}>{showTopBar && <TopBar announcement={announcement} freeShipping={freeShipping} />}{children}<Footer categories={categories} pages={pages} config={footerConfig} whatsappNumber={whatsappNumber} /><WhatsAppButton number={whatsappNumber} message={whatsappMessage} /></StoreNameProvider></body></html>;
+  return <html lang="pt-BR"><body className={!inAdmin && attributes.dark ? 'dark' : undefined} data-hero={inAdmin ? undefined : attributes.heroTone} style={{ ...themeStyle(themeConfig ?? {}, { admin: inAdmin }), ...(inAdmin ? {} : engineStyle(publishedTheme?.document ?? null)) }}><TrackingScripts marketing={marketing} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} /><StoreNameProvider name={name} slug={slug} logoUrl={design?.logoUrl ?? logoUrl} menus={menus}>{showTopBar && <TopBar announcement={announcement} freeShipping={freeShipping} />}{children}<Footer categories={categories} pages={pages} config={footerConfig} whatsappNumber={whatsappNumber} /><WhatsAppButton number={whatsappNumber} message={whatsappMessage} /></StoreNameProvider></body></html>;
 }
