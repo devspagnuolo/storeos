@@ -178,7 +178,7 @@ describe('motor de temas', () => {
     const editor = await login(api, store, ['settings.write']);
     const library = await api('/themes/library', { token: editor });
     const byKey = Object.fromEntries(library.body.map((item: { package: { key: string }; version: string }) => [item.package.key, item.version]));
-    expect(byKey).toMatchObject({ 'storeos-editorial': '1.2.0', 'storeos-boutique': '1.1.0', 'storeos-vitrine': '1.1.0', 'storeos-enterprise-pro': '1.1.0', 'storeos-mercado-total': '1.1.0', 'storeos-premium-fashion': '1.1.0', 'storeos-essencial': '1.0.0', 'storeos-noir': '1.0.0' });
+    expect(byKey).toMatchObject({ 'storeos-editorial': '1.3.0', 'storeos-boutique': '1.2.0', 'storeos-vitrine': '1.2.0', 'storeos-enterprise-pro': '1.2.0', 'storeos-mercado-total': '1.2.0', 'storeos-premium-fashion': '1.2.0', 'storeos-essencial': '1.1.0', 'storeos-noir': '1.1.0' });
     // A loja atual convertida não é um tema do catálogo.
     expect(byKey['storeos-minha-loja']).toBeUndefined();
     expect(library.body.filter((item: { package: { key: string } }) => item.package.key === 'storeos-editorial')).toHaveLength(1);
@@ -209,10 +209,10 @@ describe('motor de temas', () => {
     await api(`/themes/installations/${oldBId}/draft`, { method: 'PATCH', token: editorB, body: { revision: oldB.body.draft.revision, document: editedB } });
     expect((await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editor })).status).toBe(404);
     list = await api('/themes/installations', { token: editorB });
-    expect(list.body[0].upgrade).toMatchObject({ version: '1.2.0' });
+    expect(list.body[0].upgrade).toMatchObject({ version: '1.3.0' });
     const upgraded = await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editorB });
     expect(upgraded.status).toBe(201);
-    expect(upgraded.body).toMatchObject({ fromVersion: '1.0.0', toVersion: '1.2.0' });
+    expect(upgraded.body).toMatchObject({ fromVersion: '1.0.0', toVersion: '1.3.0' });
     const doc = upgraded.body.draft.document;
     const hero = doc.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1');
     expect(hero.settings).toMatchObject({ title: 'Mantido na atualização', visibility: 'all' });

@@ -41,6 +41,7 @@ function benefitIcon(title: string) {
   const value = title.toLowerCase();
   if (/frete|entrega|envio/.test(value)) return 'truck';
   if (/pix/.test(value)) return 'pix';
+  if (/ponto|cashback|fidelidade/.test(value)) return 'points';
   if (/troca|devolu/.test(value)) return 'return';
   if (/segur|protegid/.test(value)) return 'shield';
   if (/parcel|cart[aã]o|juros/.test(value)) return 'card';
