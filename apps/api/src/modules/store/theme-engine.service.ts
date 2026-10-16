@@ -76,6 +76,11 @@ function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): Them
     'storeos.rich-text.v1',
     'storeos.newsletter.v1',
     'storeos.footer.v1',
+    'storeos.carousel.v1',
+    'storeos.image.v1',
+    'storeos.testimonials.v1',
+    'storeos.faq.v1',
+    'storeos.video.v1',
   ]);
   for (const [index, section] of (typed.templates.home?.sections ?? []).entries()) {
     if (section.enabled && !publicHomeComponents.has(section.type)) {
