@@ -141,6 +141,7 @@ describe('motor de temas', () => {
     unsafe.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1').settings.ctaUrl = 'http://169.254.169.254/latest';
     expect((await api(`/themes/installations/${id}/draft`, { method: 'PATCH', token: editor, body: { revision, document: unsafe } })).status).toBe(422);
 
+    expect((await api(`/themes/installations/${id}/published`, { token: editor })).body).toEqual({ publication: null });
     const v1 = await api(`/themes/installations/${id}/publish`, { method: 'POST', token: editor, body: { revision } });
     expect(v1.status).toBe(201);
     const changed = structuredClone(noTitle);
@@ -160,10 +161,15 @@ describe('motor de temas', () => {
     expect(draft.body.draft.document.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1').settings.title).toBe('');
     const live = await api(`/store/public/${store.slug}`);
     expect(live.body.publishedTheme.version).toBe(2);
+    // Comparação: a última versão publicada continua disponível ao lado do rascunho restaurado.
+    const published = await api(`/themes/installations/${id}/published`, { token: editor });
+    expect(published.body.publication.version).toBe(2);
+    expect(published.body.publication.document.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1').settings.title).toBe('Versão 2');
 
     const other = await createStore(1);
     const editorB = await login(api, other.store, ['settings.write']);
     expect((await api(`/themes/publications/${history.body[1].id}/restore`, { method: 'POST', token: editorB, body: { revision: 1 } })).status).toBe(404);
     expect((await api('/themes/publications', { token: editorB })).body).toEqual([]);
+    expect((await api(`/themes/installations/${id}/published`, { token: editorB })).status).toBe(404);
   });
 });

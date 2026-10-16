@@ -28,13 +28,16 @@ type PageKey = keyof typeof PAGES;
  * categorias reais. Só abre com a sessão do painel (cookie httpOnly) e a API confere que a instalação é da
  * loja logada; sem sessão ou de outra loja, 404. O rascunho vale só para esta requisição.
  */
-export default async function ThemeDraftPreview({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ pagina?: string }> }) {
+export default async function ThemeDraftPreview({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ pagina?: string; fonte?: string }> }) {
   const { installationId } = await params;
   if (!/^[a-zA-Z0-9_-]{1,96}$/.test(installationId)) notFound();
-  const requested = (await searchParams).pagina ?? 'inicio';
+  const query = await searchParams;
+  const requested = query.pagina ?? 'inicio';
+  const fromPublished = query.fonte === 'publicado';
   const page: PageKey = requested in PAGES ? requested as PageKey : 'inicio';
-  const [result, store, categories, products, pages, posts] = await Promise.all([
+  const [result, latest, store, categories, products, pages, posts] = await Promise.all([
     adminFetch<DraftResponse>(`/themes/installations/${encodeURIComponent(installationId)}/draft`).catch(() => null),
+    fromPublished ? adminFetch<{ publication: { version: number; document: ThemeDocument } | null }>(`/themes/installations/${encodeURIComponent(installationId)}/published`).catch(() => null) : Promise.resolve(null),
     getStore(),
     getCategories(),
     getProducts({ pageSize: 1 }),
@@ -42,7 +45,9 @@ export default async function ThemeDraftPreview({ params, searchParams }: { para
     page === 'artigo' ? getPosts({ limit: 1 }) : Promise.resolve({ items: [], total: 0 }),
   ]);
   if (!result) notFound();
-  const document = result.draft.document;
+  // Na comparação, a mesma prévia desenha a última versão publicada em vez do rascunho.
+  if (fromPublished && !latest?.publication) return <Empty text="Este tema ainda não foi publicado." />;
+  const document = fromPublished && latest?.publication ? latest.publication.document : result.draft.document;
   setEngineDraft(document);
   const manifest = result.installation.release.manifest;
   const category = categories[0];
@@ -62,8 +67,8 @@ export default async function ThemeDraftPreview({ params, searchParams }: { para
 
   return <div className="min-h-screen" style={engineStyle(document)}>
     <div role="note" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-amber-50 px-4 py-1.5 text-center text-xs font-semibold text-amber-800">
-      <span>Prévia do rascunho do tema “{manifest.displayName}” (revisão {result.draft.revision}) com seus produtos reais. Só você vê esta página.</span>
-      <nav aria-label="Páginas da prévia" className="flex flex-wrap justify-center gap-2">{(Object.keys(PAGES) as PageKey[]).map(key => <Link key={key} href={key === 'inicio' ? base : `${base}?pagina=${key}`} aria-current={key === page ? 'page' : undefined} className={'rounded px-2 py-0.5 ' + (key === page ? 'bg-amber-200' : 'underline')}>{PAGES[key]}</Link>)}</nav>
+      <span>{fromPublished && latest?.publication ? `Versão ${latest.publication.version} publicada do tema “${manifest.displayName}”` : `Prévia do rascunho do tema “${manifest.displayName}” (revisão ${result.draft.revision})`} com seus produtos reais. Só você vê esta página.</span>
+      <nav aria-label="Páginas da prévia" className="flex flex-wrap justify-center gap-2">{(Object.keys(PAGES) as PageKey[]).map(key => <Link key={key} href={(key === 'inicio' ? base : `${base}?pagina=${key}`) + (fromPublished ? (key === 'inicio' ? '?' : '&') + 'fonte=publicado' : '')} aria-current={key === page ? 'page' : undefined} className={'rounded px-2 py-0.5 ' + (key === page ? 'bg-amber-200' : 'underline')}>{PAGES[key]}</Link>)}</nav>
     </div>
     {body}
   </div>;

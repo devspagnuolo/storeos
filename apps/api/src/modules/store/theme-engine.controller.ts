@@ -61,6 +61,12 @@ export class ThemeEngineController {
     return this.themes.getDraft(storeId, installationId);
   }
 
+  /** Responde `{ publication: null }` quando o tema nunca foi publicado (o corpo vazio confundiria o cliente). */
+  @Get('installations/:installationId/published')
+  async latestPublication(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
+    return { publication: await this.themes.latestPublication(storeId, installationId) };
+  }
+
   @Post('installations/:installationId/publish')
   publish(
     @CurrentStore() storeId: string,
