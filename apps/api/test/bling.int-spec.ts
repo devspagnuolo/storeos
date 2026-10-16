@@ -8,7 +8,7 @@ import { makeState } from '../src/modules/bling/bling-auth.service';
 import { BlingOrdersService } from '../src/modules/bling/bling-orders.service';
 import { BlingInvoicesService } from '../src/modules/bling/bling-invoices.service';
 import { BlingWebhookService } from '../src/modules/bling/bling-webhook.service';
-import { BlingClient } from '../src/modules/bling/bling.client';
+import { BlingApiError, BlingClient } from '../src/modules/bling/bling.client';
 import { RemoteImageService } from '../src/modules/media/remote-image.service';
 import { OrderLifecycleService } from '../src/modules/orders/order-lifecycle.service';
 import { checkoutBody, cleanup, createStore, login, prisma, startApp } from './helpers';
@@ -18,6 +18,7 @@ class FakeBling {
   appConfigured = true;
   calls: { method: string; path: string; body?: unknown }[] = [];
   failOrders = false;
+  patchNotFound = false;
   salesOrders = new Map<string, number>();
   invoiceCalls: { method: string; path: string; body?: unknown }[] = [];
   nextId = 9000;
@@ -50,7 +51,11 @@ class FakeBling {
       if (this.failOrders) throw new Error('Bling 400: contato inválido');
       const id = this.nextId++; this.salesOrders.set((init.body as { numeroLoja: string }).numeroLoja, id); return { data: { id, numero: id + 100 } };
     }
-    if (/^\/pedidos\/vendas\/\d+\/situacoes\/\d+$/.test(url.pathname) && method === 'PATCH') return undefined;
+    if (/^\/pedidos\/vendas\/\d+\/situacoes\/\d+$/.test(url.pathname) && method === 'PATCH') {
+      if (this.patchNotFound) throw new BlingApiError(404, 'Bling 404: Não encontrado.');
+      return undefined;
+    }
+    if (/^\/pedidos\/vendas\/\d+$/.test(url.pathname) && method === 'GET') return { data: { id: Number(url.pathname.split('/')[3]), situacao: { id: 12, valor: 2 } } };
     if (url.pathname === '/nfe' && method === 'GET') { this.invoiceCalls.push({ method, path }); return { data: [] }; }
     if (url.pathname.startsWith('/pedidos/vendas/') && url.pathname.endsWith('/gerar-nfe') && method === 'POST') { this.invoiceCalls.push({ method, path }); return { data: { idNotaFiscal: 3001 } }; }
     if (url.pathname === '/nfe/3001/enviar' && method === 'POST') { this.invoiceCalls.push({ method, path, body: init.body }); return { data: {} }; }
@@ -75,7 +80,7 @@ beforeAll(async () => {
   baseUrl = (await app.getUrl()).replace('[::1]', 'localhost');
 });
 afterAll(async () => { delete process.env.WEB_ORIGIN; delete process.env.BLING_CLIENT_SECRET; await cleanup(app); });
-beforeEach(() => { bling.calls = []; bling.failOrders = false; });
+beforeEach(() => { bling.calls = []; bling.failOrders = false; bling.patchNotFound = false; });
 
 const connect = (storeId: string) => prisma.blingConnection.create({ data: { storeId, companyId: '777', accessTokenEnc: encryptSecret('acc', resolveJwtSecret()), refreshTokenEnc: encryptSecret('ref', resolveJwtSecret()), expiresAt: new Date(Date.now() + 3_600_000) } });
 const waitFor = async <T>(read: () => Promise<T>, done: (value: T) => boolean) => { for (let i = 0; i < 60; i++) { const value = await read(); if (done(value)) return value; await new Promise(r => setTimeout(r, 100)); } throw new Error('tempo esgotado'); };
@@ -295,6 +300,40 @@ describe('pedidos do site no Bling', () => {
     bling.calls = [];
     await orders.processDue();
     expect(bling.calls.some(c => c.method === 'PATCH')).toBe(false);
+  });
+
+  it('cancelamento feito à mão no Bling chega pelo webhook e não é repetido; 404 de pedido já cancelado é aceito', async () => {
+    const { store, product } = await createStore(5);
+    await connect(store.id);
+    const lifecycle = app.get(OrderLifecycleService);
+    const orders = app.get(BlingOrdersService);
+    const place = async () => {
+      const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }], 'PIX') });
+      const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
+      await lifecycle.markPaid({ orderId: order.id });
+      await orders.processDue();
+      return { order, sync: await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } }) };
+    };
+
+    // Webhook com a situação padrão "Cancelado" (12) não depende de consultar /situacoes (permissão que a conta pode não ter).
+    const first = await place();
+    const event = { eventId: `evt-cancel-${Date.now()}`, event: 'order.updated', companyId: 777, data: { id: Number(first.sync.blingOrderId), numero: first.sync.blingOrderNumber, situacao: { id: 12, valor: 2 } } };
+    const signature = 'sha256=' + createHmac('sha256', 'test-secret').update(JSON.stringify(event)).digest('hex');
+    await api('/bling/webhook', { method: 'POST', body: event, headers: { 'x-bling-signature-256': signature } });
+    bling.calls = [];
+    await app.get(BlingWebhookService).processDue();
+    expect(bling.calls.some(c => c.path.startsWith('/situacoes/'))).toBe(false);
+    expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: first.order.id } })).toMatchObject({ blingSituationId: '12', blingSituationName: 'Cancelado' });
+    await lifecycle.markRefunded({ orderId: first.order.id }, { message: 'Estornado' });
+    await orders.processDue();
+    expect(bling.calls.some(c => c.method === 'PATCH')).toBe(false);
+
+    // Sem webhook: o PATCH devolve 404 porque o pedido já está cancelado lá; confere e registra em vez de repetir.
+    const second = await place();
+    await lifecycle.markRefunded({ orderId: second.order.id }, { message: 'Estornado' });
+    bling.patchNotFound = true;
+    await orders.processDue();
+    expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: second.order.id } })).toMatchObject({ blingSituationId: '12', blingSituationName: 'Cancelado', lastError: null });
   });
 
   it('falha fica registrada com espera, e o reenvio manual conclui sem duplicar', async () => {

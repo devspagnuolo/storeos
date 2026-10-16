@@ -21,6 +21,9 @@ export type BlingWebhookPayload = {
 };
 
 /** Valida a assinatura e persiste uma caixa de entrada idempotente antes do ACK. */
+/** Situações padrão do módulo de vendas do Bling (mesmos ids em todas as contas). */
+export const STANDARD_SITUATIONS: Record<string, string> = { '6': 'Em aberto', '9': 'Atendido', '12': 'Cancelado', '15': 'Em andamento', '18': 'Venda agenciada', '21': 'Em digitação', '24': 'Verificado' };
+
 @Injectable()
 export class BlingWebhookService {
   private readonly logger = new Logger(BlingWebhookService.name);
@@ -173,12 +176,10 @@ export class BlingWebhookService {
       where: { orderId: order.id },
       select: { blingSituationId: true, blingSituationName: true },
     });
+    // Webhooks podem chegar fora de ordem nas novas tentativas: a criação nunca apaga uma situação já conhecida.
+    if (payload.event === 'order.created' && currentSync?.blingSituationId) return;
     let situationName: string | null = currentSync?.blingSituationId === situationId ? currentSync.blingSituationName : null;
-    if (situationId && !situationName) {
-      const token = await this.auth.accessToken(order.storeId);
-      const result = await this.client.request<{ data?: { nome?: string; descricao?: string } }>(token, '/situacoes/' + encodeURIComponent(situationId));
-      situationName = result.data?.nome ?? result.data?.descricao ?? null;
-    }
+    if (situationId && !situationName) situationName = await this.situationName(order.storeId, situationId);
 
     await this.prisma.blingOrderSync.upsert({
       where: { orderId: order.id },
@@ -203,5 +204,18 @@ export class BlingWebhookService {
         lastError: null,
       },
     });
+  }
+
+  /** Nome da situação: as padrão do Bling são conhecidas; as próprias da conta são consultadas, sem travar o webhook se faltar permissão. */
+  private async situationName(storeId: string, situationId: string) {
+    if (STANDARD_SITUATIONS[situationId]) return STANDARD_SITUATIONS[situationId];
+    try {
+      const token = await this.auth.accessToken(storeId);
+      const result = await this.client.request<{ data?: { nome?: string; descricao?: string } }>(token, '/situacoes/' + encodeURIComponent(situationId));
+      return result.data?.nome ?? result.data?.descricao ?? null;
+    } catch (error) {
+      this.logger.warn('Situação ' + situationId + ' do Bling sem nome: ' + (error as Error).message.slice(0, 200));
+      return null;
+    }
   }
 }
