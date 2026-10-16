@@ -7,6 +7,8 @@ import { AccountService } from './account.service';
 class RequestCodeDto {
   @IsString() @Length(1, 80) storeSlug!: string;
   @IsEmail() @MaxLength(200) email!: string;
+  /** Só no "Criar uma conta": com o nome, o e-mail novo recebe o código e a conta nasce ao confirmar. */
+  @IsOptional() @IsString() @Length(2, 120) name?: string;
 }
 
 class VerifyCodeDto extends RequestCodeDto {
@@ -28,10 +30,10 @@ export class AccountController {
   // As telas chamam estas rotas pelo servidor do site, então o IP é o mesmo para todas as clientes:
   // o limite por IP fica folgado e a proteção real é por e-mail (3 códigos a cada 15 min, 5 tentativas por código).
   @Post('login/request') @HttpCode(202) @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  request(@Body() dto: RequestCodeDto) { return this.account.requestCode(dto.storeSlug, dto.email); }
+  request(@Body() dto: RequestCodeDto) { return this.account.requestCode(dto.storeSlug, dto.email, dto.name); }
 
   @Post('login/verify') @HttpCode(200) @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  verify(@Body() dto: VerifyCodeDto) { return this.account.verifyCode(dto.storeSlug, dto.email, dto.code); }
+  verify(@Body() dto: VerifyCodeDto) { return this.account.verifyCode(dto.storeSlug, dto.email, dto.code, dto.name); }
 
   @Post('logout') @HttpCode(200)
   async logout(@Headers('x-customer-token') token?: string) { return this.account.logout(await this.account.authenticate(token)); }

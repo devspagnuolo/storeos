@@ -15,20 +15,24 @@ export class AccountService {
 
   constructor(private readonly prisma: PrismaService, private readonly loyalty: LoyaltyService, @Inject(MAIL_PROVIDER) private readonly mail: MailProvider) {}
 
-  /** Resposta sempre igual, com ou sem cadastro, para não revelar quem compra na loja. */
-  async requestCode(storeSlug: string, rawEmail: string) {
+  /**
+   * Resposta sempre igual, com ou sem cadastro, para não revelar quem compra na loja.
+   * Com `name` (criar conta), um e-mail ainda sem cadastro também recebe o código; quem já tem conta só recebe o código de entrar.
+   */
+  async requestCode(storeSlug: string, rawEmail: string, signupName?: string) {
     const email = normalizeEmail(rawEmail);
     const store = await this.prisma.store.findUnique({ where: { slug: storeSlug }, select: { id: true, name: true } });
     if (!store) return { sent: true };
     const customer = await this.prisma.customer.findUnique({ where: { storeId_email: { storeId: store.id, email } }, select: { name: true, anonymizedAt: true } });
-    if (!customer || customer.anonymizedAt) return { sent: true };
+    const newName = signupName?.trim();
+    if (customer?.anonymizedAt || (!customer && !newName)) return { sent: true };
     const recent = await this.prisma.customerLoginCode.count({ where: { storeId: store.id, email, createdAt: { gt: new Date(Date.now() - CODE_MINUTES * 60_000) } } });
     if (recent >= CODES_PER_WINDOW) return { sent: true };
     const { code, hash, expiresAt } = newLoginCode(email);
     // Só o código mais novo vale.
     await this.prisma.customerLoginCode.updateMany({ where: { storeId: store.id, email, usedAt: null }, data: { usedAt: new Date() } });
     await this.prisma.customerLoginCode.create({ data: { storeId: store.id, email, codeHash: hash, expiresAt } });
-    const message = loginCodeMail({ name: customer.name, storeName: store.name, code });
+    const message = loginCodeMail({ name: customer?.name ?? newName!, storeName: store.name, code });
     try {
       const result = await this.mail.send({ to: email, subject: message.subject, text: message.text, html: message.html, from: process.env.MAIL_FROM ?? `${store.name} <pedidos@example.com>` });
       await this.prisma.emailLog.create({ data: { storeId: store.id, template: 'account.login-code', toEmail: email, subject: message.subject.replace(code, '••••••'), body: message.text.replace(code, '••••••'), status: result.status, providerId: result.providerId } });
@@ -38,7 +42,7 @@ export class AccountService {
     return { sent: true };
   }
 
-  async verifyCode(storeSlug: string, rawEmail: string, code: string) {
+  async verifyCode(storeSlug: string, rawEmail: string, code: string, signupName?: string) {
     const invalid = new BadRequestException('Código inválido ou expirado. Peça um novo código.');
     const email = normalizeEmail(rawEmail);
     const store = await this.prisma.store.findUnique({ where: { slug: storeSlug }, select: { id: true } });
@@ -52,7 +56,10 @@ export class AccountService {
     // Marca como usado só se ninguém usou antes (duas abas com o mesmo código).
     const claimed = await this.prisma.customerLoginCode.updateMany({ where: { id: pending.id, usedAt: null }, data: { usedAt: new Date() } });
     if (!claimed.count) throw invalid;
-    const customer = await this.prisma.customer.findUnique({ where: { storeId_email: { storeId: store.id, email } }, select: { id: true, anonymizedAt: true } });
+    let customer = await this.prisma.customer.findUnique({ where: { storeId_email: { storeId: store.id, email } }, select: { id: true, anonymizedAt: true } });
+    // Criar conta: o código provou que o e-mail é da pessoa; a conta nasce agora, sem pedido.
+    const newName = signupName?.trim();
+    if (!customer && newName) customer = await this.prisma.customer.upsert({ where: { storeId_email: { storeId: store.id, email } }, update: {}, create: { storeId: store.id, email, name: newName }, select: { id: true, anonymizedAt: true } });
     if (!customer || customer.anonymizedAt) throw invalid;
     const session = newSessionToken();
     await this.prisma.customerSession.create({ data: { storeId: store.id, customerId: customer.id, tokenHash: session.hash, expiresAt: session.expiresAt } });
