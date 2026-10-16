@@ -653,6 +653,20 @@ export async function saveWhatsappAction(_: FormState, form: FormData): Promise<
   return { ok: number ? 'WhatsApp salvo. O botão já aparece na loja.' : 'Botão de WhatsApp removido da loja.' };
 }
 
+/** O formulário manda o rodapé inteiro como JSON; a API limpa cada campo e devolve o que ficou salvo. */
+export async function saveFooterAction(_: FormState, form: FormData): Promise<FormState> {
+  let footer: unknown;
+  try { footer = JSON.parse(String(form.get('footer') ?? '{}')); } catch { return { error: 'Não foi possível ler o formulário. Recarregue a página.' }; }
+  try {
+    await adminFetch('/store/footer', { method: 'PUT', body: { footer } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/', 'layout');
+  return { ok: 'Rodapé salvo. A loja já mostra as mudanças.' };
+}
+
 export async function unsubscribeAction(form: FormData) {
   await adminFetch(`/engagement/admin/newsletter/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
   revalidatePath('/admin/newsletter');

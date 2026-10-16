@@ -85,6 +85,16 @@ export class AccountService {
     };
   }
 
+  /** Dados completos para o checkout de quem já entrou: CPF sem máscara (vai no pedido e na nota) e o último endereço de entrega. */
+  async checkoutProfile(ctx: CustomerContext) {
+    const [customer, lastOrder] = await Promise.all([
+      this.prisma.customer.findUniqueOrThrow({ where: { id: ctx.customerId }, select: { name: true, email: true, phone: true, document: true } }),
+      this.prisma.order.findFirst({ where: { customerId: ctx.customerId, storeId: ctx.storeId }, orderBy: { createdAt: 'desc' }, select: { shippingAddress: true } }),
+    ]);
+    const document = customer.document?.replace(/\D/g, '') ?? '';
+    return { name: customer.name, email: customer.email, phone: customer.phone, document: document.length === 11 ? document : null, address: lastOrder?.shippingAddress ?? null };
+  }
+
   async update(ctx: CustomerContext, input: { name?: string; phone?: string | null; marketingOptIn?: boolean }) {
     const name = input.name?.trim();
     if (input.name !== undefined && (!name || name.length < 3)) throw new BadRequestException('Informe seu nome completo.');

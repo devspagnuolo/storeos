@@ -47,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [{ name, logoUrl, whatsappNumber, whatsappMessage, themeConfig, slug, marketing, open, publishedTheme, freeShipping }, categories, pages, main, footer] = await Promise.all([getPageBranding(), getCategories(), getPages(), getMenu('main'), getMenu('footer')]);
+  const [{ name, logoUrl, whatsappNumber, whatsappMessage, themeConfig, slug, marketing, open, publishedTheme, freeShipping, footer: footerConfig }, categories, pages, main, footer] = await Promise.all([getPageBranding(), getCategories(), getPages(), getMenu('main'), getMenu('footer')]);
   const menus = { main: main.configured ? main.items : defaultMenu(categories), footer: footer.configured ? footer.items : null };
   const design = themeConfig?.design;
   // Loja nova fica "em construção" até o lojista publicar; prévia, painel e cadastro continuam acessíveis.
@@ -66,5 +66,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const showTopBar = !inAdmin && !['/previa', '/criar-loja'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
   const engineSettings = publishedTheme?.document.global.settings;
   const announcement = publishedTheme ? (engineSettings?.showAnnouncement === false ? '' : String(engineSettings?.announcementText ?? '')) : themeConfig?.announcementText;
-  return <html lang="pt-BR"><body className={!inAdmin && attributes.dark ? 'dark' : undefined} data-hero={inAdmin ? undefined : attributes.heroTone} style={themeStyle(themeConfig ?? {}, { admin: inAdmin })}><TrackingScripts marketing={marketing} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} /><StoreNameProvider name={name} slug={slug} logoUrl={design?.logoUrl ?? logoUrl} menus={menus}>{showTopBar && <TopBar announcement={announcement} freeShipping={freeShipping} />}{children}<Footer categories={categories} pages={pages} /><WhatsAppButton number={whatsappNumber} message={whatsappMessage} /></StoreNameProvider></body></html>;
+  return <html lang="pt-BR"><body className={!inAdmin && attributes.dark ? 'dark' : undefined} data-hero={inAdmin ? undefined : attributes.heroTone} style={themeStyle(themeConfig ?? {}, { admin: inAdmin })}><TrackingScripts marketing={marketing} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} /><StoreNameProvider name={name} slug={slug} logoUrl={design?.logoUrl ?? logoUrl} menus={menus}>{showTopBar && <TopBar announcement={announcement} freeShipping={freeShipping} />}{children}<Footer categories={categories} pages={pages} config={footerConfig} whatsappNumber={whatsappNumber} /><WhatsAppButton number={whatsappNumber} message={whatsappMessage} /></StoreNameProvider></body></html>;
 }

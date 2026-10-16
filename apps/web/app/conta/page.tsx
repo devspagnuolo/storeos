@@ -12,9 +12,10 @@ import { logoutAction } from './actions';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Minha conta', robots: { index: false } };
 
-export default async function AccountPage() {
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ voltar?: string }> }) {
+  const returnTo = (await searchParams).voltar === 'checkout' ? 'checkout' : undefined;
   const [profile, orders] = await Promise.all([accountFetch<AccountProfile>('/me'), accountFetch<AccountOrderSummary[]>('/orders')]);
-  if (!profile || !orders) return <><Header /><AccountSignal signedIn={false} /><main className="shell flex justify-center py-10 sm:py-16"><LoginForm /></main></>;
+  if (!profile || !orders) return <><Header /><AccountSignal signedIn={false} /><main className="shell flex justify-center py-10 sm:py-16"><LoginForm returnTo={returnTo} /></main></>;
 
   const open = orders.filter(order => !['DELIVERED', 'CANCELLED', 'REFUNDED', 'RETURNED'].includes(order.status));
   const first = profile.name.trim().split(/\s+/)[0];
