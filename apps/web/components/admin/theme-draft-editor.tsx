@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from 'react';
+import { ImageUploader } from './image-uploader';
 import { publishThemeAction, saveThemeDraftAction, validateThemeDraftAction, type ThemeCheckResult } from '../../app/admin/actions';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -22,12 +23,18 @@ const templateName = (manifest: ThemeManifest, pageType: string) => {
   return title && title !== pageType ? title : PAGE_TITLES[pageType] ?? pageType;
 };
 
+export type LinkOption = { group: string; label: string; href: string };
+type FieldEnv = { links: LinkOption[]; issues: Map<string, string> };
+const FieldContext = createContext<FieldEnv>({ links: [], issues: new Map() });
+const HISTORY_LIMIT = 60;
+
 function labelFor(key: string, schema: FieldSchema) {
   return schema.title ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase());
 }
 
-export function ThemeDraftEditor({ installationId, initialRevision, initialDocument, manifest, publishEnabled = false }: {
+export function ThemeDraftEditor({ installationId, initialRevision, initialDocument, manifest, publishEnabled = false, links = [] }: {
   installationId: string;
+  links?: LinkOption[];
   publishEnabled?: boolean;
   initialRevision: number;
   initialDocument: ThemeDocument;
@@ -38,20 +45,76 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState('');
   const [dragged, setDragged] = useState<string | null>(null);
-  const [previewSize, setPreviewSize] = useState<'desktop' | 'mobile'>('desktop');
+  const [previewSize, setPreviewSize] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [templateKey, setTemplateKey] = useState(() => ('home' in initialDocument.templates ? 'home' : Object.keys(initialDocument.templates)[0]) ?? 'home');
   const [saving, startSaving] = useTransition();
   const [publishing, startPublishing] = useTransition();
   const [checks, setChecks] = useState<ThemeCheckResult | null>(null);
   // Confere o rascunho salvo ao abrir e depois de cada gravação.
   useEffect(() => { let alive = true; validateThemeDraftAction(installationId).then(result => { if (alive) setChecks(result); }); return () => { alive = false; }; }, [installationId, revision]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  // Desfazer/refazer: pilhas de versões do documento inteiro (limitadas) — vale para qualquer campo, ordem ou bloco.
+  const past = useRef<ThemeDocument[]>([]);
+  const future = useRef<ThemeDocument[]>([]);
+  const [, setHistoryTick] = useState(0);
+  const lastPush = useRef(0);
+  const latest = useRef(document);
   const sections = document.templates[templateKey]?.sections ?? [];
   const templateTitle = templateName(manifest, templateKey);
+  const issues = new Map<string, string>([...(checks?.errors ?? []), ...(checks?.warnings ?? [])].map(item => [item.path, item.message]));
 
   function changeDocument(mutator: (current: ThemeDocument) => ThemeDocument) {
-    setDocument(current => mutator(current));
+    // Calcula fora do setState (sem efeitos colaterais no updater) para o histórico ficar exato.
+    const current = latest.current;
+    const next = mutator(current);
+    if (next === current) return;
+    const now = Date.now();
+    // Várias teclas seguidas no mesmo campo viram um único passo de desfazer.
+    if (now - lastPush.current > 1000) { past.current = [...past.current.slice(-(HISTORY_LIMIT - 1)), current]; future.current = []; }
+    lastPush.current = now;
+    latest.current = next;
+    setDocument(next);
+    setHistoryTick(tick => tick + 1);
     setDirty(true);
     setNotice('');
+  }
+
+  const undo = useCallback(() => {
+    const previous = past.current.at(-1);
+    if (!previous) return;
+    past.current = past.current.slice(0, -1);
+    future.current = [latest.current, ...future.current];
+    latest.current = previous;
+    lastPush.current = 0;
+    setDocument(previous); setDirty(true); setHistoryTick(tick => tick + 1);
+  }, []);
+  const redo = useCallback(() => {
+    const next = future.current[0];
+    if (!next) return;
+    future.current = future.current.slice(1);
+    past.current = [...past.current, latest.current];
+    latest.current = next;
+    lastPush.current = 0;
+    setDocument(next); setDirty(true); setHistoryTick(tick => tick + 1);
+  }, []);
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      // Dentro de um campo de texto, o desfazer nativo do navegador continua valendo.
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z' && !event.shiftKey) { event.preventDefault(); undo(); }
+      else if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); redo(); }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo]);
+
+  function selectSection(id: string) {
+    setSelected(id);
+    window.document.getElementById('secao-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function updateSection(id: string, change: (section: ThemeSection) => ThemeSection) {
@@ -101,11 +164,14 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
 
   function save() {
     startSaving(async () => {
-      const result = await saveThemeDraftAction(installationId, revision, JSON.stringify(document));
-      if (result.error) { setNotice(result.error); return; }
+      const snapshot = document;
+      const result = await saveThemeDraftAction(installationId, revision, JSON.stringify(snapshot));
+      if (result.error) { setNotice(result.error); setConflict(/outra sessão/i.test(result.error)); return; }
       if (result.revision) setRevision(result.revision);
-      setDirty(false);
-      setNotice(result.ok ?? 'Rascunho salvo.');
+      // Se a lojista mexeu enquanto salvava, continua pendente e o salvamento automático grava de novo.
+      const changedMeanwhile = latest.current !== snapshot;
+      setDirty(changedMeanwhile);
+      if (!changedMeanwhile) setNotice(result.ok ?? 'Rascunho salvo.');
     });
   }
 
@@ -113,16 +179,26 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
   const colors = tokens.colors ?? {};
   const globalProperties = manifest.globalSettingsSchema?.properties ?? {};
 
-  return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
+  // Salva sozinho alguns segundos depois da última mudança; nunca publica.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => {
+    if (!dirty || saving || publishing || conflict) return;
+    const timer = window.setTimeout(() => saveRef.current(), 2500);
+    return () => window.clearTimeout(timer);
+  }, [document, dirty, saving, publishing, conflict]);
+
+  return <FieldContext.Provider value={{ links, issues }}><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
     <div className="grid content-start gap-6">
       <section className="rounded-2xl border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-sm font-semibold text-brand">RASCUNHO DO TEMA</p><h1 className="mt-1 text-2xl font-bold">{manifest.displayName}</h1><p className="mt-1 text-sm text-slate-500">Versão {manifest.version} · revisão {revision}</p></div>
-          <div className="flex flex-wrap gap-2"><a className="button-ghost" href={'/previa/tema/' + encodeURIComponent(installationId)} target="_blank" rel="noopener" title={dirty ? 'Salve o rascunho para ver as últimas mudanças' : undefined}>Prévia real ↗</a><button type="button" className="button-ghost" disabled={!dirty || saving || publishing} onClick={save}>{saving ? 'Salvando…' : 'Salvar rascunho'}</button>{publishEnabled && <button type="button" className="button" disabled={dirty || saving || publishing} onClick={publish}>{publishing ? 'Publicando…' : 'Publicar na loja'}</button>}</div>
+          <div className="flex flex-wrap gap-2"><button type="button" className="button-ghost" disabled={!past.current.length} onClick={undo} title="Desfazer (Ctrl+Z)" aria-label="Desfazer">↶</button><button type="button" className="button-ghost" disabled={!future.current.length} onClick={redo} title="Refazer (Ctrl+Y)" aria-label="Refazer">↷</button><a className="button-ghost" href={'/previa/tema/' + encodeURIComponent(installationId)} target="_blank" rel="noopener" title={dirty ? 'Salve o rascunho para ver as últimas mudanças' : undefined}>Prévia real ↗</a><button type="button" className="button-ghost" disabled={!dirty || saving || publishing} onClick={save}>{saving ? 'Salvando…' : 'Salvar rascunho'}</button>{publishEnabled && <button type="button" className="button" disabled={dirty || saving || publishing} onClick={publish}>{publishing ? 'Publicando…' : 'Publicar na loja'}</button>}</div>
         </div>
         {!publishEnabled && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Temas avançados ainda estão em teste: você pode montar e salvar este rascunho, mas a publicação será liberada quando a prévia real das páginas estiver pronta. Para mudar a loja agora, use <a className="font-semibold underline" href="/painel/site">Personalizar loja</a>.</p>}
+        {conflict && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">Este rascunho foi alterado em outra aba ou por outra pessoa. Para não sobrescrever, recarregue e refaça a última mudança. <button type="button" className="font-semibold underline" onClick={() => window.location.reload()}>Recarregar agora</button></p>}
         <CheckList checks={checks} dirty={dirty} />
-        <p role={notice && !dirty ? 'status' : undefined} className={'mt-4 text-sm ' + (notice && !dirty ? 'text-emerald-700' : 'text-slate-600')}>{notice || (dirty ? 'Há alterações não salvas. Salve-as antes de publicar.' : 'Tudo salvo. Este rascunho ainda não altera a loja publicada.')}</p>
+        <p role={notice && !dirty ? 'status' : undefined} className={'mt-4 text-sm ' + (notice && !dirty ? 'text-emerald-700' : 'text-slate-600')}>{notice || (saving ? 'Salvando…' : dirty ? 'Alterações ainda não salvas: o rascunho é salvo sozinho em instantes.' : 'Tudo salvo. Este rascunho ainda não altera a loja publicada.')}</p>
       </section>
 
       <section className="rounded-2xl border bg-surface p-5">
@@ -143,7 +219,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
           {Object.keys(globalProperties).length > 0 && <div className="grid gap-4 sm:col-span-2"><h3 className="font-semibold">Preferências do tema</h3>{Object.entries(globalProperties).map(([key, schema]) => {
             const value = document.global.settings[key];
             const setValue = (next: JsonValue) => changeDocument(current => ({ ...current, global: { ...current.global, settings: { ...current.global.settings, [key]: next } } }));
-            return <SettingField key={key} name={labelFor(key, schema)} schema={schema} value={value} onChange={setValue} />;
+            return <SettingField key={key} path={`$.global.settings.${key}`} name={labelFor(key, schema)} schema={schema} value={value} onChange={setValue} />;
           })}</div>}
         </div>
       </section>
@@ -161,7 +237,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
             const from = sections.findIndex(item => item.id === dragged);
             if (from >= 0) moveSection(from, index);
             setDragged(null);
-          }} className={'rounded-2xl border bg-surface p-4 ' + (section.enabled ? '' : 'opacity-60 ') + (dragged === section.id ? 'ring-2 ring-brand' : '')}>
+          }} id={'secao-' + section.id} onFocusCapture={() => setSelected(section.id)} className={'scroll-mt-20 rounded-2xl border bg-surface p-4 ' + (section.enabled ? '' : 'opacity-60 ') + (dragged === section.id || selected === section.id ? 'ring-2 ring-brand' : '')}>
             <div className="flex items-center gap-3">
               <span aria-hidden className="cursor-grab select-none text-slate-400" title="Arraste para reordenar">⋮⋮</span>
               <div className="min-w-0 flex-1"><h3 className="font-semibold">{definition.title}</h3><p className="text-xs text-slate-500">{definition.description}</p></div>
@@ -174,7 +250,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
             </div>
             {isRequired && <p className="mt-2 text-xs text-slate-500">Seção estrutural obrigatória do tema.</p>}
             <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2">
-              {Object.entries(definition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} name={labelFor(key, schema)} schema={schema} value={section.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, settings: { ...current.settings, [key]: value } }))} />)}
+              {Object.entries(definition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} path={`$.templates.${templateKey}.sections[${index}].settings.${key}`} name={labelFor(key, schema)} schema={schema} value={section.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, settings: { ...current.settings, [key]: value } }))} />)}
               {!Object.keys(definition.settingsSchema.properties ?? {}).length && <p className="text-sm text-slate-500">Esta seção não tem opções configuráveis nesta versão.</p>}
               {definition.blockDefinitions?.map(blockDefinition => {
                 const blockInstances = section.blocks.filter(block => block.type === blockDefinition.type);
@@ -184,7 +260,7 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
                   </div>
                   {blockInstances.map((block, blockIndex) => <fieldset key={block.id} className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
                     <legend className="px-1 text-xs font-medium text-slate-500">{blockDefinition.title} {blockIndex + 1}</legend>
-                    {Object.entries(blockDefinition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} name={labelFor(key, schema)} schema={schema} value={block.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, blocks: current.blocks.map(item => item.id === block.id ? { ...item, settings: { ...item.settings, [key]: value } } : item) }))} />)}
+                    {Object.entries(blockDefinition.settingsSchema.properties ?? {}).map(([key, schema]) => <SettingField key={key} path={`$.templates.${templateKey}.sections[${index}].blocks[${section.blocks.indexOf(block)}].settings.${key}`} name={labelFor(key, schema)} schema={schema} value={block.settings[key]} onChange={value => updateSection(section.id, current => ({ ...current, blocks: current.blocks.map(item => item.id === block.id ? { ...item, settings: { ...item.settings, [key]: value } } : item) }))} />)}
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={block.enabled} onChange={event => { const enabled = event.currentTarget.checked; updateSection(section.id, current => ({ ...current, blocks: current.blocks.map(item => item.id === block.id ? { ...item, enabled } : item) })); }} />Visível</label>
                     <button type="button" className="justify-self-start text-sm font-semibold text-red-700 underline" onClick={() => updateSection(section.id, current => ({ ...current, blocks: current.blocks.filter(item => item.id !== block.id) }))}>Remover bloco</button>
                   </fieldset>)}
@@ -196,16 +272,18 @@ export function ThemeDraftEditor({ installationId, initialRevision, initialDocum
       </section>
     </div>
 
-    <ThemeDraftPreview document={document} manifest={manifest} templateKey={templateKey} previewSize={previewSize} onPreviewSizeChange={setPreviewSize} />
-  </div>;
+    <ThemeDraftPreview document={document} manifest={manifest} templateKey={templateKey} previewSize={previewSize} onPreviewSizeChange={setPreviewSize} selected={selected} onSelect={selectSection} />
+  </div></FieldContext.Provider>;
 }
 
-function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPreviewSizeChange }: {
+function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPreviewSizeChange, selected, onSelect }: {
+  selected: string | null;
+  onSelect: (id: string) => void;
   document: ThemeDocument;
   manifest: ThemeManifest;
   templateKey: string;
-  previewSize: 'desktop' | 'mobile';
-  onPreviewSizeChange: (size: 'desktop' | 'mobile') => void;
+  previewSize: 'desktop' | 'tablet' | 'mobile';
+  onPreviewSizeChange: (size: 'desktop' | 'tablet' | 'mobile') => void;
 }) {
   const sections = document.templates[templateKey]?.sections ?? [];
   const colors = document.global.designTokens.colors ?? {};
@@ -222,14 +300,15 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
       <div><h2 className="font-bold">Prévia: {templateName(manifest, templateKey)}</h2><p className="mt-1 text-xs text-slate-500">Atualiza enquanto você edita</p></div>
       <div className="flex rounded-lg border p-1" role="group" aria-label="Tamanho da prévia">
         <button type="button" aria-pressed={previewSize === 'desktop'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'desktop' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('desktop')}>Desktop</button>
+        <button type="button" aria-pressed={previewSize === 'tablet'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'tablet' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('tablet')}>Tablet</button>
         <button type="button" aria-pressed={previewSize === 'mobile'} className={'rounded px-2 py-1 text-xs ' + (previewSize === 'mobile' ? 'bg-slate-900 text-white' : '')} onClick={() => onPreviewSizeChange('mobile')}>Celular</button>
       </div>
     </div>
     <p className="my-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Esboço rápido enquanto você edita. Para ver início, categoria, produto e busca com seus produtos reais, salve e clique em “Prévia real”.</p>
     <div className="overflow-auto rounded-xl border bg-slate-100 p-2">
-      <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : '100%', maxWidth: '100%' }}>
+      <div className="mx-auto max-h-[70vh] overflow-y-auto rounded-lg border shadow-sm transition-[width] duration-200" style={{ width: previewSize === 'mobile' ? 360 : previewSize === 'tablet' ? 768 : '100%', maxWidth: '100%' }}>
         <div style={{ color: textColor, backgroundColor: background, fontFamily }}>
-          {sections.filter(section => section.enabled).map(section => {
+          {sections.filter(section => section.enabled).map(section => <div key={section.id} role="button" tabIndex={0} title="Clique para editar esta seção" aria-label={'Editar ' + (manifest.sections.find(item => item.type === section.type)?.title ?? 'seção')} onClick={() => onSelect(section.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(section.id); } }} className={'cursor-pointer outline-offset-[-2px] hover:outline hover:outline-2 hover:outline-brand/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ' + (selected === section.id ? 'outline outline-2 outline-brand' : '')}>{(() => {
             const definition = manifest.sections.find(item => item.type === section.type);
             const settings = section.settings;
             if (section.type === 'storeos.announcement.v1') {
@@ -281,20 +360,55 @@ function ThemeDraftPreview({ document, manifest, templateKey, previewSize, onPre
               <p>{String(settings.text ?? '')}</p><p className="mt-2 text-slate-500">{String(globalSettings.footerNote ?? '© Sua loja')}</p>{settings.showNewsletter ? <p className="mt-3 font-semibold">Receba novidades por e-mail</p> : null}
             </footer>;
             return <section key={section.id} className="border-t px-4 py-6"><h3 className="font-semibold">{definition?.title ?? section.type}</h3><p className="mt-1 text-xs text-slate-500">Seção habilitada no layout do tema.</p></section>;
-          })}
+          })()}</div>)}
         </div>
       </div>
     </div>
-    <p className="mt-3 text-xs text-slate-500">Prévia local dos componentes permitidos, sem carregar HTML, scripts ou imagens externas do tema.</p>
+    <p className="mt-3 text-xs text-slate-500">Clique numa parte da prévia para editar a seção correspondente. Prévia local dos componentes permitidos, sem carregar HTML, scripts ou imagens externas do tema.</p>
   </aside>;
 }
 
-function SettingField({ name, schema, value, onChange }: { name: string; schema: FieldSchema; value: JsonValue | undefined; onChange: (value: JsonValue) => void }) {
-  if (schema.type === 'boolean') return <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={Boolean(value ?? false)} onChange={event => onChange(event.currentTarget.checked)} />{name}</label>;
-  if (schema.enum) return <label className="text-sm font-medium">{name}<select className="input" value={String(value ?? schema.enum[0] ?? '')} onChange={event => onChange(event.currentTarget.value)}>{schema.enum.map(option => <option key={String(option)} value={option}>{String(option)}</option>)}</select></label>;
-  if (schema.type === 'integer' || schema.type === 'number') return <label className="text-sm font-medium">{name}<input className="input" type="number" min={schema.minimum} max={schema.maximum} step={schema.type === 'integer' ? 1 : 'any'} value={typeof value === 'number' ? value : ''} onChange={event => { const next = event.currentTarget.value; if (next !== '') onChange(Number(next)); }} /></label>;
-  const isUrl = /(?:url|href)$/i.test(name);
-  return <label className="text-sm font-medium">{name}<input className="input" type={isUrl ? 'url' : 'text'} maxLength={schema.maxLength} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.currentTarget.value)} /></label>;
+function SettingField({ path, name, schema, value, onChange }: { path: string; name: string; schema: FieldSchema; value: JsonValue | undefined; onChange: (value: JsonValue) => void }) {
+  const { links, issues } = useContext(FieldContext);
+  const issue = issues.get(path);
+  const key = path.split('.').pop() ?? '';
+  const hint = issue ? <span role="note" className="mt-1 block text-xs font-normal text-amber-800">{issue}</span> : null;
+  if (schema.type === 'boolean') return <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={Boolean(value ?? false)} onChange={event => onChange(event.currentTarget.checked)} />{name}{hint}</label>;
+  if (schema.enum) return <label className="text-sm font-medium">{name}<select className="input" value={String(value ?? schema.enum[0] ?? '')} onChange={event => onChange(event.currentTarget.value)}>{schema.enum.map(option => <option key={String(option)} value={option}>{String(option)}</option>)}</select>{hint}</label>;
+  if (schema.type === 'integer' || schema.type === 'number') return <label className="text-sm font-medium">{name}<input className="input" type="number" min={schema.minimum} max={schema.maximum} step={schema.type === 'integer' ? 1 : 'any'} value={typeof value === 'number' ? value : ''} onChange={event => { const next = event.currentTarget.value; if (next !== '') onChange(Number(next)); }} />{(schema.minimum !== undefined || schema.maximum !== undefined) && <span className="mt-1 block text-xs font-normal text-slate-500">De {schema.minimum ?? 0} a {schema.maximum ?? '…'}</span>}{hint}</label>;
+  const text = typeof value === 'string' ? value : '';
+  if (/image(url)?$/i.test(key)) return <ImageField name={name} value={text} onChange={onChange} hint={hint} />;
+  if (/(url|href|link)$/i.test(key)) return <LinkField name={name} value={text} links={links} onChange={onChange} hint={hint} />;
+  const long = (schema.maxLength ?? 0) > 120 || /^(body|text|description|message)$/i.test(key);
+  const counter = schema.maxLength ? <span className={'mt-1 block text-right text-xs font-normal ' + (text.length > schema.maxLength * 0.9 ? 'text-amber-700' : 'text-slate-400')}>{text.length}/{schema.maxLength}</span> : null;
+  return <label className={'text-sm font-medium ' + (long ? 'sm:col-span-2' : '')}>{name}{long
+    ? <textarea className="input" rows={4} maxLength={schema.maxLength} value={text} onChange={event => onChange(event.currentTarget.value)} />
+    : <input className="input" type="text" maxLength={schema.maxLength} value={text} onChange={event => onChange(event.currentTarget.value)} />}{counter}{hint}</label>;
+}
+
+function ImageField({ name, value, onChange, hint }: { name: string; value: string; onChange: (value: JsonValue) => void; hint: React.ReactNode }) {
+  return <div className="grid gap-2 sm:col-span-2"><span className="text-sm font-medium">{name}</span>
+    {value && <div className="flex items-center gap-3 rounded-xl border bg-slate-50 p-2"><img src={value} alt="" className="h-16 w-24 rounded-lg object-cover" /><button type="button" className="text-sm text-slate-500 underline hover:text-red-700" onClick={() => onChange('')}>Remover imagem</button></div>}
+    <ImageUploader key={value || 'vazio'} kind="banner" label={value ? 'Trocar imagem' : 'Enviar imagem do computador'} onUploaded={urls => { if (urls[0]) onChange(urls[0]); }} />
+    <label className="text-xs text-slate-500">Ou cole o endereço da imagem (https://…)<input type="url" className="input" value={value} onChange={event => onChange(event.currentTarget.value)} /></label>{hint}</div>;
+}
+
+/** Escolha de destino por lista (categorias, coleções, páginas). Só quem precisa digita um endereço. */
+function LinkField({ name, value, links, onChange, hint }: { name: string; value: string; links: LinkOption[]; onChange: (value: JsonValue) => void; hint: React.ReactNode }) {
+  const known = links.some(link => link.href === value);
+  const [custom, setCustom] = useState(Boolean(value) && !known);
+  const groups = [...new Set(links.map(link => link.group))];
+  return <div className="grid gap-1 text-sm font-medium"><label>{name}<select className="input" value={custom ? '__outro' : value} onChange={event => {
+    const next = event.currentTarget.value;
+    if (next === '__outro') { setCustom(true); return; }
+    setCustom(false); onChange(next);
+  }}>
+    <option value="">Sem link</option>
+    {groups.map(group => <optgroup key={group} label={group}>{links.filter(link => link.group === group).map(link => <option key={link.href} value={link.href}>{link.label}</option>)}</optgroup>)}
+    <option value="__outro">Outro endereço…</option>
+  </select></label>
+    {custom && <label className="text-xs font-normal text-slate-500">Endereço (começando com / para páginas da loja, ou https://)<input className="input" type="text" value={value} placeholder="/categorias/vestidos" onChange={event => onChange(event.currentTarget.value)} /></label>}
+    {hint}</div>;
 }
 
 const AREA: Record<string, string> = { content: 'Conteúdo', accessibility: 'Acessibilidade', seo: 'SEO' };

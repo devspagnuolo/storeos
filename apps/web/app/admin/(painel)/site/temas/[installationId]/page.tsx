@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { ThemeDraftEditor } from '../../../../../../components/admin/theme-draft-editor';
+import { ThemeDraftEditor, type LinkOption } from '../../../../../../components/admin/theme-draft-editor';
 import { restoreThemePublicationAction } from '../../../../actions';
+import { getCategories, getCollections, getPages } from '../../../../../../lib/api';
 import { adminFetch } from '../../../../../../lib/admin/session';
 import type { ThemeStatus } from '../../../../../../lib/admin/storefront';
 
@@ -20,13 +21,22 @@ export default async function EditThemePage({ params, searchParams }: { params: 
     adminFetch<ThemeDraftResponse>(`/themes/installations/${encodeURIComponent(installationId)}/draft`),
     adminFetch<ThemeStatus>('/themes/status').catch(() => null),
   ]);
+  const [categories, collections, pages] = await Promise.all([getCategories(), getCollections(), getPages()]);
+  const links: LinkOption[] = [
+    { group: 'Loja', label: 'Página inicial', href: '/' },
+    { group: 'Loja', label: 'Todos os produtos', href: '/categorias' },
+    { group: 'Loja', label: 'Busca', href: '/busca' },
+    ...categories.map(item => ({ group: 'Categorias', label: item.name, href: '/categorias/' + item.slug })),
+    ...collections.map(item => ({ group: 'Coleções', label: item.name, href: '/colecoes/' + item.slug })),
+    ...pages.map(item => ({ group: 'Páginas', label: item.title, href: '/p/' + item.slug })),
+  ];
   const publications = (await adminFetch<Publication[]>('/themes/publications').catch(() => [])).filter(item => item.installationId === result.installation.id);
   return <>
     <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">Personalizar loja</Link> <span className="text-slate-400">›</span> <Link href="/painel/site/temas" className="font-medium text-brand hover:underline">Escolher tema</Link></nav>
     {query.restaurado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Versão trazida de volta como rascunho. Confira a prévia e publique quando estiver pronta; a loja ainda não mudou.</p>}
     {query.erro && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">{query.erro}</p>}
     <div className="mt-4">
-      <ThemeDraftEditor key={result.draft.revision} installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} publishEnabled={status?.publishEnabled ?? false} />
+      <ThemeDraftEditor key={query.restaurado ?? 'editor'} installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} publishEnabled={status?.publishEnabled ?? false} links={links} />
     </div>
     <section aria-labelledby="versoes" className="mt-8 rounded-2xl border bg-surface p-5">
       <h2 id="versoes" className="text-lg font-bold">Versões publicadas deste tema</h2>

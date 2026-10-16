@@ -1189,7 +1189,7 @@ export async function saveThemeDraftAction(installationId: string, revision: num
   try { document = JSON.parse(documentJson); } catch { return { error: 'O documento do tema está malformado.' }; }
   try {
     const saved = await adminFetch<{ revision: number }>(`/themes/installations/${encodeURIComponent(installationId)}/draft`, { method: 'PATCH', body: { revision, document } });
-    revalidatePath(`/admin/site/temas/${encodeURIComponent(installationId)}`);
+    // Não revalida a página do editor: ela recriaria o editor e apagaria o desfazer/refazer de quem está editando.
     revalidatePath('/admin/site/temas');
     return { ok: 'Rascunho salvo. A loja publicada não foi alterada.', revision: saved.revision };
   } catch (error) {
@@ -1236,11 +1236,13 @@ export async function restoreThemePublicationAction(form: FormData): Promise<voi
   const revision = Number(form.get('revision'));
   const back = `/admin/site/temas/${encodeURIComponent(installationId)}`;
   if (!/^[a-zA-Z0-9_-]{1,96}$/.test(publicationId) || !/^[a-zA-Z0-9_-]{1,96}$/.test(installationId) || !Number.isInteger(revision) || revision < 1) redirect(`${back}?erro=Dados+inv%C3%A1lidos.`);
+  let restored = 0;
   try {
-    await adminFetch(`/themes/publications/${encodeURIComponent(publicationId)}/restore`, { method: 'POST', body: { revision } });
+    restored = (await adminFetch<{ revision: number }>(`/themes/publications/${encodeURIComponent(publicationId)}/restore`, { method: 'POST', body: { revision } })).revision;
   } catch (error) {
     redirect(`${back}?erro=${encodeURIComponent(error instanceof ApiError ? error.message : 'Não foi possível restaurar a versão.')}`);
   }
   revalidatePath(back);
-  redirect(`${back}?restaurado=1`);
+  // A revisão no endereço recria o editor com o documento restaurado.
+  redirect(`${back}?restaurado=${restored}`);
 }
