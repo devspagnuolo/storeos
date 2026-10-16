@@ -19,6 +19,7 @@ class FakeBling {
   calls: { method: string; path: string; body?: unknown }[] = [];
   failOrders = false;
   patchNotFound = false;
+  failPost = false;
   salesOrders = new Map<string, number>();
   invoiceCalls: { method: string; path: string; body?: unknown }[] = [];
   nextId = 9000;
@@ -51,6 +52,10 @@ class FakeBling {
       if (this.failOrders) throw new Error('Bling 400: contato inválido');
       const id = this.nextId++; this.salesOrders.set((init.body as { numeroLoja: string }).numeroLoja, id); return { data: { id, numero: id + 100 } };
     }
+    if (/^\/pedidos\/vendas\/\d+\/lancar-contas$/.test(url.pathname) && this.failPost) throw new BlingApiError(403, 'Bling 403: insufficient_scope');
+    if (/^\/pedidos\/vendas\/\d+\/(lancar|estornar)-(estoque|contas)$/.test(url.pathname) && method === 'POST') return undefined;
+    if (url.pathname === '/categorias/receitas-despesas') return { data: [{ id: 70, descricao: 'Aluguel' }, { id: 71, descricao: 'Venda de mercadoria' }] };
+    if (url.pathname === '/formas-pagamentos') return { data: [{ id: 80, descricao: 'Dinheiro' }, { id: 81, descricao: 'PIX' }, { id: 82, descricao: 'Boleto bancário' }] };
     if (/^\/pedidos\/vendas\/\d+\/situacoes\/\d+$/.test(url.pathname) && method === 'PATCH') {
       if (this.patchNotFound) throw new BlingApiError(404, 'Bling 404: Não encontrado.');
       return undefined;
@@ -80,7 +85,7 @@ beforeAll(async () => {
   baseUrl = (await app.getUrl()).replace('[::1]', 'localhost');
 });
 afterAll(async () => { delete process.env.WEB_ORIGIN; delete process.env.BLING_CLIENT_SECRET; await cleanup(app); });
-beforeEach(() => { bling.calls = []; bling.failOrders = false; bling.patchNotFound = false; });
+beforeEach(() => { bling.calls = []; bling.failOrders = false; bling.patchNotFound = false; bling.failPost = false; });
 
 const connect = (storeId: string) => prisma.blingConnection.create({ data: { storeId, companyId: '777', accessTokenEnc: encryptSecret('acc', resolveJwtSecret()), refreshTokenEnc: encryptSecret('ref', resolveJwtSecret()), expiresAt: new Date(Date.now() + 3_600_000) } });
 const waitFor = async <T>(read: () => Promise<T>, done: (value: T) => boolean) => { for (let i = 0; i < 60; i++) { const value = await read(); if (done(value)) return value; await new Promise(r => setTimeout(r, 100)); } throw new Error('tempo esgotado'); };
@@ -211,6 +216,14 @@ describe('pedidos do site no Bling', () => {
     expect(bling.calls.find(c => c.path.startsWith('/contatos?') && c.method === 'GET')!.path).toContain('numeroDocumento=52998224725');
     const sale = bling.calls.find(c => c.method === 'POST' && c.path === '/pedidos/vendas')!.body as { numeroLoja: string; contato: { id: number }; itens: { codigo: string; quantidade: number; produto?: { id: number } }[] };
     expect(sale).toMatchObject({ numeroLoja: checkout.body.number, contato: { id: 321 }, itens: [{ codigo: 'VASO-1', quantidade: 2, produto: { id: 555 } }] });
+    // Pago: entra no financeiro como Venda de Mercadoria, com a forma de pagamento, e é baixado (estoque, contas, Atendido).
+    expect(sale).toMatchObject({ categoria: { id: 71 }, parcelas: [{ valor: Number(order.total), formaPagamento: { id: 82 } }] });
+    const blingId = sync.blingOrderId;
+    expect(bling.calls.filter(c => c.path.startsWith(`/pedidos/vendas/${blingId}/`)).map(c => `${c.method} ${c.path}`)).toEqual([
+      `POST /pedidos/vendas/${blingId}/lancar-estoque`, `POST /pedidos/vendas/${blingId}/lancar-contas`, `PATCH /pedidos/vendas/${blingId}/situacoes/9`,
+    ]);
+    expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({ blingSituationId: '9', blingSituationName: 'Atendido', postError: null });
+    expect((await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).postedAt).toBeTruthy();
     expect((await prisma.customer.findFirstOrThrow({ where: { storeId: store.id } })).document).toBe('52998224725');
 
     // Não envia duas vezes.
@@ -294,7 +307,9 @@ describe('pedidos do site no Bling', () => {
     await lifecycle.markRefunded({ orderId: order.id }, { message: 'Estornado no Mercado Pago' });
     bling.calls = [];
     await orders.processDue();
-    expect(bling.calls.filter(c => c.method === 'PATCH')).toEqual([{ method: 'PATCH', path: `/pedidos/vendas/${sent.blingOrderId}/situacoes/12`, body: undefined }]);
+    expect(bling.calls.map(c => `${c.method} ${c.path}`)).toEqual([
+      `POST /pedidos/vendas/${sent.blingOrderId}/estornar-estoque`, `POST /pedidos/vendas/${sent.blingOrderId}/estornar-contas`, `PATCH /pedidos/vendas/${sent.blingOrderId}/situacoes/12`,
+    ]);
     expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({ blingSituationId: '12', blingSituationName: 'Cancelado', lastError: null });
 
     bling.calls = [];
@@ -334,6 +349,27 @@ describe('pedidos do site no Bling', () => {
     bling.patchNotFound = true;
     await orders.processDue();
     expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: second.order.id } })).toMatchObject({ blingSituationId: '12', blingSituationName: 'Cancelado', lastError: null });
+  });
+
+  it('se o lançamento de contas falha, o pedido fica no Bling e a baixa é tentada de novo', async () => {
+    const { store, product } = await createStore(5);
+    await connect(store.id);
+    const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }], 'PIX') });
+    const order = await prisma.order.findFirstOrThrow({ where: { number: checkout.body.number } });
+    await app.get(OrderLifecycleService).markPaid({ orderId: order.id });
+    bling.failPost = true;
+    const orders = app.get(BlingOrdersService);
+    await orders.processDue();
+    const failed = await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } });
+    expect(failed).toMatchObject({ status: 'SENT', postedAt: null, attempts: 1 });
+    expect(failed.postError).toContain('insufficient_scope');
+
+    bling.failPost = false;
+    await prisma.blingOrderSync.update({ where: { id: failed.id }, data: { nextAttemptAt: new Date() } });
+    bling.calls = [];
+    await orders.processDue();
+    expect(await prisma.blingOrderSync.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({ postError: null, attempts: 0, blingSituationId: '9' });
+    expect(bling.calls.filter(c => c.method === 'POST' && c.path === '/pedidos/vendas')).toHaveLength(0);
   });
 
   it('falha fica registrada com espera, e o reenvio manual conclui sem duplicar', async () => {

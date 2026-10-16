@@ -976,6 +976,9 @@ model BlingOrderSync {
   lastError     String?
   nextAttemptAt DateTime        @default(now())
   sentAt        DateTime?
+  /// Quando o pedido pago foi baixado no Bling (estoque e contas lançados, situação Atendido).
+  postedAt      DateTime?
+  postError     String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   store         Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)

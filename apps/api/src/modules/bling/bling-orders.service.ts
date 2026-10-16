@@ -3,7 +3,7 @@ import { Interval } from '@nestjs/schedule';
 import { BlingSyncStatus, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { BlingAuthService } from './bling-auth.service';
-import { contactPayload, OrderForBling, salesOrderPayload } from './bling-mapper';
+import { contactPayload, matchCategory, matchPaymentForm, OrderForBling, SalesOrderFinance, salesOrderPayload } from './bling-mapper';
 import { BlingApiError, BlingClient } from './bling.client';
 
 const MAX_ATTEMPTS = 6;
@@ -19,6 +19,12 @@ export const VOIDED_STATUSES: OrderStatus[] = [OrderStatus.CANCELLED, OrderStatu
 /** "Cancelado" é a situação padrão 12 do módulo de vendas do Bling; BLING_CANCELLED_SITUATION_ID troca, se a conta usar outra. */
 const cancelledSituationId = () => process.env.BLING_CANCELLED_SITUATION_ID?.trim() || '12';
 const CANCEL_RETRY_MS = 10 * 60_000;
+/** "Atendido" é a situação padrão 9; BLING_PAID_SITUATION_ID troca. */
+const paidSituationId = () => process.env.BLING_PAID_SITUATION_ID?.trim() || '9';
+/** Categoria financeira da conta a receber; BLING_SALES_CATEGORY troca o nome procurado. */
+const salesCategoryName = () => process.env.BLING_SALES_CATEGORY?.trim() || 'Venda de Mercadoria';
+/** O Bling responde erro ao lançar o que já foi lançado (por exemplo, pela transição automática de situação). */
+const alreadyDone = (error: unknown) => error instanceof BlingApiError && error.status < 500 && /j[aá]\s|lan[cç]ad|estornad/i.test(error.message);
 
 /** Envia todos os pedidos da loja ao Bling; falhas ficam registradas e são repetidas com espera crescente. */
 @Injectable()
@@ -64,8 +70,53 @@ export class BlingOrdersService {
       take: BATCH,
     });
     for (const sync of due) await this.send(sync.id);
+    await this.postPaid();
     await this.cancelVoided();
     return due.length;
+  }
+
+  /** Pedidos pagos já no Bling e ainda não baixados (falha anterior) tentam de novo. */
+  async postPaid() {
+    const rows = await this.prisma.blingOrderSync.findMany({
+      where: { status: BlingSyncStatus.SENT, postedAt: null, blingOrderId: { not: null }, attempts: { lt: MAX_ATTEMPTS }, nextAttemptAt: { lte: new Date() }, order: { status: { in: SENDABLE_STATUSES } } },
+      orderBy: { updatedAt: 'asc' },
+      take: BATCH,
+      select: { id: true },
+    });
+    for (const row of rows) await this.post(row.id);
+    return rows.length;
+  }
+
+  /** Pedido pago vira venda concluída no Bling: lança estoque e contas a receber e passa para "Atendido". */
+  private async post(syncId: string) {
+    const sync = await this.prisma.blingOrderSync.findUniqueOrThrow({ where: { id: syncId } });
+    if (sync.postedAt || !sync.blingOrderId) return null;
+    const path = `/pedidos/vendas/${encodeURIComponent(sync.blingOrderId)}`;
+    try {
+      const token = await this.auth.accessToken(sync.storeId);
+      for (const step of ['lancar-estoque', 'lancar-contas']) {
+        await this.client.request(token, `${path}/${step}`, { method: 'POST' }).catch((error: unknown) => {
+          if (!alreadyDone(error)) throw error;
+        });
+      }
+      const situationId = paidSituationId();
+      await this.client.request(token, `${path}/situacoes/${encodeURIComponent(situationId)}`, { method: 'PATCH' }).catch((error: unknown) => {
+        // 404 aqui é o pedido já estar nessa situação.
+        if (!(error instanceof BlingApiError && error.status === 404)) throw error;
+      });
+      return await this.prisma.blingOrderSync.update({
+        where: { id: sync.id },
+        data: { postedAt: new Date(), postError: null, attempts: 0, blingSituationId: situationId, blingSituationName: situationId === '9' ? 'Atendido' : sync.blingSituationName },
+      });
+    } catch (error) {
+      const attempts = sync.attempts + 1;
+      const message = (error as Error).message.slice(0, 500);
+      this.logger.warn('Pedido ' + sync.orderId + ' não foi baixado no Bling (tentativa ' + attempts + '): ' + message);
+      return this.prisma.blingOrderSync.update({
+        where: { id: sync.id },
+        data: { postError: message, attempts, nextAttemptAt: new Date(Date.now() + Math.min(2 ** attempts * 60_000, 6 * 3_600_000)) },
+      });
+    }
   }
 
   /** Pedidos já no Bling que foram cancelados ou reembolsados na loja passam para a situação "Cancelado" lá. */
@@ -86,6 +137,14 @@ export class BlingOrdersService {
       try {
         const token = await this.auth.accessToken(row.storeId);
         const path = `/pedidos/vendas/${encodeURIComponent(row.blingOrderId!)}`;
+        if (row.postedAt) {
+          // Devolve o estoque e tira a conta a receber antes de cancelar; se não havia lançamento, o Bling só recusa.
+          for (const step of ['estornar-estoque', 'estornar-contas']) {
+            await this.client.request(token, `${path}/${step}`, { method: 'POST' }).catch((error: unknown) => {
+              this.logger.warn('Pedido ' + row.orderId + ': ' + step + ' no Bling não foi feito: ' + (error as Error).message.slice(0, 200));
+            });
+          }
+        }
         try {
           await this.client.request(token, `${path}/situacoes/${encodeURIComponent(situationId)}`, { method: 'PATCH' });
         } catch (error) {
@@ -159,7 +218,7 @@ export class BlingOrdersService {
     }
     try {
       const remote = await this.export(sync.storeId, sync.orderId);
-      return await this.prisma.blingOrderSync.update({
+      const sent = await this.prisma.blingOrderSync.update({
         where: { id: sync.id },
         data: {
           status: BlingSyncStatus.SENT,
@@ -170,6 +229,7 @@ export class BlingOrdersService {
           nextAttemptAt: new Date(),
         },
       });
+      return (await this.post(sent.id)) ?? sent;
     } catch (error) {
       const attempts = sync.attempts + 1;
       const message = (error as Error).message.slice(0, 500);
@@ -223,7 +283,7 @@ export class BlingOrdersService {
 
     const created = (await call<{ data: { id: number; numero?: number | string } }>('/pedidos/vendas', {
       method: 'POST',
-      body: salesOrderPayload(data, contactId, productIds),
+      body: salesOrderPayload(data, contactId, productIds, await this.finance(storeId, data.paymentMethod, call)),
     })).data;
     let remoteNumber = created.numero;
     if (remoteNumber === undefined || remoteNumber === null) {
@@ -231,5 +291,22 @@ export class BlingOrdersService {
       remoteNumber = detail.data.numero;
     }
     return { id: created.id, number: remoteNumber === undefined || remoteNumber === null ? null : String(remoteNumber) };
+  }
+
+  /** Categoria "Venda de Mercadoria" e forma de pagamento da conta Bling; sem permissão ou sem cadastro, o pedido vai sem elas. */
+  private async finance(storeId: string, method: string | null, call: <T>(path: string) => Promise<T>): Promise<SalesOrderFinance> {
+    const lookup = async <T>(path: string, pick: (rows: T[]) => number | undefined) => {
+      try {
+        return pick((await call<Listing<T>>(path)).data ?? []);
+      } catch (error) {
+        this.logger.warn('Bling (' + storeId + ') sem acesso a ' + path.split('?')[0] + ': ' + (error as Error).message.slice(0, 200));
+        return undefined;
+      }
+    };
+    const [categoryId, paymentFormId] = await Promise.all([
+      lookup<{ id: number; descricao?: string }>('/categorias/receitas-despesas?' + new URLSearchParams({ limite: '100' }), rows => matchCategory(rows, salesCategoryName())),
+      lookup<{ id: number; descricao?: string }>('/formas-pagamentos?' + new URLSearchParams({ limite: '100' }), rows => matchPaymentForm(rows, method)),
+    ]);
+    return { categoryId, paymentFormId };
   }
 }
