@@ -8,6 +8,8 @@ import { engineStyle, setEngineDraft } from '../../../../lib/theme-engine';
 import CategoryPage from '../../../categorias/[slug]/page';
 import ProductPage from '../../../produto/[slug]/page';
 import SearchPage from '../../../busca/page';
+import CartPage from '../../../carrinho/page';
+import NotFound from '../../../not-found';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Prévia do tema', robots: { index: false, follow: false } };
@@ -16,7 +18,7 @@ type DraftResponse = {
   installation: { release: { manifest: { displayName: string; slug: string; version: string } } };
   draft: { revision: number; document: ThemeDocument };
 };
-const PAGES = { inicio: 'Página inicial', categoria: 'Categoria', produto: 'Produto', busca: 'Busca' } as const;
+const PAGES = { inicio: 'Página inicial', categoria: 'Categoria', produto: 'Produto', busca: 'Busca', carrinho: 'Carrinho', erro: 'Página não encontrada' } as const;
 type PageKey = keyof typeof PAGES;
 
 /**
@@ -47,12 +49,14 @@ export default async function ThemeDraftPreview({ params, searchParams }: { para
   if (page === 'categoria') body = category ? await CategoryPage({ params: Promise.resolve({ slug: category.slug }), searchParams: Promise.resolve({}) }) : <Empty text="Cadastre uma categoria para ver esta página." />;
   else if (page === 'produto') body = product ? await ProductPage({ params: Promise.resolve({ slug: product.slug }) }) : <Empty text="Publique um produto para ver esta página." />;
   else if (page === 'busca') body = await SearchPage({ searchParams: Promise.resolve(category ? { categoria: category.slug } : {}) });
+  else if (page === 'carrinho') body = await CartPage();
+  else if (page === 'erro') body = await NotFound();
   else body = <ThemeEngineHome theme={{ document, release: { manifest } }} store={store} />;
 
   return <div className="min-h-screen" style={engineStyle(document)}>
     <div role="note" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-amber-50 px-4 py-1.5 text-center text-xs font-semibold text-amber-800">
       <span>Prévia do rascunho do tema “{manifest.displayName}” (revisão {result.draft.revision}) com seus produtos reais. Só você vê esta página.</span>
-      <nav aria-label="Páginas da prévia" className="flex gap-2">{(Object.keys(PAGES) as PageKey[]).map(key => <Link key={key} href={key === 'inicio' ? base : `${base}?pagina=${key}`} aria-current={key === page ? 'page' : undefined} className={'rounded px-2 py-0.5 ' + (key === page ? 'bg-amber-200' : 'underline')}>{PAGES[key]}</Link>)}</nav>
+      <nav aria-label="Páginas da prévia" className="flex flex-wrap justify-center gap-2">{(Object.keys(PAGES) as PageKey[]).map(key => <Link key={key} href={key === 'inicio' ? base : `${base}?pagina=${key}`} aria-current={key === page ? 'page' : undefined} className={'rounded px-2 py-0.5 ' + (key === page ? 'bg-amber-200' : 'underline')}>{PAGES[key]}</Link>)}</nav>
     </div>
     {body}
   </div>;

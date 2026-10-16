@@ -35,14 +35,14 @@ export default async function StorefrontPage({ searchParams }: { searchParams: P
   </>;
 }
 
-const PAGE_LABELS: Record<string, string> = { home: 'Página inicial', category: 'Categorias e busca', product: 'Página de produto', visual: 'Cores, fontes e marca' };
+const PAGE_LABELS: Record<string, string> = { home: 'Página inicial', category: 'Categorias', product: 'Página de produto', search: 'Busca', cart: 'Carrinho', 'not-found': 'Página não encontrada', visual: 'Cores, fontes e marca' };
 
 /** Mostra quem desenha cada página da loja e os rascunhos de temas que ainda não estão no ar. */
 function ThemeControl({ status, advancedName, drafts }: { status: ThemeStatus | null; advancedName?: string; drafts: { id: string; name: string; updatedAt: string }[] }) {
   const templates = status?.templates ?? Object.keys(PAGE_LABELS).map(pageType => ({ pageType, controlledBy: 'editor' as const }));
   return <section aria-labelledby="quem-desenha" className="mt-5 rounded-xl border bg-surface p-4 text-sm">
     <h2 id="quem-desenha" className="font-semibold">Quem desenha cada página da loja</h2>
-    <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <ul className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
       {templates.map(item => <li key={item.pageType} className="rounded-lg bg-slate-50 px-3 py-2">
         <span className="block font-medium">{PAGE_LABELS[item.pageType] ?? item.pageType}</span>
         <span className={'text-xs ' + (item.controlledBy === 'engine' ? 'text-amber-800' : 'text-slate-500')}>{item.controlledBy === 'engine' ? `Tema avançado “${advancedName ?? 'ativo'}”` : 'Este editor'}</span>

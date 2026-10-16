@@ -20,11 +20,11 @@ e como voltar atrás. Complementa `theme-engine-architecture.md` (modelo-alvo).
 | Versões do tema | idem | `GET /themes/publications`, `POST /themes/publications/:id/restore` | Restaurar copia a versão para o `ThemeDraft` (revisão +1, 409) | Não |
 | Situação | `/painel/site`, temas | `GET /themes/status` (novo) | Leitura: quem desenha cada página e se a publicação avançada está liberada | Não |
 
-Runtime público (com a chave ligada, desde a Fase 2): cores/fonte/botões do tema em toda a loja via `engineStyle`; home pelo `ThemeEngineHome`; categoria, produto e busca leem as opções do tema via `lib/theme-engine.ts` e escondem as seções extras do editor legado nessas páginas. Preço, estoque, opções e compra nunca mudam por tema.
+Runtime público (com a chave ligada, desde a Fase 2): cores/fonte/botões do tema em toda a loja via `engineStyle`; home pelo `ThemeEngineHome`; categoria, produto, busca, carrinho (título, texto do botão, cálculo de frete) e página 404 (título, mensagem, botão) leem as opções do tema via `lib/theme-engine.ts` e escondem as seções extras do editor legado nessas páginas. Preço, estoque, opções e compra nunca mudam por tema.
 
 `GET /store/public/:slug` devolve `themeConfig` (editor) e `publishedTheme`
 (Theme Engine). `app/page.tsx` usa `ThemeEngineHome` quando há `publishedTheme`, senão `StorefrontHome`.
-Categoria, produto, busca, carrinho e páginas de conteúdo sempre seguem `themeConfig`.
+Sem tema avançado publicado, todas as páginas seguem `themeConfig`. Páginas de conteúdo (`/p/...`) seguem sempre o editor; a loja não tem blog.
 
 ## 2. Situação em produção (consulta somente leitura, 2026-10-16)
 
@@ -69,6 +69,8 @@ Nada é apagado: instalações, rascunhos e `ThemeEnginePublication` permanecem.
   restaurar, conflito 409 e temas prontos do editor (já existentes).
 - `src/modules/store/theme-engine-flag.spec.ts`: regras da chave.
 
+Telas: `responsive` (Playwright, manual) confere que nenhuma página pública ou do painel passa da largura em 360px e 768px.
+
 Pendente: capturas de tela de referência automatizadas (o CI ainda não tem navegador). Hoje as
 capturas são feitas manualmente com Playwright antes de cada fase.
 
@@ -78,7 +80,7 @@ capturas são feitas manualmente com Playwright antes de cada fase.
 |---|---|
 | 0 — inventário e proteção | Feito (este documento, chave, testes). Capturas automáticas no CI pendentes |
 | 1 — jornada unificada | Feito: uma entrada "Personalizar loja" no menu, "Trocar tema" leva à escolha, instalar abre direto o rascunho, quadro "Quem desenha cada página", rascunhos com "Continuar editando", publicação avançada só com chave |
-| 2 — prévia real de todas as páginas | Em andamento: prévia privada `/previa/tema/:id?pagina=inicio|categoria|produto|busca` desenhada pelas mesmas páginas da vitrine com dados reais; o tema publicado aplica cores, fonte e botões em toda a loja e as opções de categoria (título, subtítulo, itens por página), produto (descrição, SKU, texto do botão) e busca (título, itens por página). Falta: carrinho, páginas de conteúdo, blog e 404 |
-| 3 — inspetor por schema, seletores | Em andamento: campos gerados do schema com rótulos, limites e contador; seletor de imagem (envio para a biblioteca de mídia ou endereço); seletor de link (categorias, coleções, páginas ou endereço próprio); avisos da verificação ao lado do campo; desfazer/refazer (Ctrl+Z / Ctrl+Y); salvamento automático do rascunho com aviso de conflito (409); clicar na prévia seleciona a seção; prévia em computador, tablet e celular. Falta: configurações por tamanho de tela (exige campos novos no manifesto do tema) e biblioteca de seções reutilizáveis |
+| 2 — prévia real de todas as páginas | Em andamento: prévia privada `/previa/tema/:id?pagina=inicio|categoria|produto|busca|carrinho|erro` desenhada pelas mesmas páginas da vitrine com dados reais; o tema publicado aplica cores, fonte e botões em toda a loja e as opções de categoria (título, subtítulo, itens por página), produto (descrição, SKU, texto do botão), busca (título, itens por página), carrinho e 404. Falta: páginas de conteúdo e blog (o motor ainda não tem modelo para elas; a loja não tem blog) |
+| 3 — inspetor por schema, seletores | Em andamento: campos gerados do schema com rótulos, limites e contador; seletor de imagem (envio para a biblioteca de mídia ou endereço); seletor de link (categorias, coleções, páginas ou endereço próprio); avisos da verificação ao lado do campo; desfazer/refazer (Ctrl+Z / Ctrl+Y); salvamento automático do rascunho com aviso de conflito (409); clicar na prévia seleciona a seção; prévia em computador, tablet e celular; editor utilizável no celular (abas Editar/Prévia, nada passa da largura da tela). Falta: configurações por tamanho de tela (exige campos novos no manifesto do tema) e biblioteca de seções reutilizáveis |
 | 4 — validação, histórico, comparação, rollback do motor | Em andamento: `POST /themes/installations/:id/validate` (erros + avisos de conteúdo, acessibilidade/contraste WCAG AA e SEO) mostrado no editor e lembrado ao publicar; `GET /themes/publications` e `POST /themes/publications/:id/restore` (volta como rascunho com revisão, nunca publica); URLs para rede interna/privada bloqueadas no contrato. Falta: comparação visual publicado × rascunho, agendamento |
 | 5 — catálogo curado | A fazer |

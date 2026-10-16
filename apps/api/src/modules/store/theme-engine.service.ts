@@ -8,10 +8,10 @@ import { themeEngineEnabledFor } from './theme-engine-flag';
 import { themeChecks } from './theme-engine-checks';
 
 /**
- * O que o runtime público do Theme Engine já desenha: página inicial completa; em categoria, produto e busca
+ * O que o runtime público do Theme Engine já desenha: página inicial completa; em categoria, produto, busca, carrinho e 404
  * as opções de apresentação do tema; e cores, fonte e botões em toda a loja. O resto segue o editor da loja.
  */
-export const ENGINE_PUBLIC_TEMPLATES = ['home', 'category', 'product', 'search', 'visual'] as const;
+export const ENGINE_PUBLIC_TEMPLATES = ['home', 'category', 'product', 'search', 'cart', 'not-found', 'visual'] as const;
 
 const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, addUsedSchema: false });
 const schemaCache = new Map<string, ValidateFunction>();
@@ -191,7 +191,7 @@ export class ThemeEngineService {
     return {
       publishEnabled,
       active: active ? { installationId: active.id, name, version: active.release.version, live } : null,
-      templates: ['home', 'category', 'product', 'search', 'visual'].map(pageType => ({
+      templates: ['home', 'category', 'product', 'search', 'cart', 'not-found', 'visual'].map(pageType => ({
         pageType,
         controlledBy: live && (ENGINE_PUBLIC_TEMPLATES as readonly string[]).includes(pageType) ? 'engine' : 'editor',
       })),
