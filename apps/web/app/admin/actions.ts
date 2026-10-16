@@ -1284,3 +1284,18 @@ export async function restoreThemePublicationAction(form: FormData): Promise<voi
   // A revisão no endereço recria o editor com o documento restaurado.
   redirect(`${back}?restaurado=${restored}`);
 }
+
+export async function savePaymentRulesAction(_: FormState, form: FormData): Promise<FormState> {
+  const number = (key: string) => Number(String(form.get(key) ?? '').replace(/\./g, '').replace(',', '.'));
+  const body = { maxInstallments: Math.trunc(number('maxInstallments')), maxFreeInstallments: Math.trunc(number('maxFreeInstallments')), minFreeInstallment: Math.round(number('minFreeInstallment') * 100) / 100 };
+  if (Object.values(body).some(value => !Number.isFinite(value))) return { error: 'Preencha os três campos com números.' };
+  if (body.maxFreeInstallments > body.maxInstallments) return { error: 'O sem juros não pode passar do máximo de parcelas.' };
+  try {
+    await adminFetch('/payments/rules', { method: 'PUT', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/pagamentos');
+  return { ok: 'Regras de parcelamento salvas. O checkout já usa os novos valores.' };
+}

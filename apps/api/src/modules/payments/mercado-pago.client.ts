@@ -101,6 +101,13 @@ export class MercadoPagoClient {
     return result[0]?.payer_costs ?? [];
   }
 
+  /** Planos de parcelamento da conta para uma bandeira, sem cartão: mostra no painel se o sem juros está ligado no Mercado Pago. */
+  async brandInstallments(amount: number, paymentMethodId: string): Promise<InstallmentOffer[]> {
+    const query = new URLSearchParams({ amount: amount.toFixed(2), payment_method_id: paymentMethodId });
+    const result = await this.request<{ payer_costs?: InstallmentOffer[] }[]>(`/v1/payment_methods/installments?${query}`);
+    return result[0]?.payer_costs ?? [];
+  }
+
   getPayment(id: string) {
     return this.request<MercadoPagoPayment>(`/v1/payments/${encodeURIComponent(id)}`);
   }

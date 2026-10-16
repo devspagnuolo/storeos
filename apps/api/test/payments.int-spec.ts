@@ -42,6 +42,10 @@ class FakeMercadoPago {
   /** Parcelas que o gateway oferece: por padrão, 2 a 6x com juros pagos pelo cliente. */
   offers: ((amount: number) => { installments: number; installment_amount: number; total_amount: number }[]) | undefined = amount => [1, 2, 3, 6].map(n => ({ installments: n, total_amount: n === 1 ? amount : amount * 1.1, installment_amount: (n === 1 ? amount : amount * 1.1) / n }));
   readonly defaultOffers = this.offers;
+  async brandInstallments(amount: number) {
+    if (!this.offers) throw new Error('gateway fora do ar');
+    return this.offers(amount);
+  }
   async installmentOffers(input: { amount: number }) {
     if (!this.offers) throw new Error('gateway fora do ar');
     return this.offers(input.amount);
@@ -260,6 +264,26 @@ describe('cartão e boleto pelo Mercado Pago', () => {
       const { store, product } = await createStore(5);
       process.env.MERCADOPAGO_MAX_INSTALLMENTS = '2';
       try { expect((await pay(store.slug, product.id, { cpf, card })).status).toBe(400); } finally { delete process.env.MERCADOPAGO_MAX_INSTALLMENTS; }
+    });
+
+    it('aceita sem juros quando a loja libera no painel, e mostra a regra no checkout', async () => {
+      const { store, product } = await createStore(5);
+      mercadoPago.offers = amount => [1, 2, 3].map(n => ({ installments: n, total_amount: amount, installment_amount: amount / n }));
+      const token = await login(api, store, ['settings.write']);
+      const saved = await api('/payments/rules', { method: 'PUT', token, body: { maxInstallments: 10, maxFreeInstallments: 3, minFreeInstallment: 30 } });
+      expect(saved.body.limits).toEqual({ max: 10, maxFree: 3, minFree: 30 });
+      expect((await api(`/payments/config?store=${store.slug}`)).body.card).toMatchObject({ maxInstallments: 10, maxFreeInstallments: 3, minFreeInstallment: 30 });
+      expect((await pay(store.slug, product.id, { cpf, card })).status).toBe(201);
+    });
+
+    it('simula no painel o que o Mercado Pago oferece e o que a loja mostra', async () => {
+      const { store } = await createStore(5);
+      const token = await login(api, store, ['settings.write']);
+      expect((await api('/payments/rules/simulation?amount=300')).status).toBe(401);
+      const result = await api('/payments/rules/simulation?amount=300', { token });
+      expect(result.status).toBe(200);
+      expect(result.body.brands.map((b: { id: string }) => b.id)).toEqual(['master', 'visa', 'elo']);
+      expect(result.body.brands[0].rows.find((r: { installments: number }) => r.installments === 3)).toMatchObject({ interestFree: false, shown: true });
     });
   });
 

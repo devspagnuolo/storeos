@@ -4,7 +4,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { generateOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from '../orders/order-lines';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
 import { CardPayment, ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
-import { clampInstallments, declineMessage, MAX_INSTALLMENTS, InstallmentOffer, installmentProblem, isValidCpf, onlyDigits } from '../payments/payment-rules';
+import { clampInstallments, declineMessage, MAX_INSTALLMENTS, InstallmentOffer, installmentProblem, isValidCpf, onlyDigits, storeInstallmentLimits } from '../payments/payment-rules';
 import { MercadoPagoClient } from '../payments/mercado-pago.client';
 import { CheckoutDraftService } from './checkout-draft.service';
 import { CouponsService } from '../promotions/coupons.service';
@@ -146,7 +146,7 @@ export class CheckoutService {
     let charge: ChargeResult;
     if (card && card.installments > 1) {
       // A regra de parcelas vale no servidor, não só na tela: confere o pedido final com a oferta real do Mercado Pago para este cartão.
-      const problem = installmentProblem(card.installments, Number(order.total), await this.offersFor(card, bin, Number(order.total)));
+      const problem = installmentProblem(card.installments, Number(order.total), await this.offersFor(card, bin, Number(order.total)), storeInstallmentLimits(store.paymentRules));
       if (problem) {
         await this.lifecycle.cancel({ orderId: order.id }, { message: 'Parcelamento recusado pela regra da loja', paymentStatus: PaymentStatus.CANCELLED });
         throw new BadRequestException(problem);

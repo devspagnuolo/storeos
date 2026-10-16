@@ -1,5 +1,5 @@
 'use client';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { fetchAvailability } from '../lib/availability';
 import { lineKey } from '../lib/cart';
@@ -29,8 +29,14 @@ export function AddToCart({ product, available: initialAvailable, variants: init
   }, [storeSlug, product.id, variantIds]);
   const variants = useMemo(() => initialVariants.map(v => ({ ...v, available: live?.get(lineKey({ productId: product.id, variantId: v.id })) ?? v.available })), [initialVariants, live, product.id]);
   const available = initialVariants.length ? variants.reduce((sum, v) => sum + v.available, 0) : live?.get(product.id) ?? initialAvailable;
-  const router = useRouter();
   const [quantity, setQuantity] = useState(1);
+  // Comprar não tira o cliente da página: o item entra no carrinho e um aviso confirma.
+  const [added, setAdded] = useState<{ name: string; quantity: number; at: number }>();
+  useEffect(() => {
+    if (!added) return;
+    const timer = window.setTimeout(() => setAdded(undefined), 6000);
+    return () => window.clearTimeout(timer);
+  }, [added]);
   // Uma escolha por atributo (Cor, Tamanho…); a variação sai da combinação escolhida.
   const attributeNames = useMemo(() => variants[0]?.attributes.map(a => a.name) ?? [], [variants]);
   const [picked, setPicked] = useState<Record<string, string>>({});
@@ -66,11 +72,26 @@ export function AddToCart({ product, available: initialAvailable, variants: init
         <select id="quantity" value={quantity} onChange={e => setQuantity(Number(e.target.value))} disabled={!ready} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 disabled:opacity-50">
           {Array.from({ length: Math.max(Math.min(max, 10), 1) }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
         </select>
-        <button className="button disabled:opacity-60" disabled={!ready} onClick={() => { add({ productId: product.id, ...(selected && { variantId: selected.id, variantLabel: labelOf(selected) }), slug: product.slug, name: product.name, price: price, image: product.image }, quantity); track('add_to_cart', { value: Number(price) * quantity, items: [{ id: product.id, name: product.name, price: Number(price), quantity }] }); router.push('/carrinho'); }}>
+        <button className="button disabled:opacity-60" disabled={!ready} onClick={() => { add({ productId: product.id, ...(selected && { variantId: selected.id, variantLabel: labelOf(selected) }), slug: product.slug, name: product.name, price: price, image: product.image }, quantity); track('add_to_cart', { value: Number(price) * quantity, items: [{ id: product.id, name: product.name, price: Number(price), quantity }] }); setAdded({ name: selected ? `${product.name} (${labelOf(selected)})` : product.name, quantity, at: Date.now() }); setQuantity(1); }}>
           {hasVariants && !selected ? 'Escolha as opções' : hasVariants && stock < 1 ? 'Opção esgotada' : buttonLabel}
         </button>
         {(!hasVariants || selected) && stock > 0 && max < 1 && <p className="w-full text-sm text-amber-700">Você já tem no carrinho todas as {stock} unidades disponíveis.</p>}
         {ready && stock <= 5 && <p className="w-full text-sm text-amber-700">Restam apenas {stock} {stock === 1 ? 'unidade' : 'unidades'}{inCart ? ` (${inCart} já no seu carrinho)` : ''}.</p>}
+      </div>
+      <div aria-live="polite" className="contents">
+        {added && (
+          <div key={added.at} role="status" className="card fixed inset-x-4 top-4 z-50 p-4 shadow-xl sm:inset-x-auto sm:right-6 sm:w-96">
+            <div className="flex items-start gap-3">
+              <span aria-hidden className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">✓</span>
+              <p className="min-w-0 flex-1 text-sm"><b>Item incluído no carrinho.</b><br /><span className="break-words text-slate-600">{added.quantity > 1 ? `${added.quantity} × ` : ''}{added.name}</span></p>
+              <button type="button" onClick={() => setAdded(undefined)} aria-label="Fechar aviso" className="-mr-1 -mt-1 rounded-lg px-2 py-1 text-slate-500 hover:text-slate-900">×</button>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setAdded(undefined)} className="button-ghost !px-2 text-sm">Continuar comprando</button>
+              <Link href="/carrinho" className="button !px-2 text-sm">Ver carrinho</Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

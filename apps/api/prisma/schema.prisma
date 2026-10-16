@@ -62,6 +62,8 @@ model Store {
   shippingSender         Json?
   /// Pedido pago segue sozinho: separação, nota fiscal (Bling), etiqueta (SuperFrete) e entrega.
   orderAutomation        Boolean                 @default(false)
+  /// Parcelamento no cartão definido no painel: máximo de parcelas, sem juros até N e parcela mínima sem juros.
+  paymentRules           Json?
   marketingConfig        Json?
   /// Rodapé da vitrine: título e conteúdo de cada seção (departamentos, links, contato, redes sociais).
   footerConfig           Json?

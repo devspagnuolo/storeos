@@ -69,6 +69,38 @@ export type InstallmentOffer = { installments: number; installment_amount: numbe
 export type InstallmentLimits = { max: number; maxFree: number; minFree: number };
 export const currentInstallmentLimits = (): InstallmentLimits => ({ max: maxAllowedInstallments(), maxFree: maxFreeInstallments(), minFree: minFreeInstallment() });
 
+/** Regras de parcelamento salvas pelo lojista no painel (Store.paymentRules). */
+export type StoredPaymentRules = { maxInstallments?: number; maxFreeInstallments?: number; minFreeInstallment?: number };
+
+const whole = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : undefined);
+
+/**
+ * Limites de uma loja: o que ela salvou no painel, dentro do teto da plataforma (MERCADOPAGO_MAX_INSTALLMENTS).
+ * O que a loja não preencheu segue as variáveis do servidor.
+ */
+export function storeInstallmentLimits(stored: unknown, platform: InstallmentLimits = currentInstallmentLimits()): InstallmentLimits {
+  const rules = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored as StoredPaymentRules : {};
+  const max = Math.max(1, Math.min(whole(rules.maxInstallments) ?? platform.max, platform.max));
+  const maxFree = Math.max(1, Math.min(whole(rules.maxFreeInstallments) ?? platform.maxFree, max));
+  const minFree = typeof rules.minFreeInstallment === 'number' && Number.isFinite(rules.minFreeInstallment) && rules.minFreeInstallment >= 0 ? Math.min(rules.minFreeInstallment, 100_000) : platform.minFree;
+  return { max, maxFree, minFree };
+}
+
+/** Uma linha da simulação do painel: o que o Mercado Pago cobra e o que o checkout desta loja mostra. */
+export type SimulationRow = { installments: number; installmentAmount: number; totalAmount: number; interestFree: boolean; shown: boolean; reason: string | null };
+
+/** Compara a oferta real do Mercado Pago com as regras da loja, parcela a parcela. */
+export function simulateInstallments(amount: number, offers: InstallmentOffer[], limits: InstallmentLimits): SimulationRow[] {
+  return offers.filter(offer => offer.installments >= 1).sort((a, b) => a.installments - b.installments).map(offer => {
+    const interestFree = offer.total_amount <= amount + 0.005;
+    const reason = offer.installments > limits.max ? `acima do máximo de ${limits.max}x da loja`
+      : offer.installments > 1 && interestFree && offer.installments > limits.maxFree ? `sem juros só até ${limits.maxFree}x`
+      : offer.installments > 1 && interestFree && offer.installment_amount + 0.000001 < limits.minFree ? 'parcela abaixo do mínimo sem juros'
+      : null;
+    return { installments: offer.installments, installmentAmount: offer.installment_amount, totalAmount: offer.total_amount, interestFree, shown: reason === null, reason };
+  });
+}
+
 /**
  * Regra de parcelamento aplicada no servidor, a mesma que o checkout mostra ao cliente.
  * Com a oferta real do Mercado Pago: a parcela precisa existir para o cartão; parcelas com juros (pagas pelo cliente) valem até o máximo da loja;

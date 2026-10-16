@@ -37,9 +37,9 @@ export type PaymentConfig = {
   boleto: boolean;
 };
 
-export async function getPaymentConfig(): Promise<PaymentConfig> {
+export async function getPaymentConfig(store?: string): Promise<PaymentConfig> {
   try {
-    const response = await fetch(`${apiUrl}/payments/config`);
+    const response = await fetch(`${apiUrl}/payments/config${store ? `?store=${encodeURIComponent(store)}` : ''}`);
     return response.ok ? await response.json() : { card: null, boleto: false };
   } catch {
     return { card: null, boleto: false };

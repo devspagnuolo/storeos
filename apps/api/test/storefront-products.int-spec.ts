@@ -35,3 +35,23 @@ describe('vitrine com produtos escolhidos', () => {
     expect(wrongPage.status).toBe(400);
   });
 });
+
+describe('sugestões do carrinho', () => {
+  it('traz primeiro a mesma categoria, só com saldo, sem repetir o carrinho nem outras lojas', async () => {
+    const { store, product } = await createStore(5);
+    const other = await createStore(5);
+    const category = await prisma.category.findFirstOrThrow({ where: { storeId: store.id } });
+    const make = async (slug: string, stock: number, categoryId?: string) => {
+      const created = await prisma.product.create({ data: { storeId: store.id, slug, sku: slug.toUpperCase(), name: slug, price: '30.00', status: 'ACTIVE', ...(categoryId && { categories: { create: { categoryId } } }) } });
+      await prisma.inventory.create({ data: { storeId: store.id, productId: created.id, quantity: stock } });
+      return created;
+    };
+    const same = await make('prato', 3, category.id);
+    await make('esgotado', 0, category.id);
+    const newest = await make('novo', 2);
+    const result = await api(`/catalog/recommendations?store=${store.slug}&ids=${product.id},${other.product.id}`);
+    expect(result.status).toBe(200);
+    expect(result.body.items.map((p: { id: string }) => p.id)).toEqual([same.id, newest.id]);
+    expect(result.body.items[0]).not.toHaveProperty('inventory');
+  });
+});
