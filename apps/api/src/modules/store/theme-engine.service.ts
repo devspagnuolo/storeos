@@ -5,6 +5,7 @@ import Ajv, { ValidateFunction } from 'ajv';
 import { ThemeDocument, ThemeDocumentIssue, ThemeReleaseManifest, validateThemeDocument } from '@storeos/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { themeEngineEnabledFor } from './theme-engine-flag';
+import { themeChecks } from './theme-engine-checks';
 
 /**
  * O que o runtime público do Theme Engine já desenha: página inicial completa; em categoria, produto e busca
@@ -244,6 +245,42 @@ export class ThemeEngineService {
       });
       return publication;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /** Erros (impedem publicar) e avisos de conteúdo, acessibilidade e SEO do rascunho salvo, por campo. */
+  async validate(storeId: string, installationId: string) {
+    const current = await this.getDraft(storeId, installationId);
+    const manifest = current.installation.release.manifest as unknown as ThemeReleaseManifest;
+    const errors = settingsIssues(current.draft.document, manifest);
+    const warnings = errors.length ? [] : themeChecks(current.draft.document as unknown as ThemeDocument);
+    return { revision: current.draft.revision, errors, warnings };
+  }
+
+  /** Versões publicadas de temas avançados desta loja, da mais nova para a mais antiga. */
+  async listPublications(storeId: string) {
+    const items = await this.prisma.themeEnginePublication.findMany({
+      where: { storeId },
+      orderBy: { version: 'desc' },
+      take: 30,
+      select: { id: true, version: true, documentHash: true, actorId: true, createdAt: true, installationId: true, installation: { select: { status: true, release: { select: { version: true, manifest: true } } } } },
+    });
+    return items.map(({ installation, ...item }) => ({
+      ...item,
+      themeName: String((installation.release.manifest as { displayName?: string }).displayName ?? 'Tema'),
+      themeVersion: installation.release.version,
+      live: installation.status === 'ACTIVE',
+    }));
+  }
+
+  /**
+   * Restaurar nunca publica: copia o documento da versão escolhida para o rascunho da mesma instalação,
+   * com controle de revisão. A lojista revisa a prévia e publica, o que gera uma versão nova.
+   */
+  async restorePublication(storeId: string, publicationId: string, expectedRevision: number, actorId: string) {
+    const publication = await this.prisma.themeEnginePublication.findFirst({ where: { id: publicationId, storeId }, select: { installationId: true, document: true } });
+    if (!publication) throw new NotFoundException('Versão não encontrada nesta loja.');
+    const draft = await this.saveDraft(storeId, publication.installationId, expectedRevision, publication.document, actorId);
+    return { installationId: publication.installationId, revision: draft.revision };
   }
 
   /** Desativa o tema do motor: a página inicial volta a obedecer ao editor da loja. Publicações ficam no histórico. */

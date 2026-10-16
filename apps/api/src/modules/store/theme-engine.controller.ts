@@ -14,6 +14,10 @@ class SaveThemeDraftDto {
   @IsObject() document!: Record<string, unknown>;
 }
 
+class RestoreThemeDto {
+  @IsInt() @Min(1) revision!: number;
+}
+
 class PublishThemeDto {
   @IsInt() @Min(1) revision!: number;
 }
@@ -30,6 +34,19 @@ export class ThemeEngineController {
 
   @Get('status')
   status(@CurrentStore() storeId: string) { return this.themes.status(storeId); }
+
+  @Get('publications')
+  publications(@CurrentStore() storeId: string) { return this.themes.listPublications(storeId); }
+
+  @Post('publications/:publicationId/restore')
+  restore(@CurrentStore() storeId: string, @Param('publicationId') publicationId: string, @Body() dto: RestoreThemeDto, @Req() req: { user: { sub: string } }) {
+    return this.themes.restorePublication(storeId, publicationId, dto.revision, req.user.sub);
+  }
+
+  @Post('installations/:installationId/validate')
+  validate(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
+    return this.themes.validate(storeId, installationId);
+  }
 
   @Get('installations')
   listInstallations(@CurrentStore() storeId: string) { return this.themes.listInstallations(storeId); }

@@ -16,6 +16,8 @@ e como voltar atrás. Complementa `theme-engine-architecture.md` (modelo-alvo).
 | Tema avançado: editar | `/painel/site/temas/[id]` | `GET/PATCH /themes/installations/:id/draft` | `ThemeDraft.document`, `revision` (+1, 409) | Não |
 | Tema avançado: publicar | idem | `POST /themes/installations/:id/publish` | `ThemeEnginePublication` (versão, hash sha256, autor), instalação ACTIVE (as demais ficam INACTIVE) | Sim, **só a página inicial**, e só com a chave ligada (seção 3) |
 | Tema avançado: desativar | `/painel/site` e temas | `POST /themes/installations/:id/deactivate` | Instalação INACTIVE; publicações ficam no histórico | Sim: a home volta ao editor |
+| Verificar rascunho | `/painel/site/temas/[id]` | `POST /themes/installations/:id/validate` | Leitura | Não |
+| Versões do tema | idem | `GET /themes/publications`, `POST /themes/publications/:id/restore` | Restaurar copia a versão para o `ThemeDraft` (revisão +1, 409) | Não |
 | Situação | `/painel/site`, temas | `GET /themes/status` (novo) | Leitura: quem desenha cada página e se a publicação avançada está liberada | Não |
 
 Runtime público (com a chave ligada, desde a Fase 2): cores/fonte/botões do tema em toda a loja via `engineStyle`; home pelo `ThemeEngineHome`; categoria, produto e busca leem as opções do tema via `lib/theme-engine.ts` e escondem as seções extras do editor legado nessas páginas. Preço, estoque, opções e compra nunca mudam por tema.
@@ -78,5 +80,5 @@ capturas são feitas manualmente com Playwright antes de cada fase.
 | 1 — jornada unificada | Feito: uma entrada "Personalizar loja" no menu, "Trocar tema" leva à escolha, instalar abre direto o rascunho, quadro "Quem desenha cada página", rascunhos com "Continuar editando", publicação avançada só com chave |
 | 2 — prévia real de todas as páginas | Em andamento: prévia privada `/previa/tema/:id?pagina=inicio|categoria|produto|busca` desenhada pelas mesmas páginas da vitrine com dados reais; o tema publicado aplica cores, fonte e botões em toda a loja e as opções de categoria (título, subtítulo, itens por página), produto (descrição, SKU, texto do botão) e busca (título, itens por página). Falta: carrinho, páginas de conteúdo, blog e 404 |
 | 3 — inspetor por schema, seletores | A fazer |
-| 4 — validação, histórico, comparação, rollback do motor | A fazer (o editor já tem histórico e restaurar) |
+| 4 — validação, histórico, comparação, rollback do motor | Em andamento: `POST /themes/installations/:id/validate` (erros + avisos de conteúdo, acessibilidade/contraste WCAG AA e SEO) mostrado no editor e lembrado ao publicar; `GET /themes/publications` e `POST /themes/publications/:id/restore` (volta como rascunho com revisão, nunca publica); URLs para rede interna/privada bloqueadas no contrato. Falta: comparação visual publicado × rascunho, agendamento |
 | 5 — catálogo curado | A fazer |
