@@ -9,6 +9,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { readMarketingConfig } from '../seo/seo-rules';
 import { StoreAssetsService } from './store-assets.service';
 import { StorefrontService } from './storefront.service';
+import { themeEngineEnabledFor } from './theme-engine-flag';
 
 class UpdateStoreDto {
   @IsOptional() @IsString() @Length(2, 80) name?: string;
@@ -53,9 +54,11 @@ export class StoreController {
     });
     if (!store) throw new NotFoundException('Loja não encontrada');
     const { id: storeId, marketingConfig, storefrontOpen, ...rest } = store;
+    // Fora da lista piloto o tema avançado não desenha a vitrine, mesmo se estiver ativo (rollback imediato).
+    const engineOn = themeEngineEnabledFor(store.slug);
     const [primary, activeTheme, freeRules] = await Promise.all([
       this.prisma.storeDomain.findFirst({ where: { storeId, isPrimary: true, status: 'ACTIVE' }, select: { hostname: true } }),
-      this.prisma.themeEnginePublication.findFirst({
+      !engineOn ? null : this.prisma.themeEnginePublication.findFirst({
         where: { storeId, installation: { status: 'ACTIVE' } },
         orderBy: { version: 'desc' },
         select: {

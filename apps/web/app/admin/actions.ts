@@ -1149,14 +1149,18 @@ export async function deactivateThemeAction(form: FormData): Promise<void> {
 export async function installThemeAction(form: FormData): Promise<void> {
   const releaseId = String(form.get('releaseId') ?? '').trim();
   if (!releaseId || releaseId.length > 100) redirect('/admin/site/temas?erro=Identificador+de+tema+inv%C3%A1lido.');
+  let installationId = '';
   try {
-    await adminFetch('/themes/installations', { method: 'POST', body: { releaseId } });
+    const result = await adminFetch<{ installation: { id: string } }>('/themes/installations', { method: 'POST', body: { releaseId } });
+    installationId = result.installation.id;
   } catch (error) {
     const message = error instanceof ApiError ? error.message : 'Não foi possível instalar o tema.';
     redirect(`/admin/site/temas?erro=${encodeURIComponent(message)}`);
   }
   revalidatePath('/admin/site/temas');
-  redirect('/admin/site/temas?instalado=1');
+  revalidatePath('/admin/site');
+  // Instalar leva direto ao editor do rascunho: a loja publicada não muda.
+  redirect(`/admin/site/temas/${encodeURIComponent(installationId)}`);
 }
 
 

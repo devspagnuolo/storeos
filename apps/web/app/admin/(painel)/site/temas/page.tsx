@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { deactivateThemeAction, installThemeAction } from '../../../actions';
 import { ReadyThemeGallery, type ReadyThemeCard } from '../../../../../components/admin/ready-themes';
 import { adminFetch } from '../../../../../lib/admin/session';
+import type { ThemeStatus } from '../../../../../lib/admin/storefront';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,22 +16,23 @@ type ThemeRelease = {
 type ThemeInstallation = { id: string; releaseId: string; status: string; installedAt: string; release: ThemeRelease; drafts: { revision: number; updatedAt: string }[] };
 
 export default async function ThemesPage({ searchParams }: { searchParams: Promise<{ instalado?: string; erro?: string }> }) {
-  const [ready, library, installations, params] = await Promise.all([
+  const [ready, library, installations, status, params] = await Promise.all([
     adminFetch<ReadyThemeCard[]>('/store/storefront/themes'),
     adminFetch<ThemeRelease[]>('/themes/library'),
     adminFetch<ThemeInstallation[]>('/themes/installations'),
+    adminFetch<ThemeStatus>('/themes/status').catch(() => null),
     searchParams,
   ]);
   const installedReleaseIds = new Set(installations.map(item => item.releaseId));
 
   return <>
-    <p className="text-sm font-semibold text-brand">LOJA ONLINE</p>
+    <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">← Personalizar loja</Link></nav>
     <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-3xl font-bold">Temas</h1><p className="mt-2 max-w-3xl text-slate-600">Escolha um ponto de partida para a identidade da sua loja. Instalar não altera o site publicado.</p></div>
-      <Link href="/painel/site" className="button">Personalizar loja atual</Link>
+      <div><h1 className="text-3xl font-bold">Escolher tema</h1><p className="mt-2 max-w-3xl text-slate-600">Escolha um ponto de partida para a identidade da sua loja. O tema entra como rascunho: a loja que os clientes veem só muda quando você publicar.</p></div>
+      <Link href="/painel/site" className="button">Continuar editando a loja</Link>
     </div>
 
-    {params.instalado && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema instalado como rascunho. Sua loja publicada permaneceu inalterada.</p>}
+    {params.instalado && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema instalado como rascunho. Sua loja publicada não mudou; clique em “Continuar editando” para montar o tema.</p>}
     {params.erro && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{params.erro}</p>}
 
     <section className="mt-8">
@@ -40,8 +42,10 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
     </section>
 
     <section className="mt-12 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
-      <h2 className="font-bold">Temas avançados (beta)</h2>
-      <p className="mt-1">Instalar cria um rascunho e não muda o site. Ao publicar um tema desta biblioteca, ele passa a desenhar a <strong>página inicial</strong> e o editor “Personalizar loja atual” deixa de controlar essa página. Para ajustar a loja que os clientes veem hoje, use “Personalizar loja atual”.</p>
+      <h2 className="font-bold">Temas avançados (em teste)</h2>
+      <p className="mt-1">Instalar cria um rascunho e não muda o site. {status?.publishEnabled
+        ? <>Ao publicar um tema desta biblioteca, ele passa a desenhar só a <strong>página inicial</strong>; categoria, produto, cores e marca continuam no editor “Personalizar loja”.</>
+        : <>Você pode montar e salvar o rascunho, mas a publicação ainda não está liberada: ela chega quando a prévia real de todas as páginas estiver pronta. Até lá, sua loja segue o editor “Personalizar loja”.</>}</p>
     </section>
 
     <section className="mt-10">
@@ -58,7 +62,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
             <div className="grid gap-4 p-5">
               <div><h3 className="text-lg font-bold">{theme.manifest.displayName}</h3><p className="mt-1 text-sm text-slate-600">{theme.package.description ?? 'Tema responsivo para sua loja virtual.'}</p></div>
               <div className="flex flex-wrap gap-2 text-xs text-slate-500"><span className="rounded-full bg-slate-100 px-2.5 py-1">Por {theme.manifest.author?.name ?? 'STOREOS'}</span><span className="rounded-full bg-slate-100 px-2.5 py-1">{templateCount} modelos de página</span></div>
-              {installed ? <div className="grid gap-2"><p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Instalado nesta loja · rascunho inativo</p><Link className="button-ghost text-center" href={'/painel/site/temas/' + (installedItem?.id ?? '')}>Configurar rascunho</Link></div> : <form action={installThemeAction}><input type="hidden" name="releaseId" value={theme.id} /><button className="button w-full" type="submit">Instalar tema</button></form>}
+              {installed ? <div className="grid gap-2"><p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">{installedItem?.status === 'ACTIVE' && status?.active?.live ? 'Publicado na página inicial' : 'Instalado como rascunho'}</p><Link className="button-ghost text-center" href={'/painel/site/temas/' + (installedItem?.id ?? '')}>Continuar editando</Link></div> : <form action={installThemeAction}><input type="hidden" name="releaseId" value={theme.id} /><button className="button w-full" type="submit">Instalar tema</button></form>}
             </div>
           </article>;
         })}
@@ -69,7 +73,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
       <h2 className="text-xl font-bold">Instalados nesta loja</h2>
       {installations.length ? <div className="mt-4 grid gap-3">{installations.map(item => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-surface p-4">
         <div><h3 className="font-semibold">{item.release.manifest.displayName}</h3><p className="mt-1 text-sm text-slate-500">Versão {item.release.version} · instalado em {new Date(item.installedAt).toLocaleDateString('pt-BR')} · rascunho {item.drafts[0]?.revision ?? '—'}</p></div>
-        <div className="flex items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</span>{item.status === 'ACTIVE' && <form action={deactivateThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button-ghost" type="submit">Desativar e voltar ao editor</button></form>}</div>
+        <div className="flex items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.status === 'ACTIVE' && status?.active?.live ? 'No ar (página inicial)' : 'Rascunho'}</span><Link className="button-ghost" href={'/painel/site/temas/' + item.id}>Continuar editando</Link>{item.status === 'ACTIVE' && <form action={deactivateThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button-ghost" type="submit">Desativar e voltar ao editor</button></form>}</div>
       </article>)}</div> : <p className="mt-3 rounded-xl border border-dashed p-6 text-sm text-slate-500">Você ainda não instalou um tema.</p>}
     </section>
   </>;
