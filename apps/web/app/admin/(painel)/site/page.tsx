@@ -35,7 +35,7 @@ export default async function StorefrontPage({ searchParams }: { searchParams: P
   </>;
 }
 
-const PAGE_LABELS: Record<string, string> = { home: 'Página inicial', category: 'Categorias', product: 'Página de produto', search: 'Busca', cart: 'Carrinho', 'not-found': 'Página não encontrada', visual: 'Cores, fontes e marca' };
+const PAGE_LABELS: Record<string, string> = { home: 'Página inicial', category: 'Categorias', product: 'Página de produto', search: 'Busca', cart: 'Carrinho', page: 'Páginas de conteúdo', 'blog-index': 'Blog', 'blog-post': 'Artigos do blog', 'not-found': 'Página não encontrada', visual: 'Cores, fontes e marca' };
 
 /** Mostra quem desenha cada página da loja e os rascunhos de temas que ainda não estão no ar. */
 function ThemeControl({ status, advancedName, drafts }: { status: ThemeStatus | null; advancedName?: string; drafts: { id: string; name: string; updatedAt: string }[] }) {

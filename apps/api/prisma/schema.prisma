@@ -877,12 +877,25 @@ model Page {
   showInFooter   Boolean  @default(true)
   position       Int      @default(0)
   seoDescription String?
+  /// Página institucional (/p/slug) ou artigo do blog (/blog/slug); as duas dividem o mesmo espaço de endereços.
+  kind           PageKind  @default(PAGE)
+  excerpt        String?
+  coverImageUrl  String?
+  authorName     String?
+  /// Data da primeira publicação; ordena o blog.
+  publishedAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, slug])
   @@index([storeId, published, position])
+  @@index([storeId, kind, published, publishedAt])
+}
+
+enum PageKind {
+  PAGE
+  POST
 }
 
 enum EmailStatus {

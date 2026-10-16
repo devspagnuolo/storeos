@@ -72,6 +72,16 @@ export const getStore = () => get<StoreInfo>(store => `/store/public/${encodeURI
 export const getPages = () => get<PageLink[]>(store => `/content/pages?store=${encodeURIComponent(store)}`, []);
 export const getPage = (slug: string) => get<ContentPage | null>(store => `/content/pages/${encodeURIComponent(slug)}?store=${encodeURIComponent(store)}`, null);
 
+export type BlogPostSummary = { slug: string; title: string; excerpt: string | null; coverImageUrl: string | null; authorName: string | null; publishedAt: string | null };
+export type BlogPost = BlogPostSummary & { body: string; seoDescription: string | null; updatedAt: string };
+export const getPosts = (query: { limit?: number; page?: number } = {}) => get<{ items: BlogPostSummary[]; total: number }>(store => {
+  const params = new URLSearchParams({ store });
+  if (query.limit) params.set('limit', String(query.limit));
+  if (query.page) params.set('page', String(query.page));
+  return `/content/posts?${params}`;
+}, { items: [], total: 0 });
+export const getPost = (slug: string) => get<BlogPost | null>(store => `/content/posts/${encodeURIComponent(slug)}?store=${encodeURIComponent(store)}`, null);
+
 export type MenuLink = { label: string; href: string; children: MenuLink[] };
 export type StorefrontMenu = { configured: boolean; items: MenuLink[] };
 export const getMenu = (key: 'main' | 'footer') => get<StorefrontMenu>(store => `/content/menus/${key}?store=${encodeURIComponent(store)}`, { configured: false, items: [] });

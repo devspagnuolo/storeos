@@ -255,9 +255,13 @@ export async function loyaltyAction(_: LoyaltyState, form: FormData): Promise<Lo
 export async function savePageAction(_: FormState, form: FormData): Promise<FormState> {
   const id = form.get('id') ? String(form.get('id')) : undefined;
   const title = String(form.get('title') ?? '').trim();
+  const kind = form.get('kind') === 'POST' ? 'POST' : 'PAGE';
   const body = {
-    title, body: String(form.get('body') ?? '').trim(), published: form.get('published') === 'on', showInFooter: form.get('showInFooter') === 'on',
+    title, body: String(form.get('body') ?? '').trim(), published: form.get('published') === 'on',
     seoDescription: String(form.get('seoDescription') ?? '').trim() || undefined,
+    ...(kind === 'POST'
+      ? { kind, showInFooter: false, excerpt: String(form.get('excerpt') ?? '').trim() || undefined, coverImageUrl: String(form.get('coverImageUrl') ?? '').trim() || undefined, authorName: String(form.get('authorName') ?? '').trim() || undefined }
+      : { kind: 'PAGE' as const, showInFooter: form.get('showInFooter') === 'on' }),
     ...(id ? {} : { slug: String(form.get('slug') ?? '').trim() || slugifyServer(title) }),
   };
   try {
@@ -266,13 +270,15 @@ export async function savePageAction(_: FormState, form: FormData): Promise<Form
     if (error instanceof ApiError) return { error: error.message };
     throw error;
   }
-  revalidatePath('/admin/paginas');
+  revalidatePath(kind === 'POST' ? '/admin/blog' : '/admin/paginas');
+  if (kind === 'POST') return { ok: id ? 'Artigo salvo.' : `Artigo "${title}" criado. Ele aparece na lista abaixo.` };
   return { ok: id ? 'Página salva.' : `Página "${title}" criada. Ela aparece na lista abaixo.` };
 }
 
 export async function deletePageAction(form: FormData) {
   await adminFetch(`/content/admin/pages/${encodeURIComponent(String(form.get('id')))}`, { method: 'DELETE' });
   revalidatePath('/admin/paginas');
+  revalidatePath('/admin/blog');
 }
 
 export async function saveProductAction(_: FormState, form: FormData): Promise<FormState> {
