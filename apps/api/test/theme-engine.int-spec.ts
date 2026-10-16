@@ -173,12 +173,14 @@ describe('motor de temas', () => {
     expect((await api(`/themes/installations/${id}/published`, { token: editorB })).status).toBe(404);
   });
 
-  it('catálogo mostra só a versão mais nova e atualiza o rascunho para a 1.1 sem publicar', async () => {
+  it('catálogo mostra só a versão mais nova e atualiza o rascunho para a versão nova sem publicar', async () => {
     const { store } = await createStore(1);
     const editor = await login(api, store, ['settings.write']);
     const library = await api('/themes/library', { token: editor });
     const byKey = Object.fromEntries(library.body.map((item: { package: { key: string }; version: string }) => [item.package.key, item.version]));
-    expect(byKey).toMatchObject({ 'storeos-editorial': '1.1.0', 'storeos-boutique': '1.0.0', 'storeos-vitrine': '1.0.0', 'storeos-enterprise-pro': '1.0.0', 'storeos-mercado-total': '1.0.0', 'storeos-premium-fashion': '1.0.0' });
+    expect(byKey).toMatchObject({ 'storeos-editorial': '1.2.0', 'storeos-boutique': '1.1.0', 'storeos-vitrine': '1.1.0', 'storeos-enterprise-pro': '1.1.0', 'storeos-mercado-total': '1.1.0', 'storeos-premium-fashion': '1.1.0', 'storeos-essencial': '1.0.0', 'storeos-noir': '1.0.0' });
+    // A loja atual convertida não é um tema do catálogo.
+    expect(byKey['storeos-minha-loja']).toBeUndefined();
     expect(library.body.filter((item: { package: { key: string } }) => item.package.key === 'storeos-editorial')).toHaveLength(1);
 
     // Todos os temas do catálogo instalam (layout inicial válido no validador completo).
@@ -207,15 +209,52 @@ describe('motor de temas', () => {
     await api(`/themes/installations/${oldBId}/draft`, { method: 'PATCH', token: editorB, body: { revision: oldB.body.draft.revision, document: editedB } });
     expect((await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editor })).status).toBe(404);
     list = await api('/themes/installations', { token: editorB });
-    expect(list.body[0].upgrade).toMatchObject({ version: '1.1.0' });
+    expect(list.body[0].upgrade).toMatchObject({ version: '1.2.0' });
     const upgraded = await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editorB });
     expect(upgraded.status).toBe(201);
-    expect(upgraded.body).toMatchObject({ fromVersion: '1.0.0', toVersion: '1.1.0' });
+    expect(upgraded.body).toMatchObject({ fromVersion: '1.0.0', toVersion: '1.2.0' });
     const doc = upgraded.body.draft.document;
     const hero = doc.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1');
     expect(hero.settings).toMatchObject({ title: 'Mantido na atualização', visibility: 'all' });
     expect((await api(`/store/public/${other.store.slug}`)).body.publishedTheme).toBeNull();
     expect((await api(`/themes/installations/${upgraded.body.installation.id}/validate`, { method: 'POST', token: editorB })).body.errors).toEqual([]);
     expect((await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editorB })).status).toBe(409);
+  });
+
+  it('traz a loja do editor clássico para o editor de temas como rascunho, sem publicar', async () => {
+    const { store } = await createStore(1);
+    const editor = await login(api, store, ['settings.write']);
+    await prisma.store.update({ where: { id: store.id }, data: { themeConfig: {
+      accentColor: '#9D174D', announcementText: 'Frete grátis na {loja}',
+      home: { sections: [
+        { id: 'banners', type: 'banners', hidden: false, props: {} },
+        { id: 'destaque', type: 'hero', hidden: false, props: { title: 'Olá', description: '', cta: 'Comprar', ctaHref: '/categorias', imageUrl: null, imageAlt: '', layout: 'split' } },
+        { id: 'novidades', type: 'products', hidden: true, props: { heading: 'Novidades', subheading: '', limit: 8, categorySlug: '', productIds: [], columns: '4' } },
+      ] },
+    } } });
+    await prisma.banner.createMany({ data: [
+      { storeId: store.id, imageUrl: '/uploads/b1.jpg', title: 'Primeiro', position: 0 },
+      { storeId: store.id, imageUrl: '/uploads/b2.jpg', title: 'Segundo', position: 1 },
+      { storeId: store.id, imageUrl: '/uploads/b3.jpg', title: 'Inativo', position: 2, active: false },
+    ] });
+    const first = await api('/themes/installations/from-storefront', { method: 'POST', token: editor });
+    expect(first.status).toBe(201);
+    expect(first.body.installation.status).toBe('INACTIVE');
+    const home = first.body.draft.document.templates.home.sections;
+    expect(home.map((s: { type: string }) => s.type)).toEqual(['storeos.announcement.v1', 'storeos.header.v1', 'storeos.carousel.v1', 'storeos.hero.v1', 'storeos.product-collection.v1', 'storeos.footer.v1']);
+    expect(home[2].blocks.map((b: { settings: { title: string } }) => b.settings.title)).toEqual(['Primeiro', 'Segundo']);
+    expect(home[4].enabled).toBe(false);
+    expect(first.body.draft.document.global.settings.announcementText).toBe(`Frete grátis na ${store.name}`);
+    expect((await api(`/themes/installations/${first.body.installation.id}/validate`, { method: 'POST', token: editor })).body.errors).toEqual([]);
+    expect((await api(`/store/public/${store.slug}`)).body.publishedTheme).toBeNull();
+
+    // Refazer substitui só o rascunho da conversão, na mesma instalação.
+    const again = await api('/themes/installations/from-storefront', { method: 'POST', token: editor });
+    expect(again.body.installation.id).toBe(first.body.installation.id);
+    expect(again.body.draft.id).not.toBe(first.body.draft.id);
+    expect((await api(`/themes/installations/${first.body.installation.id}/draft`, { token: editor })).body.draft.id).toBe(again.body.draft.id);
+
+    const viewer = await login(api, store, []);
+    expect((await api('/themes/installations/from-storefront', { method: 'POST', token: viewer })).status).toBe(403);
   });
 });

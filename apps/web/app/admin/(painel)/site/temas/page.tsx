@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { deactivateThemeAction, installThemeAction, upgradeThemeAction } from '../../../actions';
+import { convertStorefrontAction, deactivateThemeAction, installThemeAction, upgradeThemeAction } from '../../../actions';
 import { ReadyThemeGallery, type ReadyThemeCard } from '../../../../../components/admin/ready-themes';
 import { adminFetch } from '../../../../../lib/admin/session';
 import type { ThemeStatus } from '../../../../../lib/admin/storefront';
@@ -43,6 +43,9 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
     searchParams,
   ]);
   const installedReleaseIds = new Set(installations.map(item => item.releaseId));
+  // Onde o editor de temas publica, todos os temas usam o mesmo editor; os temas prontos do editor clássico já estão no catálogo.
+  const unified = Boolean(status?.publishEnabled);
+  const currentStore = installations.find(item => item.release.package?.key === 'storeos-minha-loja');
 
   return <>
     <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">← Personalizar loja</Link></nav>
@@ -54,21 +57,27 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
     {params.instalado && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema instalado como rascunho. Sua loja publicada não mudou; clique em “Continuar editando” para montar o tema.</p>}
     {params.erro && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{params.erro}</p>}
 
-    <section className="mt-8">
-      <h2 className="text-xl font-bold">Temas prontos</h2>
-      <p className="mt-1 max-w-3xl text-sm text-slate-600">Escolha um ponto de partida completo: cores, tipografia e as seções da página inicial, de categoria e de produto. Depois é só trocar textos, imagens e produtos no editor.</p>
-      <div className="mt-4"><ReadyThemeGallery themes={ready} confirmReplace /></div>
-    </section>
-
-    <section className="mt-12 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
-      <h2 className="font-bold">Temas avançados (em teste)</h2>
-      <p className="mt-1">Instalar cria um rascunho e não muda o site. {status?.publishEnabled
-        ? <>Ao publicar um tema deste catálogo, ele passa a desenhar a loja inteira (início, categorias, produto, busca, carrinho, páginas, blog e 404) com as suas cores; textos de páginas e produtos continuam vindo do painel.</>
-        : <>Você pode montar e salvar o rascunho, mas a publicação ainda não está liberada: ela chega quando a prévia real de todas as páginas estiver pronta. Até lá, sua loja segue o editor “Personalizar loja”.</>}</p>
-    </section>
+    {unified ? <section className="mt-8 rounded-2xl border bg-surface p-5">
+      <h2 className="text-xl font-bold">Sua loja atual no editor novo</h2>
+      <p className="mt-1 max-w-3xl text-sm text-slate-600">Todos os temas agora usam o mesmo editor. Traga para ele as cores, os banners e as seções que você já montou: vira um rascunho do tema “Minha loja”, e a loja só muda quando você publicar.{currentStore ? ' Fazer de novo substitui o rascunho anterior dessa conversão.' : ''}</p>
+      <form action={convertStorefrontAction} className="mt-4"><button className="button" type="submit">{currentStore ? 'Trazer a loja atual de novo' : 'Trazer minha loja atual'}</button></form>
+    </section> : <>
+      <section className="mt-8">
+        <h2 className="text-xl font-bold">Temas prontos</h2>
+        <p className="mt-1 max-w-3xl text-sm text-slate-600">Escolha um ponto de partida completo: cores, tipografia e as seções da página inicial, de categoria e de produto. Depois é só trocar textos, imagens e produtos no editor.</p>
+        <div className="mt-4"><ReadyThemeGallery themes={ready} confirmReplace /></div>
+      </section>
+  
+      <section className="mt-12 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
+        <h2 className="font-bold">Temas avançados (em teste)</h2>
+        <p className="mt-1">Instalar cria um rascunho e não muda o site. {status?.publishEnabled
+          ? <>Ao publicar um tema deste catálogo, ele passa a desenhar a loja inteira (início, categorias, produto, busca, carrinho, páginas, blog e 404) com as suas cores; textos de páginas e produtos continuam vindo do painel.</>
+          : <>Você pode montar e salvar o rascunho, mas a publicação ainda não está liberada: ela chega quando a prévia real de todas as páginas estiver pronta. Até lá, sua loja segue o editor “Personalizar loja”.</>}</p>
+      </section>
+    </>}
 
     <section className="mt-10">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-bold">Catálogo de temas STOREOS</h2><p className="mt-1 text-sm text-slate-500">Temas oficiais revisados pela STOREOS: desenham todas as páginas da loja, funcionam no celular e nunca mudam preços, estoque ou pagamento.</p></div><span className="text-sm text-slate-500">{library.length} {library.length === 1 ? 'tema' : 'temas'}</span></div>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-bold">{unified ? 'Todos os temas' : 'Catálogo de temas STOREOS'}</h2><p className="mt-1 text-sm text-slate-500">{unified ? 'Todos usam o mesmo editor: banners (um ou vários), vantagens, vitrines, depoimentos, perguntas, vídeo e mais. ' : ''}Temas oficiais revisados pela STOREOS: desenham todas as páginas da loja, funcionam no celular e nunca mudam preços, estoque ou pagamento.</p></div><span className="text-sm text-slate-500">{library.length} {library.length === 1 ? 'tema' : 'temas'}</span></div>
       {library.length ? <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {library.map(theme => {
           const installed = installedReleaseIds.has(theme.id);

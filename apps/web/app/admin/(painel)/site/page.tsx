@@ -3,7 +3,7 @@ import { StorefrontHistory } from '../../../../components/admin/storefront-edito
 import { StorefrontBuilder } from '../../../../components/admin/storefront-builder';
 import { adminFetch } from '../../../../lib/admin/session';
 import type { StorefrontState, ThemeStatus } from '../../../../lib/admin/storefront';
-import { deactivateThemeAction } from '../../actions';
+import { convertStorefrontAction, deactivateThemeAction } from '../../actions';
 import { getBanners, getPages } from '../../../../lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +28,11 @@ export default async function StorefrontPage({ searchParams }: { searchParams: P
       <h2 className="font-bold">A loja está sob o tema avançado “{advanced.release.manifest.displayName}”</h2>
       <p className="mt-1">Por isso as mudanças que você publicar aqui não aparecem nas páginas que o tema desenha (veja o quadro acima). Logo, menus, rodapé e o texto das páginas continuam vindo do painel.</p>
       <form action={deactivateThemeAction} className="mt-3"><input type="hidden" name="installationId" value={advanced.id} /><button className="button-ghost" type="submit">Voltar a usar este editor</button></form>
+    </section>}
+    {status?.publishEnabled && !advanced && <section className="mt-5 rounded-xl border border-brand/30 bg-brand/5 p-4 text-sm">
+      <h2 className="font-bold">Todos os temas agora usam o editor novo</h2>
+      <p className="mt-1 max-w-3xl text-slate-700">Este é o editor clássico, que ainda desenha a sua loja. Traga as cores, os banners e as seções daqui para o editor novo (vários banners no topo, vantagens, depoimentos, perguntas e mais). Vira um rascunho: nada muda na loja até você publicar.</p>
+      <div className="mt-3 flex flex-wrap gap-2"><form action={convertStorefrontAction}><button className="button" type="submit">Trazer minha loja para o editor novo</button></form><Link href="/painel/site/temas" className="button-ghost">Ver todos os temas</Link></div>
     </section>}
     {params.salvo && notices[params.salvo] && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notices[params.salvo]}</p>}
     <div className="mt-6"><StorefrontBuilder key={state.version} state={state} hasBanners={banners.length > 0} institutional={pages.map(p => ({ slug: p.slug, title: p.title }))} /></div>

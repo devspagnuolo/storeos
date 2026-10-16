@@ -7,6 +7,11 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { themeEngineEnabledFor } from './theme-engine-flag';
 import { themeChecks } from './theme-engine-checks';
 import { compareVersions, upgradeThemeDocument } from './theme-upgrade';
+import { legacyToEngineDocument } from './legacy-to-engine';
+import type { StorefrontConfig } from './storefront-config';
+
+/** Pacote interno (fora do catálogo) que recebe a conversão da loja atual. */
+export const CURRENT_STORE_PACKAGE = 'storeos-minha-loja';
 
 /**
  * O que o runtime público do Theme Engine já desenha: página inicial completa; em categoria, produto, busca, carrinho, páginas de conteúdo, blog e 404
@@ -19,7 +24,7 @@ const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, add
 ajv.addKeyword({ keyword: 'enumTitles', schemaType: 'array' });
 const schemaCache = new Map<string, ValidateFunction>();
 
-function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): ThemeDocumentIssue[] {
+export function settingsIssues(document: unknown, manifest: ThemeReleaseManifest): ThemeDocumentIssue[] {
   const issues = validateThemeDocument(document, manifest);
   if (issues.length || !document || typeof document !== 'object') return issues;
   const typed = document as ThemeDocument;
@@ -196,6 +201,35 @@ export class ThemeEngineService {
           updatedBy: actorId,
         },
       });
+      return { installation, draft };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /**
+   * Traz o visual e a página inicial publicados no editor clássico (e os banners ativos) para o editor de temas,
+   * como rascunho do tema "Minha loja". Refazer substitui só o rascunho dessa conversão. Nunca publica.
+   */
+  async fromStorefront(storeId: string, actorId: string) {
+    const [store, banners, releases] = await Promise.all([
+      this.prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { name: true, themeConfig: true, draftThemeConfig: true } }),
+      this.prisma.banner.findMany({ where: { storeId, active: true }, orderBy: { position: 'asc' }, take: 6 }),
+      this.prisma.themeRelease.findMany({ where: { status: 'PUBLISHED', package: { key: CURRENT_STORE_PACKAGE } } }),
+    ]);
+    const release = releases.sort((a, b) => compareVersions(b.version, a.version))[0];
+    if (!release) throw new NotFoundException('O editor de temas ainda não está disponível nesta instalação.');
+    const manifest = release.manifest as unknown as ThemeReleaseManifest;
+    const config = (store.themeConfig ?? store.draftThemeConfig ?? {}) as StorefrontConfig;
+    const document = legacyToEngineDocument(config, manifest, { storeName: store.name, banners });
+    const issues = settingsIssues(document, manifest);
+    if (issues.length) throw new UnprocessableEntityException({ message: 'Não foi possível converter a loja atual.', issues });
+
+    return this.prisma.$transaction(async tx => {
+      const existing = await tx.themeInstallation.findUnique({ where: { storeId_releaseId: { storeId, releaseId: release.id } } });
+      const installation = existing
+        ? (existing.status === 'REMOVED' ? await tx.themeInstallation.update({ where: { id_storeId: { id: existing.id, storeId } }, data: { status: 'INACTIVE' } }) : existing)
+        : await tx.themeInstallation.create({ data: { storeId, releaseId: release.id, status: 'INACTIVE' } });
+      await tx.themeDraft.updateMany({ where: { storeId, installationId: installation.id, status: 'DRAFT' }, data: { status: 'ARCHIVED' } });
+      const draft = await tx.themeDraft.create({ data: { storeId, installationId: installation.id, document: document as unknown as Prisma.InputJsonValue, updatedBy: actorId } });
       return { installation, draft };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }

@@ -14,7 +14,7 @@ type ThemeDraftResponse = {
 
 type Publication = { id: string; version: number; createdAt: string; installationId: string; themeName: string; themeVersion: string; live: boolean };
 
-export default async function EditThemePage({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ erro?: string; restaurado?: string; atualizado?: string }> }) {
+export default async function EditThemePage({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ erro?: string; restaurado?: string; atualizado?: string; convertido?: string }> }) {
   const { installationId } = await params;
   const query = await searchParams;
   const [result, status, latest] = await Promise.all([
@@ -35,6 +35,7 @@ export default async function EditThemePage({ params, searchParams }: { params: 
   return <>
     <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">Personalizar loja</Link> <span className="text-slate-400">›</span> <Link href="/painel/site/temas" className="font-medium text-brand hover:underline">Escolher tema</Link></nav>
     {query.restaurado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Versão trazida de volta como rascunho. Confira a prévia e publique quando estiver pronta; a loja ainda não mudou.</p>}
+    {query.convertido && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Sua loja atual veio para o editor novo como rascunho: cores, aviso do topo, banners e seções da página inicial. Revise a prévia e publique quando estiver pronta; até lá a loja segue como está.</p>}
     {query.atualizado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema atualizado para a versão {query.atualizado.slice(0, 20)} como rascunho, com suas cores, textos e seções. As opções novas (como “no celular” e “Mostrar em”) já vêm preenchidas. A loja só muda quando você publicar.</p>}
     {query.erro && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">{query.erro}</p>}
     <div className="mt-4">

@@ -3,10 +3,11 @@ import { join } from 'node:path';
 import type { ThemeDocument, ThemeReleaseManifest } from '@storeos/contracts';
 import { validateThemeDocument } from '@storeos/contracts';
 import { compareVersions, upgradeThemeDocument } from './theme-upgrade';
+import { settingsIssues } from './theme-engine.service';
 
 function manifests() {
   const read = (folder: string) => readFileSync(join(__dirname, '../../../prisma/migrations', folder, 'migration.sql'), 'utf8');
-  const all = [...read('20261016030000_theme_engine_foundation').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016180000_theme_catalog').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016190000_theme_enterprise').matchAll(/\$json\$(\{.*?\})\$json\$/gs)]
+  const all = [...read('20261016030000_theme_engine_foundation').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016180000_theme_catalog').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016190000_theme_enterprise').matchAll(/\$json\$(\{.*?\})\$json\$/gs), ...read('20261016200000_theme_unified_editor').matchAll(/\$json\$(\{.*?\})\$json\$/gs)]
     .map(match => JSON.parse(match[1]) as ThemeReleaseManifest);
   const find = (slug: string, version: string) => all.find(item => item.slug === slug && item.version === version)!;
   return { v10: find('storeos-editorial', '1.0.0'), v11: find('storeos-editorial', '1.1.0'), all };
@@ -20,7 +21,22 @@ describe('atualização de versão do tema', () => {
   });
 
   it('todos os temas do catálogo têm layout inicial válido', () => {
-    for (const manifest of manifests().all) expect(validateThemeDocument(manifest.defaultDocument, manifest)).toEqual([]);
+    for (const manifest of manifests().all) {
+      expect(validateThemeDocument(manifest.defaultDocument, manifest)).toEqual([]);
+      expect([manifest.slug, settingsIssues(manifest.defaultDocument, manifest)]).toEqual([manifest.slug, []]);
+    }
+  });
+
+  it('a versão mais nova de cada tema oferece o mesmo editor (mesmas seções e campos)', () => {
+    const latest = new Map<string, ThemeReleaseManifest>();
+    for (const manifest of manifests().all) {
+      const current = latest.get(manifest.slug);
+      if (!current || compareVersions(manifest.version, current.version) > 0) latest.set(manifest.slug, manifest);
+    }
+    expect(latest.size).toBeGreaterThanOrEqual(19);
+    const reference = JSON.stringify(latest.get('storeos-enterprise-pro')!.sections);
+    expect(latest.get('storeos-enterprise-pro')!.version).toBe('1.1.0');
+    for (const manifest of latest.values()) expect([manifest.slug, JSON.stringify(manifest.sections) === reference]).toEqual([manifest.slug, true]);
   });
 
   it('leva o rascunho para a 1.1 mantendo cores, textos e ordem e preenchendo os campos novos', () => {
