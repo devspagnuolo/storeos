@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ProductStatus, StockMovementType } from '@prisma/client';
+import { attributeWhere, buildFacets, parseAttributeFilters, priceWhere } from './product-filters';
 import { descendantIds, parentProblem } from './category-tree';
 import { recordMovement } from '../inventory/stock-ledger';
 import { cleanFiscal } from './fiscal-rules';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
-export type ProductQuery = { ids?: string; category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number };
+export type ProductQuery = { ids?: string; category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number; attrs?: string; minPrice?: number; maxPrice?: number };
 export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; imageUrls?: string[]; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; ncm?: string | null; cest?: string | null; gtin?: string | null; taxOrigin?: number | null; unit?: string | null };
 export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string };
 export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
@@ -42,20 +43,10 @@ export class CatalogService {
     const pageSize = query.pageSize ?? 24;
     const storeId = await this.storeId(storeSlug);
     if (!storeId) return { items: [], total: 0, page, pageSize };
-    const q = query.q?.trim();
-    // Abrir uma categoria mostra também os produtos de todas as subcategorias abaixo dela.
-    const categoryIds = query.category ? await this.categoryAndDescendants(storeId, query.category) : undefined;
     // Vitrine com produtos escolhidos a dedo: só entram os ativos da loja, na ordem escolhida.
     const ids = query.ids?.split(',').map(id => id.trim()).filter(Boolean).slice(0, 24);
-    const where: Prisma.ProductWhereInput = {
-      storeId,
-      status: ProductStatus.ACTIVE,
-      ...(ids && { id: { in: ids } }),
-      ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }),
-      ...(query.brand && { brand: { slug: query.brand } }),
-      ...(query.collection && { collections: { some: { collection: { slug: query.collection, active: true } } } }),
-      ...(q && { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { sku: { equals: q, mode: 'insensitive' } }] }),
-    };
+    const filters = [attributeWhere(parseAttributeFilters(query.attrs)), priceWhere(query.minPrice, query.maxPrice)].filter(Boolean) as Prisma.ProductWhereInput[];
+    const where: Prisma.ProductWhereInput = { ...(await this.scopeWhere(storeId, query)), ...(ids && { id: { in: ids } }), ...(filters.length && { AND: filters }) };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 } }, skip: (page - 1) * pageSize, take: pageSize, orderBy: { createdAt: 'desc' } }),
       this.prisma.product.count({ where }),
@@ -65,27 +56,76 @@ export class CatalogService {
   }
 
   /**
-   * Sugestões para o carrinho: produtos à venda e com saldo das mesmas categorias do que o cliente está levando,
-   * completadas pelas novidades da loja. Nunca repete o que já está no carrinho.
+   * Sugestões para o carrinho, nesta ordem: o que outras clientes levaram junto nos pedidos pagos,
+   * produtos das mesmas categorias, os mais vendidos e as novidades. Só produtos à venda e com saldo; nunca repete o carrinho.
    */
   async recommendations(storeSlug: string, productIds: string[], limit = 8) {
     const storeId = await this.storeId(storeSlug);
     if (!storeId) return { items: [] };
     const ids = [...new Set(productIds)].slice(0, 50);
-    const links = ids.length ? await this.prisma.productCategory.findMany({ where: { productId: { in: ids }, product: { storeId } }, select: { categoryId: true } }) : [];
+    const sold = Prisma.sql`o.status::text IN ('PAID', 'PICKING', 'INVOICED', 'SHIPPED', 'DELIVERED')`;
+    const [together, bestSellers, links] = await Promise.all([
+      ids.length ? this.prisma.$queryRaw<{ productId: string }[]>`
+        SELECT other."productId" AS "productId", COUNT(DISTINCT other."orderId") AS orders
+        FROM "OrderItem" mine
+        JOIN "OrderItem" other ON other."orderId" = mine."orderId" AND other."productId" IS NOT NULL AND other."productId" <> ALL(${ids})
+        JOIN "Order" o ON o.id = mine."orderId"
+        WHERE o."storeId" = ${storeId} AND ${sold} AND mine."productId" = ANY(${ids})
+        GROUP BY other."productId" ORDER BY orders DESC LIMIT 40` : [],
+      this.prisma.$queryRaw<{ productId: string }[]>`
+        SELECT i."productId" AS "productId", SUM(i.quantity) AS units
+        FROM "OrderItem" i JOIN "Order" o ON o.id = i."orderId"
+        WHERE o."storeId" = ${storeId} AND ${sold} AND i."productId" IS NOT NULL AND o."createdAt" > NOW() - INTERVAL '90 days'
+        GROUP BY i."productId" ORDER BY units DESC LIMIT 40`,
+      ids.length ? this.prisma.productCategory.findMany({ where: { productId: { in: ids }, product: { storeId } }, select: { categoryId: true } }) : [],
+    ]);
     const categoryIds = [...new Set(links.map(link => link.categoryId))];
     const base: Prisma.ProductWhereInput = { storeId, status: ProductStatus.ACTIVE, id: { notIn: ids } };
     const include = { images: { orderBy: { position: 'asc' as const }, take: 1 }, inventory: { select: { quantity: true, reserved: true } } };
-    const [related, newest] = await Promise.all([
+    const ranked = [...together, ...bestSellers].map(row => row.productId);
+    const [rankedProducts, related, newest] = await Promise.all([
+      ranked.length ? this.prisma.product.findMany({ where: { ...base, id: { in: ranked, notIn: ids } }, include }) : [],
       categoryIds.length ? this.prisma.product.findMany({ where: { ...base, categories: { some: { categoryId: { in: categoryIds } } } }, include, orderBy: { createdAt: 'desc' }, take: 40 }) : [],
       this.prisma.product.findMany({ where: base, include, orderBy: { createdAt: 'desc' }, take: 40 }),
     ]);
+    const byId = new Map(rankedProducts.map(product => [product.id, product]));
+    const boughtTogether = new Set(together.map(row => row.productId));
+    const togetherList = together.map(row => byId.get(row.productId)).filter(Boolean) as typeof rankedProducts;
+    const bestList = bestSellers.map(row => byId.get(row.productId)).filter(Boolean) as typeof rankedProducts;
     const seen = new Set<string>();
-    const items = [...related, ...newest]
+    const items = [...togetherList, ...related, ...bestList, ...newest]
       .filter(product => !seen.has(product.id) && seen.add(product.id) && product.inventory.some(i => i.quantity - i.reserved > 0))
       .slice(0, Math.min(Math.max(limit, 1), 12))
-      .map(({ inventory: _inventory, ...product }) => product);
+      .map(({ inventory: _inventory, ...product }) => ({ ...product, boughtTogether: boughtTogether.has(product.id) }));
     return { items };
+  }
+
+  /** Produtos ativos da lista (categoria com subcategorias, marca, coleção, busca), antes dos filtros de tamanho, cor e preço. */
+  private async scopeWhere(storeId: string, query: ProductQuery): Promise<Prisma.ProductWhereInput> {
+    const q = query.q?.trim();
+    // Abrir uma categoria mostra também os produtos de todas as subcategorias abaixo dela.
+    const categoryIds = query.category ? await this.categoryAndDescendants(storeId, query.category) : undefined;
+    return {
+      storeId,
+      status: ProductStatus.ACTIVE,
+      ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }),
+      ...(query.brand && { brand: { slug: query.brand } }),
+      ...(query.collection && { collections: { some: { collection: { slug: query.collection, active: true } } } }),
+      ...(q && { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { sku: { equals: q, mode: 'insensitive' } }] }),
+    };
+  }
+
+  /** Opções de filtro (tamanhos, cores, faixa de preço) dos produtos da lista atual. */
+  async facets(storeSlug: string, query: ProductQuery = {}) {
+    const storeId = await this.storeId(storeSlug);
+    if (!storeId) return buildFacets([]);
+    const products = await this.prisma.product.findMany({
+      where: await this.scopeWhere(storeId, query),
+      // Só opções que dá para comprar: variação ativa e com estoque, igual ao filtro.
+      select: { price: true, variants: { where: { active: true, inventory: { some: { quantity: { gt: 0 } } } }, select: { attributes: true, price: true } } },
+      take: 2000,
+    });
+    return buildFacets(products);
   }
 
   /** Para cada linha do carrinho: se o produto (ou variação) ainda está à venda, o saldo livre e o preço vigente. */

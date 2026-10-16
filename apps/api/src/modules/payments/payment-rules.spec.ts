@@ -9,17 +9,17 @@ describe('payment-rules', () => {
     expect(isValidCpf('123')).toBe(false);
   });
 
-  it('limita as parcelas entre 1 e 12', () => {
+  it('limita as parcelas entre 1 e 18', () => {
     expect(clampInstallments(0)).toBe(1);
     expect(clampInstallments('abc')).toBe(1);
     expect(clampInstallments(3.9)).toBe(3);
-    expect(clampInstallments(40)).toBe(12);
+    expect(clampInstallments(40)).toBe(18);
     expect(clampInstallments(10, 6)).toBe(6);
   });
 
   it('aplica limites de parcelas configuráveis sem ultrapassar o máximo do gateway', () => {
     expect(maxAllowedInstallments('6')).toBe(6);
-    expect(maxAllowedInstallments('99')).toBe(12);
+    expect(maxAllowedInstallments('99')).toBe(18);
     expect(maxAllowedInstallments('0')).toBe(1);
     expect(maxFreeInstallments('4', 6)).toBe(4);
     expect(maxFreeInstallments('9', 6)).toBe(6);

@@ -55,3 +55,42 @@ describe('sugestões do carrinho', () => {
     expect(result.body.items[0]).not.toHaveProperty('inventory');
   });
 });
+
+describe('filtros e quem comprou também levou', () => {
+  it('filtra por tamanho e cor da mesma variação com estoque, e por preço', async () => {
+    const { store, product } = await createStore(5);
+    const category = await prisma.category.findFirstOrThrow({ where: { storeId: store.id } });
+    const dress = await prisma.product.create({ data: { storeId: store.id, slug: 'vestido', sku: 'VEST', name: 'Vestido', price: '150.00', status: 'ACTIVE', categories: { create: { categoryId: category.id } } } });
+    const variant = (sku: string, size: string, color: string, stock: number) => prisma.productVariant.create({ data: { productId: dress.id, sku, attributes: [{ name: 'Tamanho', value: size }, { name: 'Cor', value: color }], inventory: { create: { storeId: store.id, productId: dress.id, quantity: stock } } } });
+    await variant('V-G-P', 'G', 'Preto', 2);
+    await variant('V-GG-A', 'GG', 'Azul', 0);
+    const list = (query: string) => api(`/catalog/products?store=${store.slug}&category=casa&${query}`).then(r => r.body.items.map((p: { id: string }) => p.id));
+    expect(await list(`attrs=${encodeURIComponent('Tamanho:G||Cor:Preto')}`)).toEqual([dress.id]);
+    expect(await list(`attrs=${encodeURIComponent('Tamanho:G||Cor:Azul')}`)).toEqual([]);
+    expect(await list(`attrs=${encodeURIComponent('Tamanho:GG')}`)).toEqual([]);
+    expect(await list('minPrice=100')).toEqual([dress.id]);
+    expect(await list('maxPrice=60')).toEqual([product.id]);
+    const facets = await api(`/catalog/facets?store=${store.slug}&category=casa`);
+    expect(facets.body).toEqual({ attributes: [{ name: 'Cor', values: ['Preto'] }, { name: 'Tamanho', values: ['G'] }], price: { min: 49, max: 150 } });
+  });
+
+  it('sugere primeiro o que outras clientes levaram junto em pedidos pagos', async () => {
+    const { store, product } = await createStore(5);
+    const make = async (slug: string) => {
+      const created = await prisma.product.create({ data: { storeId: store.id, slug, sku: slug.toUpperCase(), name: slug, price: '30.00', status: 'ACTIVE' } });
+      await prisma.inventory.create({ data: { storeId: store.id, productId: created.id, quantity: 3 } });
+      return created;
+    };
+    const together = await make('junto');
+    const ignored = await make('cancelado');
+    const order = (status: 'PAID' | 'CANCELLED', other: string) => prisma.order.create({ data: { storeId: store.id, number: `T-${other}-${status}`, status, subtotal: '79.90', total: '79.90', items: { create: [
+      { productId: product.id, sku: 'VASO-1', name: 'Vaso', quantity: 1, unitPrice: '49.90', total: '49.90' },
+      { productId: other, sku: 'X', name: 'X', quantity: 1, unitPrice: '30.00', total: '30.00' },
+    ] } } });
+    await order('PAID', together.id);
+    await order('CANCELLED', ignored.id);
+    const result = await api(`/catalog/recommendations?store=${store.slug}&ids=${product.id}`);
+    expect(result.body.items[0]).toMatchObject({ id: together.id, boughtTogether: true });
+    expect(result.body.items.find((p: { id: string }) => p.id === ignored.id)).toMatchObject({ boughtTogether: false });
+  });
+});
