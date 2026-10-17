@@ -27,7 +27,7 @@ export function PaymentRulesForm({ rules }: { rules: PaymentRules }) {
           <input name="minFreeInstallment" value={minFree} onChange={e => setMinFree(e.target.value)} inputMode="decimal" className="input" />
         </label>
       </div>
-      <p className="mt-3 text-xs text-slate-500">Exemplo: sem juros até 6x com parcela mínima de R$ 80,00. Uma compra de R$ 300,00 fica em até 3x sem juros (3 × R$ 100,00); a 4x ficaria abaixo do mínimo.</p>
+      <p className="mt-3 text-xs text-slate-500">Exemplo: sem juros até 5x com parcela mínima de R$ 100,00 e até 18x com juros. Uma compra de R$ 300,00 fica em até 3x sem juros (3 × R$ 100,00); de 4x em diante, só com juros.</p>
       {!rules.saved && !state.ok && <p className="mt-2 text-xs text-amber-800">A loja ainda usa os valores padrão do servidor. Salve para usar os seus.</p>}
       <button className="button mt-4 disabled:opacity-60" disabled={pending}>{pending ? 'Salvando…' : 'Salvar parcelamento'}</button>
       {state.error && <p role="alert" className="mt-3 text-red-700">{state.error}</p>}
