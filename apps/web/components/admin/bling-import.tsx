@@ -1,12 +1,13 @@
 'use client';
 import { useActionState, useEffect, useState } from 'react';
-import { importBlingAction } from '../../app/admin/actions';
+import { importBlingAction, setBlingProductCodeFromAction } from '../../app/admin/actions';
 import { BlingPicker } from './bling-picker';
 import type { BlingImportJob } from '../../lib/admin/types';
 
 /** Botão de importar + barra de andamento (consulta a cada 3 s enquanto roda). */
-export function BlingImport({ initial }: { initial: BlingImportJob | null }) {
+export function BlingImport({ initial, codeFrom = 1500 }: { initial: BlingImportJob | null; codeFrom?: number }) {
   const [state, action, pending] = useActionState(importBlingAction, {});
+  const [codeState, codeAction, codePending] = useActionState(setBlingProductCodeFromAction, {});
   const [job, setJob] = useState(initial);
   const running = job?.status === 'RUNNING' || (pending || Boolean(state.ok)) && job?.status !== 'DONE';
 
@@ -23,6 +24,15 @@ export function BlingImport({ initial }: { initial: BlingImportJob | null }) {
   const percent = job && job.total ? Math.round((job.processed / job.total) * 100) : 0;
   return (
     <div>
+      <form action={codeAction} className="mb-4 flex flex-wrap items-end gap-3 rounded-xl bg-slate-50 p-3">
+        <label className="text-sm">Importar só produtos com código a partir de
+          <input name="codeFrom" inputMode="numeric" pattern="[0-9]*" defaultValue={codeFrom} key={codeFrom} className="input mt-1 block w-32" aria-describedby="bling-code-help" />
+        </label>
+        <button className="button-ghost disabled:opacity-60" disabled={codePending}>{codePending ? 'Salvando…' : 'Salvar'}</button>
+        <p id="bling-code-help" className="w-full text-xs text-slate-500">Cadastros do Bling com código menor que {codeFrom} (ou sem número no código) ficam fora da lista e da importação. Produtos que já estão na loja não são apagados.</p>
+        {codeState.error && <p role="alert" className="w-full text-sm text-red-700">{codeState.error}</p>}
+        {codeState.ok && <p className="w-full text-sm text-emerald-700">{codeState.ok}</p>}
+      </form>
       <form action={action} className="flex flex-wrap items-center gap-3">
         <label className="text-sm">O que importar
           <select name="mode" defaultValue="new" className="input mt-1">
@@ -45,7 +55,7 @@ export function BlingImport({ initial }: { initial: BlingImportJob | null }) {
           {job.errors.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-red-700">{job.errors.slice(0, 8).map((e, i) => <li key={i}>{e.message}</li>)}</ul>}
         </div>
       )}
-      <BlingPicker disabled={job?.status === 'RUNNING'} onStarted={started} />
+      <BlingPicker key={codeFrom} disabled={job?.status === 'RUNNING'} onStarted={started} />
     </div>
   );
 }

@@ -43,6 +43,7 @@ export function BlingPicker({ disabled, onStarted }: { disabled: boolean; onStar
         <label className="ml-auto flex items-center gap-2 text-sm"><input type="checkbox" checked={update} onChange={e => setUpdate(e.target.checked)} /> Também atualizar os que já estão na loja</label>
       </form>
       {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+      {Boolean(data?.hidden) && <p className="mt-3 text-xs text-slate-500">{data!.hidden} cadastro(s) desta página ficaram fora por ter código abaixo de {data!.codeFrom}.</p>}
       <div className="card mt-3 overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b text-xs uppercase text-slate-500"><tr><th className="w-10 p-3"><input type="checkbox" checked={allMarked} onChange={toggleAll} aria-label="Marcar todos desta página" /></th><th className="p-3">Produto</th><th className="p-3">Código</th><th className="p-3 text-right">Preço</th><th className="p-3 text-right">Estoque</th></tr></thead>

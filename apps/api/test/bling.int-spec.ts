@@ -24,9 +24,10 @@ class FakeBling {
   invoiceCalls: { method: string; path: string; body?: unknown }[] = [];
   nextId = 9000;
   products: Record<number, unknown> = {
-    1: { id: 1, nome: 'Blusa de Renda', codigo: 'BR-1', preco: 99.9, situacao: 'A', formato: 'V', descricaoComplementar: '<p>Linda blusa</p>', categoria: { id: 3 }, midia: { imagens: { externas: [{ link: 'https://cdn.test/br.jpg' }] } }, variacoes: [{ id: 11, codigo: 'BR-1-P', preco: 99.9, variacao: { nome: 'Tamanho:P' }, estoque: { saldoVirtualTotal: 4 } }, { id: 12, codigo: 'BR-1-G', preco: 109.9, variacao: { nome: 'Tamanho:G' }, estoque: { saldoVirtualTotal: 2 } }] },
-    2: { id: 2, nome: 'Calça Pantalona', codigo: 'CP-1', preco: 150, situacao: 'A', formato: 'S', estoque: { saldoVirtualTotal: 7 }, gtin: '7891000100103', unidade: 'UN', tributacao: { ncm: '6204.62.00', cest: '28.038.00', origem: 0 } },
+    1: { id: 1, nome: 'Blusa de Renda', codigo: '1600', preco: 99.9, situacao: 'A', formato: 'V', descricaoComplementar: '<p>Linda blusa</p>', categoria: { id: 3 }, midia: { imagens: { externas: [{ link: 'https://cdn.test/br.jpg' }] } }, variacoes: [{ id: 11, codigo: '1600-P', preco: 99.9, variacao: { nome: 'Tamanho:P' }, estoque: { saldoVirtualTotal: 4 } }, { id: 12, codigo: '1600-G', preco: 109.9, variacao: { nome: 'Tamanho:G' }, estoque: { saldoVirtualTotal: 2 } }] },
+    2: { id: 2, nome: 'Calça Pantalona', codigo: '1700', preco: 150, situacao: 'A', formato: 'S', estoque: { saldoVirtualTotal: 7 }, gtin: '7891000100103', unidade: 'UN', tributacao: { ncm: '6204.62.00', cest: '28.038.00', origem: 0 } },
     3: { id: 3, nome: 'Sem código', preco: 10, situacao: 'A' },
+    4: { id: 4, nome: 'Blusa Antiga', codigo: '1010', preco: 59, situacao: 'A', formato: 'S', estoque: { saldoVirtualTotal: 1 } },
   };
 
   authorizeUrl(state: string) { return `https://bling.test/authorize?state=${state}`; }
@@ -127,40 +128,42 @@ describe('importação de produtos do Bling', () => {
     const token = await login(api, store, ['catalog.write', 'settings.write']);
     expect((await api('/bling/import', { method: 'POST', token })).status).toBe(202);
     const done = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING');
-    expect(done).toMatchObject({ status: 'DONE', total: 3, created: 2, failed: 1 });
-    expect(done.errors[0].message).toContain('sem código');
+    // Só códigos a partir de 1500: o 1010 e o cadastro sem código ficam fora.
+    expect(done).toMatchObject({ status: 'DONE', total: 2, created: 2, failed: 0 });
+    expect(done.errors[0].message).toContain('2 produto(s) com código abaixo de 1500');
+    expect(await prisma.product.count({ where: { storeId: store.id, sku: '1010' } })).toBe(0);
 
-    const blusa = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'BR-1' }, include: { variants: true, images: true, categories: { include: { category: true } }, inventory: true } });
+    const blusa = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: '1600' }, include: { variants: true, images: true, categories: { include: { category: true } }, inventory: true } });
     expect(blusa).toMatchObject({ name: 'Blusa de Renda', status: 'ACTIVE', description: 'Linda blusa' });
-    expect(blusa.variants.map(v => v.sku).sort()).toEqual(['BR-1-G', 'BR-1-P']);
+    expect(blusa.variants.map(v => v.sku).sort()).toEqual(['1600-G', '1600-P']);
     expect(blusa.images).toHaveLength(1);
     expect(blusa.images[0].url).toMatch(/\/api\/v1\/media\/[0-9a-f-]{36}$/);
     const asset = await prisma.mediaAsset.findFirstOrThrow({ where: { id: blusa.images[0].url.split('/').pop() } });
     expect([asset.width, asset.height, asset.mime]).toEqual([1000, 1250, 'image/jpeg']);
     expect(blusa.categories.map(c => c.category.name).sort()).toEqual(['Blusas', 'Manga Longa', 'Renda']);
     expect(blusa.inventory.reduce((sum, i) => sum + i.quantity, 0)).toBe(6);
-    const calca = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'CP-1' }, include: { inventory: true } });
+    const calca = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: '1700' }, include: { inventory: true } });
     expect(calca.inventory[0].quantity).toBe(7);
     expect(calca).toMatchObject({ ncm: '62046200', cest: '2803800', gtin: '7891000100103', taxOrigin: 0, unit: 'UN' });
 
-    const priceBefore = (await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: 'CP-1' } })).price.toString();
+    const priceBefore = (await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: '1700' } })).price.toString();
     (bling.products[2] as { preco: number; nome: string; estoque: { saldoVirtualTotal: number } }).preco = 160;
     (bling.products[2] as { estoque: { saldoVirtualTotal: number } }).estoque.saldoVirtualTotal = 3;
     (bling.products[2] as { nome: string }).nome = 'Calça Nova';
-    const quantityOf = async () => (await prisma.product.findFirstOrThrow({ where: { sku: 'CP-1', storeId: store.id }, include: { inventory: true } })).inventory[0].quantity;
+    const quantityOf = async () => (await prisma.product.findFirstOrThrow({ where: { sku: '1700', storeId: store.id }, include: { inventory: true } })).inventory[0].quantity;
 
     // padrão: só cria o que falta; produto existente não é tocado
     await api('/bling/import', { method: 'POST', token });
     const again = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING' && job.id !== done.id);
     expect(again).toMatchObject({ mode: 'new', created: 0, updated: 0, skipped: 2 });
-    expect(await prisma.product.count({ where: { storeId: store.id, sku: 'CP-1' } })).toBe(1);
+    expect(await prisma.product.count({ where: { storeId: store.id, sku: '1700' } })).toBe(1);
     expect(await quantityOf()).toBe(7);
 
     // atualizar: dados descritivos mudam, preço, situação e estoque da loja ficam
     await api('/bling/import', { method: 'POST', token, body: { mode: 'update' } });
     const updated = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING' && job.id !== again.id);
     expect(updated).toMatchObject({ mode: 'update', created: 0, updated: 2, skipped: 0 });
-    const calcaNow = await prisma.product.findFirstOrThrow({ where: { sku: 'CP-1', storeId: store.id } });
+    const calcaNow = await prisma.product.findFirstOrThrow({ where: { sku: '1700', storeId: store.id } });
     expect(calcaNow.name).toBe('Calça Nova');
     expect(calcaNow.price.toString()).toBe(priceBefore);
     expect(await quantityOf()).toBe(7);
@@ -176,7 +179,8 @@ describe('importação escolhendo produtos', () => {
 
     const list = await api('/bling/products', { token });
     expect(list.status).toBe(200);
-    expect(list.body.items.map((i: { sku: string | null }) => i.sku)).toEqual(['BR-1', 'CP-1', null]);
+    expect(list.body.items.map((i: { sku: string | null }) => i.sku)).toEqual(['1600', '1700']);
+    expect(list.body).toMatchObject({ codeFrom: 1500, hidden: 2 });
     expect(list.body.items[0]).toMatchObject({ name: 'Blusa de Renda', hasVariations: true, inStore: false });
     expect((await api('/bling/products?q=calça', { token })).body.items).toHaveLength(1);
 
@@ -186,9 +190,20 @@ describe('importação escolhendo produtos', () => {
     const done = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING');
     expect(done).toMatchObject({ status: 'DONE', total: 1, created: 1, failed: 0 });
     expect(await prisma.product.count({ where: { storeId: store.id } })).toBe(3); // 2 do helper + o escolhido
-    expect(await prisma.product.count({ where: { storeId: store.id, sku: 'BR-1' } })).toBe(0);
+    expect(await prisma.product.count({ where: { storeId: store.id, sku: '1600' } })).toBe(0);
     expect((await prisma.blingConnection.findUniqueOrThrow({ where: { storeId: store.id } })).stockSyncEnabled).toBe(true);
-    expect((await api('/bling/products', { token })).body.items[1]).toMatchObject({ sku: 'CP-1', inStore: true });
+    expect((await api('/bling/products', { token })).body.items[1]).toMatchObject({ sku: '1700', inStore: true });
+
+    // Escolher um produto abaixo do mínimo não importa; baixar o mínimo o traz de volta para a lista.
+    await api('/bling/import', { method: 'POST', token, body: { ids: [4] } });
+    const below = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING' && job.id !== done.id);
+    expect(below).toMatchObject({ status: 'DONE', created: 0, skipped: 1 });
+    expect(below.errors[0].message).toContain('abaixo de 1500');
+    expect((await api('/bling/product-settings', { method: 'POST', token, body: { codeFrom: '1000' } })).status).toBe(400);
+    expect((await api('/bling/product-settings', { method: 'POST', token: await login(api, store, ['orders.read']), body: { codeFrom: 1000 } })).status).toBe(403);
+    expect((await api('/bling/product-settings', { method: 'POST', token, body: { codeFrom: 1000 } })).body).toEqual({ productCodeFrom: 1000 });
+    expect((await api('/bling/status', { token })).body.productCodeFrom).toBe(1000);
+    expect((await api('/bling/products', { token })).body.items.map((i: { sku: string | null }) => i.sku)).toEqual(['1600', '1700', '1010']);
   });
 });
 

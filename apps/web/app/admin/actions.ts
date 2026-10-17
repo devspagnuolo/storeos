@@ -705,6 +705,19 @@ export async function importBlingAction(_: FormState, form: FormData): Promise<F
   return { ok: 'Importação iniciada. Acompanhe o andamento abaixo.' };
 }
 
+export async function setBlingProductCodeFromAction(_: FormState, form: FormData): Promise<FormState> {
+  const raw = String(form.get('codeFrom') ?? '').trim();
+  if (!/^\d{1,9}$/.test(raw)) return { error: 'Informe o código mínimo só com números.' };
+  try {
+    await adminFetch('/bling/product-settings', { method: 'POST', body: { codeFrom: Number(raw) } });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/bling');
+  return { ok: `Pronto: a importação traz só produtos com código a partir de ${Number(raw)}.` };
+}
+
 export async function importBlingSelectedAction(ids: number[], mode: 'new' | 'update'): Promise<FormState> {
   if (!ids.length) return { error: 'Marque pelo menos um produto.' };
   try {

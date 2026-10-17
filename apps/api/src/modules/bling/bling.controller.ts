@@ -33,6 +33,7 @@ export class BlingController {
       companyLinked: Boolean(connection?.companyId),
       connected: Boolean(connection), connectedAt: connection?.connectedAt ?? null, lastError: connection?.lastError ?? null,
       import: latestImport, orders: sync.counts, automaticInvoiceEnabled: connection?.automaticInvoiceEnabled ?? false, invoices,
+      productCodeFrom: connection?.productCodeFrom ?? 1500,
       stockSync: { enabled: connection?.stockSyncEnabled ?? false, syncedAt: connection?.stockSyncedAt ?? null, error: connection?.stockSyncError ?? null },
     };
   }
@@ -95,6 +96,15 @@ export class BlingController {
 
   @Post('stock-sync') @HttpCode(200) @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
   syncStock(@CurrentStore() storeId: string) { return this.stock.sync(storeId); }
+
+  /** Código mínimo dos produtos que a importação traz do Bling. */
+  @Post('product-settings') @HttpCode(200) @RequirePermissions(Permissions.CATALOG_WRITE, Permissions.SETTINGS_WRITE)
+  async productSettings(@CurrentStore() storeId: string, @Body('codeFrom') codeFrom: unknown) {
+    if (typeof codeFrom !== 'number' || !Number.isSafeInteger(codeFrom) || codeFrom < 0 || codeFrom > 999_999_999) throw new BadRequestException('Informe o código mínimo como número inteiro');
+    const updated = await this.prisma.blingConnection.updateMany({ where: { storeId }, data: { productCodeFrom: codeFrom } });
+    if (!updated.count) throw new BadRequestException('Conecte o Bling antes de configurar a importação');
+    return { productCodeFrom: codeFrom };
+  }
 
   @Post('stock-settings') @HttpCode(200) @RequirePermissions(Permissions.SETTINGS_WRITE)
   stockSettings(@CurrentStore() storeId: string, @Body('enabled') enabled: unknown) {

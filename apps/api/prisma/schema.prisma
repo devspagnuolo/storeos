@@ -1012,6 +1012,8 @@ model BlingConnection {
   stockSyncEnabled          Boolean        @default(false)
   stockSyncedAt             DateTime?
   stockSyncError            String?
+  /// Importação de produtos traz só cadastros com código (SKU) numérico a partir deste número.
+  productCodeFrom           Int            @default(1500)
   updatedAt                 DateTime       @updatedAt
   store                     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   invoices                  BlingInvoice[]
