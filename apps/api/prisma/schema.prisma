@@ -88,6 +88,9 @@ model Store {
   banners                Banner[]
   mediaAssets            MediaAsset[]
   blingConnection        BlingConnection?
+  fidelizeiConnection    FidelizeiConnection?
+  fidelizeiMembers       FidelizeiMember[]
+  fidelizeiRedemptions   FidelizeiRedemption[]
   blingInvoices          BlingInvoice[]
   blingOrderSyncs        BlingOrderSync[]
   blingImports           BlingImport[]
@@ -331,25 +334,27 @@ model Inventory {
 }
 
 model Customer {
-  id             String            @id @default(uuid())
-  storeId        String
-  email          String
-  name           String
-  phone          String?
+  id                   String                @id @default(uuid())
+  storeId              String
+  email                String
+  name                 String
+  phone                String?
   /// CPF/CNPJ (só dígitos), informado no checkout para a nota fiscal e o pedido no ERP.
-  document       String?
-  notes          String?
-  tags           String[]          @default([])
-  marketingOptIn Boolean           @default(false)
-  anonymizedAt   DateTime?
-  loyaltyEntries LoyaltyEntry[]
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  store          Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  addresses      Address[]
-  orders         Order[]
-  noteEntries    CustomerNote[]
-  sessions       CustomerSession[]
+  document             String?
+  notes                String?
+  tags                 String[]              @default([])
+  marketingOptIn       Boolean               @default(false)
+  anonymizedAt         DateTime?
+  loyaltyEntries       LoyaltyEntry[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  store                Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  addresses            Address[]
+  orders               Order[]
+  noteEntries          CustomerNote[]
+  sessions             CustomerSession[]
+  fidelizeiMember      FidelizeiMember?
+  fidelizeiRedemptions FidelizeiRedemption[]
 
   @@unique([storeId, email])
 }
@@ -398,37 +403,38 @@ model Address {
 }
 
 model Order {
-  id                String            @id @default(uuid())
-  storeId           String
-  customerId        String?
-  number            String
-  status            OrderStatus       @default(NEW)
-  subtotal          Decimal           @db.Decimal(14, 2)
-  discount          Decimal           @default(0) @db.Decimal(14, 2)
-  shipping          Decimal           @default(0) @db.Decimal(14, 2)
-  total             Decimal           @db.Decimal(14, 2)
-  currency          String            @default("BRL")
-  shippingAddress   Json?
-  shippingMethod    String?
+  id                  String               @id @default(uuid())
+  storeId             String
+  customerId          String?
+  number              String
+  status              OrderStatus          @default(NEW)
+  subtotal            Decimal              @db.Decimal(14, 2)
+  discount            Decimal              @default(0) @db.Decimal(14, 2)
+  shipping            Decimal              @default(0) @db.Decimal(14, 2)
+  total               Decimal              @db.Decimal(14, 2)
+  currency            String               @default("BRL")
+  shippingAddress     Json?
+  shippingMethod      String?
   /// Opção de frete escolhida no checkout (ex.: "sf:2" = SEDEX pelo SuperFrete); define o serviço da etiqueta.
-  shippingOptionId  String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  store             Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customer          Customer?         @relation(fields: [customerId], references: [id])
-  items             OrderItem[]
-  payments          Payment[]
-  timeline          OrderTimeline[]
-  fulfillment       Fulfillment?
-  couponCode        String?
-  promotionDiscount Decimal           @default(0) @db.Decimal(14, 2)
-  promotions        Json?
-  redemption        CouponRedemption?
-  loyaltyEntries    LoyaltyEntry[]
-  blingSync         BlingOrderSync?
-  blingInvoice      BlingInvoice?
-  shippingLabel     ShippingLabel?
-  refunds           Refund[]
+  shippingOptionId    String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  store               Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer            Customer?            @relation(fields: [customerId], references: [id])
+  items               OrderItem[]
+  payments            Payment[]
+  timeline            OrderTimeline[]
+  fulfillment         Fulfillment?
+  couponCode          String?
+  promotionDiscount   Decimal              @default(0) @db.Decimal(14, 2)
+  promotions          Json?
+  redemption          CouponRedemption?
+  loyaltyEntries      LoyaltyEntry[]
+  blingSync           BlingOrderSync?
+  blingInvoice        BlingInvoice?
+  shippingLabel       ShippingLabel?
+  fidelizeiRedemption FidelizeiRedemption?
+  refunds             Refund[]
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -870,14 +876,14 @@ model Menu {
 }
 
 model Page {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   storeId        String
   slug           String
   title          String
   body           String
-  published      Boolean  @default(false)
-  showInFooter   Boolean  @default(true)
-  position       Int      @default(0)
+  published      Boolean   @default(false)
+  showInFooter   Boolean   @default(true)
+  position       Int       @default(0)
   seoDescription String?
   /// Página institucional (/p/slug) ou artigo do blog (/blog/slug); as duas dividem o mesmo espaço de endereços.
   kind           PageKind  @default(PAGE)
@@ -886,9 +892,9 @@ model Page {
   authorName     String?
   /// Data da primeira publicação; ordena o blog.
   publishedAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, slug])
   @@index([storeId, published, position])
@@ -1468,4 +1474,81 @@ model ShippingLabel {
   order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([status, nextAttemptAt])
+}
+
+/// Programa de fidelidade Fidelizei: chave da API (criptografada) e textos de adesão da loja.
+model FidelizeiConnection {
+  id             String    @id @default(uuid())
+  storeId        String    @unique
+  apiKeyEnc      String
+  /// Final da chave, só para o painel mostrar qual está em uso.
+  keyHint        String
+  enabled        Boolean   @default(true)
+  termsVersion   String    @default("2026-10")
+  privacyVersion String    @default("2026-10")
+  termsUrl       String?
+  privacyUrl     String?
+  /// Posição já lida na fila de eventos do Fidelizei.
+  eventsCursor   Int       @default(0)
+  lastError      String?
+  checkedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+/// Cliente da loja que aderiu ao programa (vínculo pelo id do cliente StoreOS; o CPF fica no Fidelizei).
+model FidelizeiMember {
+  id                  String   @id @default(uuid())
+  storeId             String
+  customerId          String   @unique
+  fidelizeiCustomerId String
+  enrolledAt          DateTime
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  store               Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer            Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+}
+
+enum FidelizeiRedemptionStatus {
+  RESERVED
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  FAILED
+}
+
+/// Benefício do Fidelizei usado como desconto no checkout: reservado, confirmado após o pedido chegar ao Bling, ou estornado.
+model FidelizeiRedemption {
+  id                   String                    @id @default(uuid())
+  storeId              String
+  customerId           String
+  orderId              String?                   @unique
+  redemptionId         String                    @unique
+  checkoutId           String                    @unique
+  code                 String
+  rewardId             String
+  rewardName           String
+  pointsDebited        Int
+  discountType         String
+  discountValue        Int
+  minimumOrderCents    Int                       @default(0)
+  discountAmount       Decimal?                  @db.Decimal(14, 2)
+  status               FidelizeiRedemptionStatus @default(RESERVED)
+  reservationExpiresAt DateTime
+  attempts             Int                       @default(0)
+  nextAttemptAt        DateTime                  @default(now())
+  lastError            String?
+  confirmedAt          DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  store                Store                     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer             Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order                Order?                    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, status])
+  @@index([customerId])
 }

@@ -5,5 +5,5 @@ import { AccountController } from './account.controller';
 import { AccountCleanupJob } from './account.job';
 import { AccountService } from './account.service';
 
-@Module({ imports: [LoyaltyModule, NotificationsModule], controllers: [AccountController], providers: [AccountService, AccountCleanupJob] })
+@Module({ imports: [LoyaltyModule, NotificationsModule], controllers: [AccountController], providers: [AccountService, AccountCleanupJob], exports: [AccountService] })
 export class AccountModule {}

@@ -39,3 +39,20 @@ export function addressLines(address: AccountAddress | null) {
     address.zipCode ? `CEP ${address.zipCode}` : '',
   ].filter(Boolean);
 }
+
+export type FidelizeiReward = { id: string; name: string; description: string | null; pointsCost: number; discountType: string; discountValue: number; minimumOrderCents: number; validUntil: string | null; canRedeem: boolean };
+/** Programa Fidelizei visto pela cliente: desligado, ainda sem adesão, ou com saldo e benefícios. */
+export type FidelizeiLoyalty =
+  | { enabled: false }
+  | { enabled: true; enrolled: false; termsUrl: string | null; privacyUrl: string | null; hasDocument: boolean }
+  | { enabled: true; enrolled: true; termsUrl: string | null; privacyUrl: string | null; hasDocument: boolean; available: boolean; balance: number | null; rewards: FidelizeiReward[] };
+export type ReservedReward = { checkoutId: string; code: string; rewardName: string; pointsDebited: number; discount: { type: string; value: number; minimumOrderCents?: number }; reservationExpiresAt: string; balance: number | null };
+
+export const rewardLabel = (reward: { discountType: string; discountValue: number }) => reward.discountType === 'percent' ? `${reward.discountValue}% de desconto` : `${(reward.discountValue / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} de desconto`;
+
+/** Mesmo cálculo do servidor (que é quem manda): percentual sobre os produtos já com promoções, fixo em centavos, nunca acima dos produtos. */
+export function rewardAmount(discount: { type: string; value: number }, base: number) {
+  if (!(discount.value > 0) || base <= 0) return 0;
+  const raw = discount.type === 'percent' ? base * Math.min(discount.value, 100) / 100 : discount.value / 100;
+  return Math.min(Math.round(raw * 100 + Number.EPSILON) / 100, base);
+}

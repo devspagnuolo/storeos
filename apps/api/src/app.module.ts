@@ -20,6 +20,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { AbandonedCartsModule } from './modules/abandoned-carts/abandoned-carts.module';
 import { EngagementModule } from './modules/engagement/engagement.module';
 import { BlingModule } from './modules/bling/bling.module';
+import { FidelizeiModule } from './modules/fidelizei/fidelizei.module';
 import { MediaModule } from './modules/media/media.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
@@ -59,6 +60,7 @@ import { PrismaModule } from './shared/infrastructure/prisma.module';
     ReviewsModule,
     OnboardingModule,
     MediaModule,
+    FidelizeiModule,
     BlingModule,
     NotificationsModule,
     ContentModule,

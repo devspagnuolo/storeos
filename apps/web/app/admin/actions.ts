@@ -1312,3 +1312,34 @@ export async function savePaymentRulesAction(_: FormState, form: FormData): Prom
   revalidatePath('/admin/pagamentos');
   return { ok: 'Regras de parcelamento salvas. O checkout já usa os novos valores.' };
 }
+
+export async function saveFidelizeiAction(_: FormState, form: FormData): Promise<FormState> {
+  const text = (key: string) => String(form.get(key) ?? '').trim();
+  const body = { ...(text('apiKey') && { apiKey: text('apiKey') }), enabled: form.get('enabled') === 'on', termsVersion: text('termsVersion') || '2026-10', privacyVersion: text('privacyVersion') || '2026-10', termsUrl: text('termsUrl') || null, privacyUrl: text('privacyUrl') || null };
+  let saved: import('../../lib/admin/types').FidelizeiSettings;
+  try {
+    saved = await adminFetch('/fidelizei/settings', { method: 'PUT', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/fidelizei');
+  if (saved.lastError) return { error: `Configuração salva, mas a conexão falhou: ${saved.lastError}` };
+  return { ok: text('apiKey') ? 'Chave salva e conexão com o Fidelizei confirmada.' : 'Configuração salva.' };
+}
+
+export async function testFidelizeiAction(): Promise<FormState> {
+  try {
+    const result = await adminFetch<{ ok: boolean; error?: string }>('/fidelizei/test', { method: 'POST' });
+    revalidatePath('/admin/fidelizei');
+    return result.ok ? { ok: 'Conexão com o Fidelizei funcionando.' } : { error: result.error ?? 'O Fidelizei não respondeu.' };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function disconnectFidelizeiAction() {
+  await adminFetch('/fidelizei/connection', { method: 'DELETE' });
+  revalidatePath('/admin/fidelizei');
+}

@@ -163,3 +163,7 @@ export type AdminRedirect = { id: string; fromPath: string; toPath: string; hits
 
 export type AdminReview = { id: string; authorName: string; rating: number; title: string | null; body: string; status: 'PENDING' | 'APPROVED' | 'REJECTED'; reply: string | null; createdAt: string; product: { id: string; name: string; slug: string } };
 export type AdminReviewPage = { items: AdminReview[]; total: number; page: number; pageSize: number; counts: Record<'PENDING' | 'APPROVED' | 'REJECTED', number> };
+
+export type FidelizeiSettings = { connected: boolean; keyHint: string | null; enabled: boolean; termsVersion: string; privacyVersion: string; termsUrl: string | null; privacyUrl: string | null; lastError: string | null; checkedAt: string | null; members: number; redemptions: Partial<Record<FidelizeiRedemptionStatus, number>> };
+export type FidelizeiRedemptionStatus = 'RESERVED' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'FAILED';
+export type FidelizeiRedemptionRow = { id: string; orderNumber: string | null; orderStatus: string | null; customer: string; reward: string; code: string; points: number; discount: string | null; status: FidelizeiRedemptionStatus; lastError: string | null; createdAt: string };

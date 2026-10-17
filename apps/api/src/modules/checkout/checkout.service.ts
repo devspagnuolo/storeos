@@ -8,6 +8,7 @@ import { clampInstallments, declineMessage, MAX_INSTALLMENTS, InstallmentOffer, 
 import { MercadoPagoClient } from '../payments/mercado-pago.client';
 import { CheckoutDraftService } from './checkout-draft.service';
 import { CouponsService } from '../promotions/coupons.service';
+import { CheckoutReward, FidelizeiService } from '../fidelizei/fidelizei.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { money } from '../../shared/money/money';
@@ -24,13 +25,15 @@ export type CheckoutInput = {
   /** CPF do pagador e dados do cartão já tokenizados no navegador; nada disso é gravado. */
   cpf?: string;
   card?: { token?: string; paymentMethodId?: string; installments?: number; issuerId?: string; bin?: string };
+  /** Benefício do Fidelizei reservado na conta da cliente (código e checkout da reserva). */
+  loyaltyReward?: CheckoutReward;
 };
 
 @Injectable()
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
 
-  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService, private readonly promotions: PromotionsService, private readonly mercadoPago: MercadoPagoClient, private readonly drafts: CheckoutDraftService) {}
+  constructor(private readonly prisma: PrismaService, @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider, private readonly lifecycle: OrderLifecycleService, private readonly shipping: ShippingService, private readonly coupons: CouponsService, private readonly promotions: PromotionsService, private readonly mercadoPago: MercadoPagoClient, private readonly drafts: CheckoutDraftService, private readonly fidelizei: FidelizeiService) {}
 
   /** Oferta real de parcelas do Mercado Pago para o cartão; se a consulta falhar, a regra cai no que é seguro sem juros. */
   private async offersFor(card: CardPayment, bin: string | undefined, total: number): Promise<InstallmentOffer[] | undefined> {
@@ -77,6 +80,11 @@ export class CheckoutService {
       ? await this.shipping.carrierOptions(store.id, input.shippingAddress.zipCode, items, await productsForPricing(this.prisma, store.id, items), await this.shipping.hasActiveRules(this.prisma, store.id))
       : [];
 
+    // Benefício de pontos: validado no Fidelizei antes da transação (chamada externa não segura locks).
+    const reward = input.loyaltyReward
+      ? await this.fidelizei.validateForCheckout(store.id, { reward: input.loyaltyReward, email, subtotal: priceOrderLines(items, await productsForPricing(this.prisma, store.id, items)).subtotal, paymentMethod: input.paymentMethod, couponCode: input.couponCode })
+      : null;
+
     const order = await this.prisma.$transaction(async tx => {
       const products = await productsForPricing(tx, store.id, items);
       const { lines, subtotal } = priceOrderLines(items, products);
@@ -119,13 +127,15 @@ export class CheckoutService {
         discount = redeemed.discount;
         couponId = redeemed.coupon.id;
       }
+      // O desconto é o que o Fidelizei validou; a regra não é recalculada aqui.
+      if (reward) discount = this.fidelizei.discountFor(reward.discount, afterPromotions);
       const total = afterPromotions.minus(discount).plus(shipping);
       // Nenhum gateway cobra R$ 0,00: melhor recusar antes de reservar estoque e criar pedido.
       if (!total.gt(0)) throw new BadRequestException('O total do pedido precisa ser maior que zero. Revise cupom e promoções.');
       const number = generateOrderNumber();
       const created = await tx.order.create({
         data: {
-          storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, promotionDiscount: promo.discount, promotions: promo.applied as unknown as Prisma.InputJsonArray, shipping, total, shippingMethod, shippingOptionId, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : null,
+          storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, promotionDiscount: promo.discount, promotions: promo.applied as unknown as Prisma.InputJsonArray, shipping, total, shippingMethod, shippingOptionId, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : reward?.row.code ?? null,
           shippingAddress: input.shippingAddress as Prisma.InputJsonObject,
           items: { create: persistLines(lines) },
           timeline: { create: [{ status: OrderStatus.NEW, message: 'Pedido criado no checkout', createdAt: new Date() }, { status: OrderStatus.AWAITING_PAYMENT, message: 'Aguardando pagamento', createdAt: new Date(Date.now() + 2) }] },
@@ -136,6 +146,7 @@ export class CheckoutService {
       // Quem fechou o pedido deixa de ser carrinho abandonado (e não recebe lembrete).
       await tx.abandonedCart.updateMany({ where: { storeId: store.id, email, status: { in: [AbandonedCartStatus.OPEN, AbandonedCartStatus.REMINDED] } }, data: { status: AbandonedCartStatus.RECOVERED, recoveredAt: new Date(), recoveredOrderId: created.id } });
       if (couponId) await tx.couponRedemption.create({ data: { couponId, orderId: created.id, customerId: customer.id, amount: discount } });
+      if (reward) await this.fidelizei.attachToOrder(tx, reward.row.id, created.id, discount);
       await tx.outboxEvent.create({ data: { storeId: store.id, aggregateType: 'Order', aggregateId: created.id, eventName: 'orders.order-created.v1', payload: { orderNumber: number, customerId: customer.id, total: total.toString(), currency: created.currency } } });
       await tx.outboxEvent.create({ data: { storeId: store.id, aggregateType: 'Order', aggregateId: created.id, eventName: 'inventory.reserved.v1', payload: { orderNumber: number, items } as unknown as Prisma.InputJsonObject } });
       return created;
