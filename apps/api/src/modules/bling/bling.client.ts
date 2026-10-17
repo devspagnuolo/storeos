@@ -51,7 +51,7 @@ export class BlingClient {
       });
       const text = await response.text();
       const data = text ? JSON.parse(text) : undefined;
-      if (!response.ok) throw new BlingApiError(response.status, describeError(response.status, data));
+      if (!response.ok) throw new BlingApiError(response.status, describeError(response.status, data, `${init.method ?? 'GET'} ${path}`));
       return data as T;
     };
     const result = this.queue.then(run, run);
@@ -60,9 +60,22 @@ export class BlingClient {
   }
 }
 
+const RESOURCES: [RegExp, string][] = [
+  [/^\/contatos/, 'Contatos'], [/^\/pedidos\/vendas/, 'Pedidos de venda'], [/^\/produtos/, 'Produtos'], [/^\/estoques/, 'Estoques'],
+  [/^\/nfe/, 'Notas fiscais'], [/^\/formas-pagamentos/, 'Formas de pagamento'], [/^\/categorias/, 'Categorias'], [/^\/contas\/receber/, 'Contas a receber'],
+];
+
 /** Junta a mensagem principal e os campos que o Bling apontou como inválidos. */
-export function describeError(status: number, data: unknown) {
-  const error = (data as { error?: { message?: string; description?: string; fields?: { msg?: string; element?: string }[] } } | undefined)?.error;
+export function describeError(status: number, data: unknown, request?: string) {
+  const raw = data as { error?: { type?: string; message?: string; description?: string; fields?: { msg?: string; element?: string }[] } } | undefined;
+  // Falta de permissão no aplicativo do Bling: diz qual recurso, porque a correção é marcar o escopo no app e reconectar.
+  if (status === 403 && /insufficient_scope/i.test(JSON.stringify(data ?? ''))) {
+    const [method = 'GET', path = ''] = request?.split(' ') ?? [];
+    const resource = RESOURCES.find(([pattern]) => pattern.test(path))?.[1] ?? path.split('?')[0];
+    const action = method === 'GET' ? 'ler' : 'gravar';
+    return `Bling 403: insufficient_scope. O aplicativo da loja no Bling não tem permissão para ${action} ${resource}. Marque esse escopo no aplicativo (Bling › Central de extensões › Área do integrador) e clique em Reconectar no painel.`;
+  }
+  const error = raw?.error;
   const fields = error?.fields?.map(f => [f.element, f.msg].filter(Boolean).join(': ')).filter(Boolean).join('; ');
   return `Bling ${status}: ${[error?.message ?? error?.description ?? 'erro', fields].filter(Boolean).join(' – ')}`.slice(0, 500);
 }
