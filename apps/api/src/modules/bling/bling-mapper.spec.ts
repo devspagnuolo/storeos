@@ -1,4 +1,4 @@
-import { BlingCategory, blingText, normalizeVariants, categoryPath, contactPayload, OrderForBling, parseVariation, salesOrderPayload, toImportProduct } from './bling-mapper';
+import { BlingCategory, meetsCodeFrom, productCodeNumber, blingText, normalizeVariants, categoryPath, contactPayload, OrderForBling, parseVariation, salesOrderPayload, toImportProduct } from './bling-mapper';
 
 const categories = new Map<number, BlingCategory>([[1, { id: 1, descricao: 'Blusas' }], [2, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }], [3, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }]]);
 
@@ -80,5 +80,18 @@ describe('bling-mapper', () => {
     expect(payload.observacoes).toContain('Cupom: VIVI10');
     expect(salesOrderPayload({ ...order, discount: 0, promotionDiscount: 0 }, 1, new Map())).not.toHaveProperty('desconto');
     expect(salesOrderPayload(order, 1, new Map()).itens[0]).not.toHaveProperty('produto');
+  });
+});
+
+describe('código mínimo dos produtos do Bling', () => {
+  it('compara o número do início do código', () => {
+    expect(productCodeNumber('2456')).toBe(2456);
+    expect(productCodeNumber(' 2456-P ')).toBe(2456);
+    expect(productCodeNumber('BR-1')).toBeNull();
+    expect(productCodeNumber(undefined)).toBeNull();
+    expect(meetsCodeFrom('1500', 1500)).toBe(true);
+    expect(meetsCodeFrom('1499', 1500)).toBe(false);
+    expect(meetsCodeFrom('', 1500)).toBe(false);
+    expect(meetsCodeFrom('0010', 0)).toBe(true);
   });
 });

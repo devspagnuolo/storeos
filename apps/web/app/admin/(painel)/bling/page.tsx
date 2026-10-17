@@ -48,7 +48,7 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
           <section id="importar" className="card mt-6 scroll-mt-6 p-6">
             <h2 className="text-lg font-bold">Escolher e importar produtos do Bling</h2>
             <p className="mb-4 mt-1 text-sm text-slate-500">Importação sob demanda do catálogo ativo do Bling para a loja: variações, preço, estoque, imagens e categorias. O SKU faz a reconciliação. Esta versão não sincroniza alterações do catálogo em tempo real; importe novamente após mudanças no ERP.</p>
-            <BlingImport initial={status.import} />
+            <BlingImport initial={status.import} codeFrom={status.productCodeFrom ?? 1500} />
           </section>
           <section className="card mt-6 p-6">
             <h2 className="text-lg font-bold">Atualizações do Bling por webhook</h2>

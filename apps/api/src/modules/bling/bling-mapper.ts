@@ -14,6 +14,22 @@ export type BlingProductDetail = {
   variacoes?: { id: number; nome?: string; codigo?: string; preco?: number; gtin?: string; variacao?: { nome?: string }; estoque?: { saldoVirtualTotal?: number } }[];
   seo?: { title?: string; description?: string };
 };
+/** Código mínimo padrão para importar produtos do Bling. */
+export const DEFAULT_PRODUCT_CODE_FROM = 1500;
+
+/** Número do código (SKU) do cadastro: os dígitos do início ("2456" ou "2456-P" viram 2456); null se não começa com número. */
+export function productCodeNumber(code?: string | null) {
+  const digits = /^\s*(\d+)/.exec(code ?? '')?.[1];
+  const value = digits ? Number(digits) : NaN;
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+/** Só entra na importação o produto cujo código é a partir do mínimo da loja. */
+export const meetsCodeFrom = (code: string | null | undefined, from: number) => {
+  const value = productCodeNumber(code);
+  return value !== null && value >= from;
+};
+
 export type BlingCategory = { id: number; descricao: string; categoriaPai?: { id?: number } };
 
 const ENTITIES: Record<string, string> = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú', '&ccedil;': 'ç', '&atilde;': 'ã', '&otilde;': 'õ' };

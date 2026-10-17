@@ -7,7 +7,7 @@ import { MediaService } from '../media/media.service';
 import { RemoteImageService } from '../media/remote-image.service';
 import { BlingStockService } from './bling-stock.service';
 import { BlingAuthService } from './bling-auth.service';
-import { BlingCategory, BlingProductDetail, toImportProduct } from './bling-mapper';
+import { BlingCategory, BlingProductDetail, DEFAULT_PRODUCT_CODE_FROM, meetsCodeFrom, toImportProduct } from './bling-mapper';
 import { BlingClient } from './bling.client';
 
 const PAGE = 100;
@@ -72,13 +72,18 @@ export class BlingImportService {
         rows.forEach(category => categories.set(category.id, category));
         if (rows.length < PAGE) break;
       }
+      const codeFrom = (await this.prisma.blingConnection.findUnique({ where: { storeId }, select: { productCodeFrom: true } }))?.productCodeFrom ?? DEFAULT_PRODUCT_CODE_FROM;
       const ids: number[] = selected ? [...new Set(selected)] : [];
+      let belowCode = 0;
       for (let page = 1; !selected && ids.length < MAX_PRODUCTS; page++) {
         // criterio=2: só produtos ativos; os inativos ficam de fora para não poluir a vitrine.
-        const rows = (await get<Page<{ id: number }>>(`/produtos?pagina=${page}&limite=${PAGE}&criterio=2&tipo=P`)).data ?? [];
-        ids.push(...rows.map(row => row.id));
+        const rows = (await get<Page<{ id: number; codigo?: string }>>(`/produtos?pagina=${page}&limite=${PAGE}&criterio=2&tipo=P`)).data ?? [];
+        const allowed = rows.filter(row => meetsCodeFrom(row.codigo, codeFrom));
+        belowCode += rows.length - allowed.length;
+        ids.push(...allowed.map(row => row.id));
         if (rows.length < PAGE) break;
       }
+      if (belowCode) errors.push({ message: `${belowCode} produto(s) com código abaixo de ${codeFrom} (ou sem número) ficaram fora da importação.` });
       counters.total = ids.length;
       await flush();
 
@@ -88,6 +93,11 @@ export class BlingImportService {
       for (const id of ids) {
         try {
           const detail = (await get<{ data: BlingProductDetail }>(`/produtos/${id}`)).data;
+          if (!meetsCodeFrom(detail.codigo, codeFrom)) {
+            counters.skipped++; counters.processed++;
+            errors.push({ sku: detail.codigo, message: `${detail.nome ?? `Produto ${id}`}: código ${detail.codigo?.trim() || '(vazio)'} abaixo de ${codeFrom}, não importado`.slice(0, 300) });
+            continue;
+          }
           const existingId = detail.codigo ? bySku.get(detail.codigo.trim().toLowerCase()) : undefined;
           if (existingId && mode === 'new') { counters.skipped++; counters.processed++; continue; } // produto já existe: a loja manda
           const product = toImportProduct(detail, categories, counters.processed + 1, slug => !existingId && slugs.has(slug));

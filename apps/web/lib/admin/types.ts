@@ -84,7 +84,7 @@ export type SubscriberPage = { items: Subscriber[]; total: number; page: number;
 
 export type BlingImportJob = { id: string; status: 'RUNNING' | 'DONE' | 'FAILED'; total: number; processed: number; created: number; updated: number; failed: number; skipped?: number; mode?: 'new' | 'update'; errors: { message: string }[]; startedAt: string; finishedAt: string | null };
 export type BlingInvoiceRow = { id: string; orderId: string; orderNumber?: string; total?: string; status: 'QUEUED' | 'PROCESSING' | 'GENERATED' | 'AUTHORIZED' | 'REJECTED' | 'FAILED'; invoiceNumber: string | null; series: string | null; accessKey: string | null; rejectionReason: string | null; attempts: number; issuedAt: string | null; authorizedAt: string | null };
-export type BlingStatus = { appConfigured: boolean; callbackUrl: string | null; webhookUrl: string | null; companyLinked: boolean; connected: boolean; connectedAt: string | null; lastError: string | null; automaticInvoiceEnabled: boolean; stockSync: { enabled: boolean; syncedAt: string | null; error: string | null }; invoices: BlingInvoiceRow[]; import: BlingImportJob | null; orders: Partial<Record<'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED', number>> };
+export type BlingStatus = { appConfigured: boolean; callbackUrl: string | null; webhookUrl: string | null; companyLinked: boolean; connected: boolean; connectedAt: string | null; lastError: string | null; automaticInvoiceEnabled: boolean; productCodeFrom?: number; stockSync: { enabled: boolean; syncedAt: string | null; error: string | null }; invoices: BlingInvoiceRow[]; import: BlingImportJob | null; orders: Partial<Record<'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED', number>> };
 export type BlingSyncRow = { id: string; orderNumber: string; total: string; orderStatus: string; status: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED'; blingOrderId: string | null; blingOrderNumber: string | null; blingSituationId: string | null; blingSituationName: string | null; attempts: number; lastError: string | null; nextAttemptAt: string; sentAt: string | null };
 
 export type BlingReconciliation = {
@@ -134,7 +134,7 @@ export type WarehouseMatrix = {
 export type WarehouseTransferRow = { id: string; fromWarehouse: string; toWarehouse: string; quantity: number; reason: string | null; productId: string; variantId: string | null; createdAt: string };
 
 export type BlingCatalogItem = { id: number; sku: string | null; name: string; price: number; stock: number; hasVariations: boolean; imageUrl: string | null; inStore: boolean };
-export type BlingCatalogPage = { items: BlingCatalogItem[]; page: number; pageSize: number; hasMore: boolean };
+export type BlingCatalogPage = { items: BlingCatalogItem[]; page: number; pageSize: number; hasMore: boolean; codeFrom?: number; hidden?: number };
 
 export type AutomationAction =
   | { type: 'ADD_TAG' | 'REMOVE_TAG'; tag: string }
