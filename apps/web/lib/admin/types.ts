@@ -134,7 +134,8 @@ export type WarehouseMatrix = {
 };
 export type WarehouseTransferRow = { id: string; fromWarehouse: string; toWarehouse: string; quantity: number; reason: string | null; productId: string; variantId: string | null; createdAt: string };
 
-export type BlingCatalogItem = { id: number; sku: string | null; name: string; price: number; stock: number; hasVariations: boolean; imageUrl: string | null; inStore: boolean };
+export type BlingCatalogVariation = { id: number; sku: string | null; name: string; stock: number };
+export type BlingCatalogItem = { id: number; sku: string | null; name: string; price: number; stock: number; hasVariations: boolean; imageUrl: string | null; inStore: boolean; variations?: BlingCatalogVariation[] };
 export type BlingCatalogPage = { items: BlingCatalogItem[]; page: number; pageSize: number; hasMore: boolean; total?: number; codeFrom?: number; hidden?: number };
 
 export type AutomationAction =

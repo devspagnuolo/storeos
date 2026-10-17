@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Fragment, useCallback, useEffect, useState, useTransition } from 'react';
 import { importBlingSelectedAction } from '../../app/admin/actions';
 import type { BlingCatalogItem, BlingCatalogPage } from '../../lib/admin/types';
 import { formatPrice } from '../../lib/format';
@@ -50,12 +50,23 @@ export function BlingPicker({ disabled, onStarted }: { disabled: boolean; onStar
           <tbody>
             {(data?.items ?? []).map(item => {
               const locked = !item.sku || (item.inStore && !update);
+              const variations = item.variations ?? [];
               return (
-                <tr key={item.id} className={`border-b last:border-0 ${locked ? 'opacity-60' : ''}`}>
+                <Fragment key={item.id}>
+                <tr className={`${variations.length ? '' : 'border-b last:border-0'} ${locked ? 'opacity-60' : ''}`}>
                   <td className="p-3"><input type="checkbox" disabled={locked} checked={picked.has(item.id)} onChange={() => toggle(item)} aria-label={`Marcar ${item.name}`} /></td>
-                  <td className="p-3"><div className="flex items-center gap-3">{item.imageUrl ? <img src={item.imageUrl} alt="" className="h-12 w-10 rounded object-cover" loading="lazy" /> : <span className="h-12 w-10 rounded bg-slate-100" />}<div><p className="font-medium">{item.name}</p><p className="text-xs text-slate-400">{item.hasVariations ? 'com variações · ' : ''}{item.inStore ? 'já está na loja' : !item.sku ? 'sem código (SKU) no Bling, não dá para importar' : ''}</p></div></div></td>
+                  <td className="p-3"><div className="flex items-center gap-3">{item.imageUrl ? <img src={item.imageUrl} alt="" className="h-12 w-10 rounded object-cover" loading="lazy" /> : <span className="h-12 w-10 rounded bg-slate-100" />}<div><p className="font-medium">{item.name}</p><p className="text-xs text-slate-400">{[variations.length ? `${variations.length} variação(ões), vêm junto` : item.hasVariations && 'com variações', item.inStore ? 'já está na loja' : !item.sku && 'sem código (SKU) no Bling, não dá para importar'].filter(Boolean).join(' · ')}</p></div></div></td>
                   <td className="p-3 font-mono text-xs">{item.sku ?? '—'}</td><td className="p-3 text-right">{formatPrice(String(item.price))}</td><td className="p-3 text-right">{item.stock}</td>
-                </tr>);
+                </tr>
+                {/* Variações do pai: entram junto quando o pai é marcado, não são importadas sozinhas. */}
+                {variations.map((v, i) => (
+                  <tr key={v.id} className={`bg-slate-50/70 text-xs text-slate-600 ${i === variations.length - 1 ? 'border-b' : ''} ${locked ? 'opacity-60' : ''}`}>
+                    <td />
+                    <td className="py-1.5 pl-16 pr-3"><span className="text-slate-400">↳</span> {v.name}</td>
+                    <td className="px-3 py-1.5 font-mono">{v.sku ?? '—'}</td><td /><td className="px-3 py-1.5 text-right">{v.stock}</td>
+                  </tr>
+                ))}
+                </Fragment>);
             })}
             {data && !data.items.length && <tr><td colSpan={5} className="p-8 text-center text-slate-500">Nenhum produto ativo encontrado.</td></tr>}
             {!data && loading && <tr><td colSpan={5} className="p-8 text-center text-slate-500">Consultando o Bling…</td></tr>}

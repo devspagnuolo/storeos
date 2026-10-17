@@ -28,6 +28,8 @@ class FakeBling {
     2: { id: 2, nome: 'Calça Pantalona', codigo: '1700', preco: 150, situacao: 'A', formato: 'S', estoque: { saldoVirtualTotal: 7 }, gtin: '7891000100103', unidade: 'UN', tributacao: { ncm: '6204.62.00', cest: '28.038.00', origem: 0 } },
     3: { id: 3, nome: 'Sem código', preco: 10, situacao: 'A' },
     4: { id: 4, nome: 'Blusa Antiga', codigo: '1010', preco: 59, situacao: 'A', formato: 'S', estoque: { saldoVirtualTotal: 1 } },
+    // Variação listada pelo Bling como cadastro próprio, ligada ao pai pelo idProdutoPai.
+    11: { id: 11, idProdutoPai: 1, nome: 'Blusa de Renda Tamanho:P', codigo: '1600-P', preco: 99.9, situacao: 'A', formato: 'S', estoque: { saldoVirtualTotal: 4 } },
   };
 
   authorizeUrl(state: string) { return `https://bling.test/authorize?state=${state}`; }
@@ -42,8 +44,8 @@ class FakeBling {
     if (url.pathname === '/categorias/produtos') return { data: [{ id: 1, descricao: 'Blusas' }, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }] };
     if (url.pathname === '/produtos' && url.searchParams.has('criterio')) {
       const q = url.searchParams.get('nome')?.toLowerCase();
-      return { data: Object.values(this.products as Record<number, { id: number; nome: string; codigo?: string; preco?: number; situacao?: string; formato?: string; estoque?: { saldoVirtualTotal?: number } }>)
-        .filter(p => !q || p.nome.toLowerCase().includes(q)).map(p => ({ id: p.id, nome: p.nome, codigo: p.codigo, preco: p.preco, situacao: p.situacao, formato: p.formato, imagemURL: 'https://cdn.test/capa.jpg', estoque: p.estoque })) };
+      return { data: Object.values(this.products as Record<number, { id: number; idProdutoPai?: number; nome: string; codigo?: string; preco?: number; situacao?: string; formato?: string; estoque?: { saldoVirtualTotal?: number } }>)
+        .filter(p => !q || p.nome.toLowerCase().includes(q)).map(p => ({ id: p.id, idProdutoPai: p.idProdutoPai, nome: p.nome, codigo: p.codigo, preco: p.preco, situacao: p.situacao, formato: p.formato, imagemURL: 'https://cdn.test/capa.jpg', estoque: p.estoque })) };
     }
     if (url.pathname === '/estoques/saldos') return { data: url.searchParams.getAll('idsProdutos[]').map(id => ({ produto: { id: Number(id) }, saldoVirtualTotal: (this.products[Number(id)] as { estoque?: { saldoVirtualTotal?: number } })?.estoque?.saldoVirtualTotal ?? 0 })) };
     if (url.pathname === '/produtos' && url.searchParams.has('codigos[]')) return { data: [{ id: 555, codigo: 'VASO-1' }] };
@@ -181,7 +183,7 @@ describe('importação escolhendo produtos', () => {
     expect(list.status).toBe(200);
     expect(list.body.items.map((i: { sku: string | null }) => i.sku)).toEqual(['1600', '1700']);
     expect(list.body).toMatchObject({ codeFrom: 1500, hidden: 2 });
-    expect(list.body.items[0]).toMatchObject({ name: 'Blusa de Renda', hasVariations: true, inStore: false });
+    expect(list.body.items[0]).toMatchObject({ name: 'Blusa de Renda', hasVariations: true, inStore: false, variations: [{ id: 11, sku: '1600-P', stock: 4 }] });
     expect((await api('/bling/products?q=calça', { token })).body.items).toHaveLength(1);
 
     expect((await api('/bling/import', { method: 'POST', token, body: { ids: [] } })).status).toBe(400);
