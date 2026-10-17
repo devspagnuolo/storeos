@@ -1122,6 +1122,8 @@ model BlingImport {
   mode       String            @default("new")
   errors     Json              @default("[]")
   startedAt  DateTime          @default(now())
+  /// Avança a cada lote processado; parada há muito tempo = importação interrompida (ex.: deploy no meio).
+  updatedAt  DateTime          @default(now()) @updatedAt
   finishedAt DateTime?
   store      Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
