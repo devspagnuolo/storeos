@@ -135,7 +135,7 @@ export type WarehouseMatrix = {
 export type WarehouseTransferRow = { id: string; fromWarehouse: string; toWarehouse: string; quantity: number; reason: string | null; productId: string; variantId: string | null; createdAt: string };
 
 export type BlingCatalogItem = { id: number; sku: string | null; name: string; price: number; stock: number; hasVariations: boolean; imageUrl: string | null; inStore: boolean };
-export type BlingCatalogPage = { items: BlingCatalogItem[]; page: number; pageSize: number; hasMore: boolean; codeFrom?: number; hidden?: number };
+export type BlingCatalogPage = { items: BlingCatalogItem[]; page: number; pageSize: number; hasMore: boolean; total?: number; codeFrom?: number; hidden?: number };
 
 export type AutomationAction =
   | { type: 'ADD_TAG' | 'REMOVE_TAG'; tag: string }

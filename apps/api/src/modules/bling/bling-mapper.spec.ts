@@ -1,4 +1,4 @@
-import { BlingCategory, meetsCodeFrom, productCodeNumber, blingText, normalizeVariants, categoryPath, contactPayload, OrderForBling, parseVariation, salesOrderPayload, toImportProduct } from './bling-mapper';
+import { BlingCategory, byCode, meetsCodeFrom, productCodeNumber, blingText, normalizeVariants, categoryPath, contactPayload, OrderForBling, parseVariation, salesOrderPayload, toImportProduct } from './bling-mapper';
 
 const categories = new Map<number, BlingCategory>([[1, { id: 1, descricao: 'Blusas' }], [2, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }], [3, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }]]);
 
@@ -93,5 +93,12 @@ describe('código mínimo dos produtos do Bling', () => {
     expect(meetsCodeFrom('1499', 1500)).toBe(false);
     expect(meetsCodeFrom('', 1500)).toBe(false);
     expect(meetsCodeFrom('0010', 0)).toBe(true);
+  });
+});
+
+describe('byCode', () => {
+  it('orders Bling products by code, ascending', () => {
+    const rows = ['1502', '1500-B', '1510', 'SEM', '1500', '1501', '1500-A'].map(codigo => ({ codigo }));
+    expect(rows.sort(byCode).map(r => r.codigo)).toEqual(['1500', '1500-A', '1500-B', '1501', '1502', '1510', 'SEM']);
   });
 });

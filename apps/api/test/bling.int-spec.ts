@@ -203,7 +203,7 @@ describe('importação escolhendo produtos', () => {
     expect((await api('/bling/product-settings', { method: 'POST', token: await login(api, store, ['orders.read']), body: { codeFrom: 1000 } })).status).toBe(403);
     expect((await api('/bling/product-settings', { method: 'POST', token, body: { codeFrom: 1000 } })).body).toEqual({ productCodeFrom: 1000 });
     expect((await api('/bling/status', { token })).body.productCodeFrom).toBe(1000);
-    expect((await api('/bling/products', { token })).body.items.map((i: { sku: string | null }) => i.sku)).toEqual(['1600', '1700', '1010']);
+    expect((await api('/bling/products', { token })).body.items.map((i: { sku: string | null }) => i.sku)).toEqual(['1010', '1600', '1700']);
   });
 });
 

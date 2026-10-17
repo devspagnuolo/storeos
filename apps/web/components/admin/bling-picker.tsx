@@ -43,7 +43,7 @@ export function BlingPicker({ disabled, onStarted }: { disabled: boolean; onStar
         <label className="ml-auto flex items-center gap-2 text-sm"><input type="checkbox" checked={update} onChange={e => setUpdate(e.target.checked)} /> Também atualizar os que já estão na loja</label>
       </form>
       {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
-      {Boolean(data?.hidden) && <p className="mt-3 text-xs text-slate-500">{data!.hidden} cadastro(s) desta página ficaram fora por ter código abaixo de {data!.codeFrom}.</p>}
+      {Boolean(data?.hidden) && <p className="mt-3 text-xs text-slate-500">{data!.hidden} cadastro(s) ficaram fora por ter código abaixo de {data!.codeFrom}.</p>}
       <div className="card mt-3 overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b text-xs uppercase text-slate-500"><tr><th className="w-10 p-3"><input type="checkbox" checked={allMarked} onChange={toggleAll} aria-label="Marcar todos desta página" /></th><th className="p-3">Produto</th><th className="p-3">Código</th><th className="p-3 text-right">Preço</th><th className="p-3 text-right">Estoque</th></tr></thead>
@@ -64,7 +64,7 @@ export function BlingPicker({ disabled, onStarted }: { disabled: boolean; onStar
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
         <button className="button-ghost" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>← Anterior</button>
-        <span className="text-slate-500">Página {page}</span>
+        <span className="text-slate-500">Página {page}{data?.total ? ` de ${Math.max(1, Math.ceil(data.total / data.pageSize))} · ${data.total} produto(s), por código` : ''}</span>
         <button className="button-ghost" disabled={!data?.hasMore || loading} onClick={() => setPage(page + 1)}>Próxima →</button>
         <span className="ml-auto text-slate-600">{picked.size} marcado(s)</span>
         <button className="button disabled:opacity-60" disabled={disabled || pending || !picked.size} onClick={() => start(async () => {

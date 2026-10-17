@@ -30,6 +30,10 @@ export const meetsCodeFrom = (code: string | null | undefined, from: number) => 
   return value !== null && value >= from;
 };
 
+/** 1500, 1501, 1502…; empate no número (ex.: 1500 e 1500-A) desempata pelo texto do código. */
+export const byCode = (a: { codigo?: string }, b: { codigo?: string }) =>
+  (productCodeNumber(a.codigo) ?? Infinity) - (productCodeNumber(b.codigo) ?? Infinity) || (a.codigo ?? '').trim().localeCompare((b.codigo ?? '').trim(), 'pt-BR', { numeric: true });
+
 export type BlingCategory = { id: number; descricao: string; categoriaPai?: { id?: number } };
 
 const ENTITIES: Record<string, string> = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú', '&ccedil;': 'ç', '&atilde;': 'ã', '&otilde;': 'õ' };

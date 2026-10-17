@@ -7,7 +7,7 @@ import { MediaService } from '../media/media.service';
 import { RemoteImageService } from '../media/remote-image.service';
 import { BlingStockService } from './bling-stock.service';
 import { BlingAuthService } from './bling-auth.service';
-import { BlingCategory, BlingProductDetail, DEFAULT_PRODUCT_CODE_FROM, meetsCodeFrom, toImportProduct } from './bling-mapper';
+import { BlingCategory, BlingProductDetail, byCode, DEFAULT_PRODUCT_CODE_FROM, meetsCodeFrom, toImportProduct } from './bling-mapper';
 import { BlingClient } from './bling.client';
 
 const PAGE = 100;
@@ -75,14 +75,17 @@ export class BlingImportService {
       const codeFrom = (await this.prisma.blingConnection.findUnique({ where: { storeId }, select: { productCodeFrom: true } }))?.productCodeFrom ?? DEFAULT_PRODUCT_CODE_FROM;
       const ids: number[] = selected ? [...new Set(selected)] : [];
       let belowCode = 0;
-      for (let page = 1; !selected && ids.length < MAX_PRODUCTS; page++) {
+      const found: { id: number; codigo?: string }[] = [];
+      for (let page = 1; !selected && found.length < MAX_PRODUCTS; page++) {
         // criterio=2: só produtos ativos; os inativos ficam de fora para não poluir a vitrine.
         const rows = (await get<Page<{ id: number; codigo?: string }>>(`/produtos?pagina=${page}&limite=${PAGE}&criterio=2&tipo=P`)).data ?? [];
         const allowed = rows.filter(row => meetsCodeFrom(row.codigo, codeFrom));
         belowCode += rows.length - allowed.length;
-        ids.push(...allowed.map(row => row.id));
+        found.push(...allowed);
         if (rows.length < PAGE) break;
       }
+      // Importa na mesma ordem da lista: código crescente.
+      ids.push(...found.sort(byCode).slice(0, MAX_PRODUCTS).map(row => row.id));
       if (belowCode) errors.push({ message: `${belowCode} produto(s) com código abaixo de ${codeFrom} (ou sem número) ficaram fora da importação.` });
       counters.total = ids.length;
       await flush();
