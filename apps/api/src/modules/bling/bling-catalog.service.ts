@@ -11,9 +11,10 @@ const BLING_PAGE = 100;
 const MAX_BLING_PAGES = 50;
 /** Guarda a lista do Bling por pouco tempo para que trocar de página não refaça todas as consultas. */
 const CACHE_MS = 2 * 60_000;
-type Listed = { id: number; nome?: string; codigo?: string; preco?: number; formato?: string; situacao?: string; imagemURL?: string; estoque?: { saldoVirtualTotal?: number } };
+type Listed = { id: number; idProdutoPai?: number | null; nome?: string; codigo?: string; preco?: number; formato?: string; situacao?: string; imagemURL?: string; estoque?: { saldoVirtualTotal?: number } };
 
-export type BlingCatalogItem = { id: number; sku: string | null; name: string; price: number; stock: number; hasVariations: boolean; imageUrl: string | null; inStore: boolean };
+export type BlingCatalogVariation = { id: number; sku: string | null; name: string; stock: number };
+export type BlingCatalogItem = { id: number; sku: string | null; name: string; price: number; stock: number; hasVariations: boolean; imageUrl: string | null; inStore: boolean; variations: BlingCatalogVariation[] };
 
 /** Lista os cadastros ativos do Bling para o lojista escolher o que trazer. Somente leitura. */
 @Injectable()
@@ -26,7 +27,11 @@ export class BlingCatalogService {
     const codeFrom = (await this.prisma.blingConnection.findUnique({ where: { storeId }, select: { productCodeFrom: true } }))?.productCodeFrom ?? DEFAULT_PRODUCT_CODE_FROM;
     const listed = await this.listed(storeId, q?.trim().slice(0, 100) ?? '');
     // Cadastros com código abaixo do mínimo (ou sem número) ficam fora da lista; os demais seguem o código em ordem crescente.
-    const allowed = listed.filter(r => meetsCodeFrom(r.codigo, codeFrom)).sort(byCode);
+    // Variações aparecem embaixo do produto pai e entram junto com ele; nunca viram produto separado.
+    const children = new Map<number, Listed[]>();
+    for (const r of listed) if (r.idProdutoPai) children.set(r.idProdutoPai, [...(children.get(r.idProdutoPai) ?? []), r]);
+    const parents = listed.filter(r => !r.idProdutoPai);
+    const allowed = parents.filter(r => meetsCodeFrom(r.codigo, codeFrom)).sort(byCode);
     const rows = allowed.slice((page - 1) * LIMIT, page * LIMIT);
     const skus = rows.map(r => r.codigo?.trim().toLowerCase()).filter((s): s is string => Boolean(s));
     const known = skus.length ? await this.prisma.$queryRaw<{ sku: string }[]>(Prisma.sql`SELECT "sku" FROM "Product" WHERE "storeId" = ${storeId} AND lower("sku") IN (${Prisma.join(skus)})`) : [];
@@ -35,8 +40,9 @@ export class BlingCatalogService {
       id: r.id, sku: r.codigo?.trim() || null, name: r.nome ?? '(sem nome)', price: Math.round(Number(r.preco ?? 0) * 100) / 100,
       stock: Math.max(0, Math.floor(Number(r.estoque?.saldoVirtualTotal ?? 0))), hasVariations: r.formato === 'V',
       imageUrl: r.imagemURL && /^https:\/\//.test(r.imagemURL) ? r.imagemURL : null, inStore: Boolean(r.codigo && have.has(r.codigo.trim().toLowerCase())),
+      variations: [...(children.get(r.id) ?? [])].sort(byCode).map(v => ({ id: v.id, sku: v.codigo?.trim() || null, name: v.nome ?? '', stock: Math.max(0, Math.floor(Number(v.estoque?.saldoVirtualTotal ?? 0))) })),
     }));
-    return { items, page, pageSize: LIMIT, hasMore: page * LIMIT < allowed.length, total: allowed.length, codeFrom, hidden: listed.length - allowed.length };
+    return { items, page, pageSize: LIMIT, hasMore: page * LIMIT < allowed.length, total: allowed.length, codeFrom, hidden: parents.length - allowed.length };
   }
 
   /** O Bling não ordena pelo código, então a lista inteira de ativos é lida antes de ordenar e paginar aqui. */

@@ -78,9 +78,10 @@ export class BlingImportService {
       const found: { id: number; codigo?: string }[] = [];
       for (let page = 1; !selected && found.length < MAX_PRODUCTS; page++) {
         // criterio=2: só produtos ativos; os inativos ficam de fora para não poluir a vitrine.
-        const rows = (await get<Page<{ id: number; codigo?: string }>>(`/produtos?pagina=${page}&limite=${PAGE}&criterio=2&tipo=P`)).data ?? [];
-        const allowed = rows.filter(row => meetsCodeFrom(row.codigo, codeFrom));
-        belowCode += rows.length - allowed.length;
+        const rows = (await get<Page<{ id: number; idProdutoPai?: number | null; codigo?: string }>>(`/produtos?pagina=${page}&limite=${PAGE}&criterio=2&tipo=P`)).data ?? [];
+        // Variações chegam junto com o produto pai; sozinhas virariam produtos soltos na loja.
+        const allowed = rows.filter(row => !row.idProdutoPai && meetsCodeFrom(row.codigo, codeFrom));
+        belowCode += rows.filter(row => !row.idProdutoPai).length - allowed.length;
         found.push(...allowed);
         if (rows.length < PAGE) break;
       }
