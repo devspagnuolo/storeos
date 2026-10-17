@@ -41,6 +41,11 @@ describe('footer config', () => {
     expect(config.legal.companyName).toBe('Vivi Moda LTDA');
   });
 
+  it('keeps the Fidelizei link only when it is a web address', () => {
+    expect(readFooterConfig({ fidelizei: { url: 'fidelizaplus.com.br/vivi' } }).fidelizei).toEqual({ enabled: true, url: 'https://fidelizaplus.com.br/vivi', text: DEFAULT_FOOTER.fidelizei.text });
+    expect(readFooterConfig({ fidelizei: { enabled: false, url: 'javascript:alert(1)', text: '' } }).fidelizei).toEqual({ enabled: false, url: '', text: '' });
+  });
+
   it('keeps an empty link list when the shop removed every link', () => {
     expect(readFooterConfig({ links: { items: [] } }).links.items).toEqual([]);
   });
