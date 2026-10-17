@@ -288,7 +288,7 @@ describe('cartão e boleto pelo Mercado Pago', () => {
   });
 
   it('expõe a chave pública e o limite de parcelas, e some sem chave', async () => {
-    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'mercadopago', publicKey: 'TEST-public-key', maxInstallments: 18, maxFreeInstallments: 1, minFreeInstallment: 80 }, boleto: true });
+    expect((await api('/payments/config')).body).toEqual({ card: { provider: 'mercadopago', publicKey: 'TEST-public-key', maxInstallments: 18, maxFreeInstallments: 5, minFreeInstallment: 100 }, boleto: true });
     mercadoPago.publicKey = undefined;
     expect((await api('/payments/config')).body).toEqual({ card: null, boleto: true });
   });
