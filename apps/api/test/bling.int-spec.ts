@@ -173,6 +173,21 @@ describe('importação de produtos do Bling', () => {
 });
 
 describe('importação escolhendo produtos', () => {
+  it('importação que parou de avançar (servidor reiniciou) é encerrada e não trava o painel', async () => {
+    const { store } = await createStore();
+    await connect(store.id);
+    const token = await login(api, store, ['catalog.write', 'settings.write']);
+    const stuck = await prisma.blingImport.create({ data: { storeId: store.id, mode: 'update', total: 1, processed: 1 } });
+    expect((await api('/bling/status', { token })).body.import).toMatchObject({ id: stuck.id, status: 'RUNNING' });
+    await prisma.$executeRaw`UPDATE "BlingImport" SET "updatedAt" = now() - interval '20 minutes' WHERE id = ${stuck.id}`;
+    const status = (await api('/bling/status', { token })).body.import;
+    expect(status).toMatchObject({ id: stuck.id, status: 'FAILED' });
+    expect(status.errors.at(-1).message).toContain('interrompida');
+    expect((await api('/bling/import', { method: 'POST', token, body: { ids: [2] } })).status).toBe(202);
+    const next = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.id !== stuck.id && job.status !== 'RUNNING');
+    expect(next).toMatchObject({ status: 'DONE', total: 1 });
+  });
+
   it('lista os ativos do Bling, importa só os escolhidos, padroniza as fotos e liga o estoque', async () => {
     const { store } = await createStore();
     await connect(store.id);

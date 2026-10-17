@@ -14,7 +14,8 @@ const PAGE = 100;
 const MAX_PRODUCTS = 5000;
 const MAX_SELECTED = 200;
 const MAX_IMAGES = 6;
-const STALE_MS = 30 * 60_000;
+/** Sem avanço por esse tempo, a importação morreu com o servidor (deploy ou reinício) e não vai terminar. */
+const STALE_MS = 15 * 60_000;
 
 type Page<T> = { data?: T[] };
 export type ImportMode = 'new' | 'update';
@@ -27,18 +28,19 @@ export class BlingImportService {
 
   constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly importer: ProductImportService, private readonly media: MediaService, private readonly remote: RemoteImageService, private readonly stock: BlingStockService) {}
 
-  latest(storeId: string) {
-    return this.prisma.blingImport.findFirst({ where: { storeId }, orderBy: { startedAt: 'desc' } });
+  /** Última importação da loja; uma que parou de avançar é encerrada como falha para não travar o painel. */
+  async latest(storeId: string) {
+    const current = await this.prisma.blingImport.findFirst({ where: { storeId }, orderBy: { startedAt: 'desc' } });
+    if (current?.status !== BlingImportStatus.RUNNING || Date.now() - current.updatedAt.getTime() < STALE_MS) return current;
+    const errors = [...(Array.isArray(current.errors) ? current.errors : []), { message: 'A importação foi interrompida (o servidor reiniciou no meio). Os produtos já processados foram mantidos; importe de novo se faltar algum.' }];
+    return this.prisma.blingImport.update({ where: { id: current.id }, data: { status: BlingImportStatus.FAILED, finishedAt: new Date(), errors: errors.slice(-50) as Prisma.InputJsonArray } });
   }
 
-  /** Dispara a importação. Se já há uma rodando, devolve a mesma; uma que travou há mais de 30 min é dada como falha. */
+  /** Dispara a importação. Se já há uma rodando, devolve a mesma (uma parada é encerrada por `latest`). */
   async start(storeId: string, wait = false, mode: ImportMode = 'new', ids?: number[]) {
     if (ids && (!ids.length || ids.length > MAX_SELECTED || ids.some(id => !Number.isInteger(id) || id <= 0))) throw new BadRequestException(`Escolha de 1 a ${MAX_SELECTED} produtos`);
     const current = await this.latest(storeId);
-    if (current?.status === BlingImportStatus.RUNNING) {
-      if (Date.now() - current.startedAt.getTime() < STALE_MS) return current;
-      await this.prisma.blingImport.update({ where: { id: current.id }, data: { status: BlingImportStatus.FAILED, finishedAt: new Date(), errors: [{ message: 'A importação foi interrompida (servidor reiniciado).' }] } });
-    }
+    if (current?.status === BlingImportStatus.RUNNING) return current;
     await this.auth.accessToken(storeId); // falha cedo e com mensagem clara se não estiver conectado
     const job = await this.prisma.blingImport.create({ data: { storeId, mode } });
     const running = this.run(storeId, job.id, mode, ids);
