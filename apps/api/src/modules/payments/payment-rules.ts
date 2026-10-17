@@ -22,15 +22,15 @@ export function maxAllowedInstallments(value: unknown = process.env.MERCADOPAGO_
 
 /** Máximo de parcelas sem juros que a loja aceita apresentar, dentro do limite geral. */
 export function maxFreeInstallments(value: unknown = process.env.MERCADOPAGO_MAX_FREE_INSTALLMENTS, max = maxAllowedInstallments()) {
-  const parsed = Number(value ?? 1);
-  const configured = Number.isFinite(parsed) ? Math.max(1, Math.min(Math.trunc(parsed), MAX_INSTALLMENTS)) : 1;
+  const parsed = Number(value ?? 5);
+  const configured = Number.isFinite(parsed) ? Math.max(1, Math.min(Math.trunc(parsed), MAX_INSTALLMENTS)) : 5;
   return Math.min(configured, maxAllowedInstallments(max));
 }
 
 /** Piso em reais por parcela sem juros. */
 export function minFreeInstallment(value: unknown = process.env.MERCADOPAGO_MIN_FREE_INSTALLMENT) {
-  const parsed = Number(value ?? 80);
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 100_000) : 80;
+  const parsed = Number(value ?? 100);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 100_000) : 100;
 }
 
 /** Limite sem juros aplicável a um pedido, respeitando valor mínimo e limite de parcelas da loja. */

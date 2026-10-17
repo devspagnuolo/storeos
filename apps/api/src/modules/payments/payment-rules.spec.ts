@@ -28,7 +28,11 @@ describe('payment-rules', () => {
 
   it('calcula parcelas sem juros pelo piso por parcela', () => {
     expect(minFreeInstallment('80')).toBe(80);
-    expect(minFreeInstallment()).toBe(80);
+    expect(minFreeInstallment()).toBe(100);
+    expect(maxFreeInstallments()).toBe(5);
+    expect(maxFreeInstallmentsForAmount(450, 5, 100)).toBe(4);
+    expect(maxFreeInstallmentsForAmount(1000, 5, 100)).toBe(5);
+    expect(maxFreeInstallmentsForAmount(99.99, 5, 100)).toBe(1);
     expect(maxFreeInstallmentsForAmount(300, 6, 80)).toBe(3);
     expect(maxFreeInstallmentsForAmount(279.99, 6, 80)).toBe(3);
     expect(maxFreeInstallmentsForAmount(80, 6, 80)).toBe(1);
