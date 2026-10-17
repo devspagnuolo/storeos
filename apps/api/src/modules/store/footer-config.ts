@@ -7,6 +7,8 @@ export type FooterConfig = {
   contact: { enabled: boolean; title: string; whatsapp: string; phone: string; email: string; address: string; hours: string };
   social: { enabled: boolean; title: string; instagram: string; facebook: string; tiktok: string; youtube: string; pinterest: string; newsletter: boolean };
   legal: { companyName: string; document: string; text: string };
+  /** Selo do programa de fidelidade Fidelizei com o link da loja na plataforma; só aparece com link preenchido. */
+  fidelizei: { enabled: boolean; url: string; text: string };
 };
 
 export const SOCIAL_NETWORKS = ['instagram', 'facebook', 'tiktok', 'youtube', 'pinterest'] as const;
@@ -17,6 +19,7 @@ export const DEFAULT_FOOTER: FooterConfig = {
   contact: { enabled: true, title: 'Entre em contato', whatsapp: '', phone: '', email: '', address: '', hours: '' },
   social: { enabled: true, title: 'Permaneça conectado', instagram: '', facebook: '', tiktok: '', youtube: '', pinterest: '', newsletter: true },
   legal: { companyName: '', document: '', text: '' },
+  fidelizei: { enabled: true, url: '', text: 'Junte pontos nas suas compras e troque por benefícios.' },
 };
 
 const MAX_LINKS = 15;
@@ -43,6 +46,13 @@ export function socialUrl(network: (typeof SOCIAL_NETWORKS)[number], value: unkn
   const handle = raw.match(/^@([\w.]{1,60})$/);
   if (handle && network === 'instagram') return `https://instagram.com/${handle[1]}`;
   if (handle && network === 'tiktok') return `https://www.tiktok.com/@${handle[1]}`;
+  return httpsUrl(raw);
+}
+
+/** Endereço web, sempre https (redes sociais e link do Fidelizei); aceita que o lojista cole sem o "https://". */
+export function httpsUrl(value: unknown): string {
+  const raw = text(value, 300);
+  if (!raw) return '';
   const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
   return /^https?:\/\/[^\s/]+\.[^\s]+$/i.test(url) ? url.replace(/^http:/i, 'https:') : '';
 }
@@ -55,6 +65,7 @@ export function readFooterConfig(value: unknown): FooterConfig {
   const contact = obj(input.contact);
   const social = obj(input.social);
   const legal = obj(input.legal);
+  const fidelizei = obj(input.fidelizei);
   const d = DEFAULT_FOOTER;
   const items = Array.isArray(links.items)
     ? links.items.map(item => {
@@ -82,5 +93,6 @@ export function readFooterConfig(value: unknown): FooterConfig {
       newsletter: flag(social.newsletter, true),
     },
     legal: { companyName: text(legal.companyName, 120), document: text(legal.document, 30), text: text(legal.text, 300) },
+    fidelizei: { enabled: flag(fidelizei.enabled, true), url: httpsUrl(fidelizei.url), text: typeof fidelizei.text === 'string' ? text(fidelizei.text, 160) : d.fidelizei.text },
   };
 }

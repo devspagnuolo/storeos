@@ -7,6 +7,7 @@ export const DEFAULT_FOOTER: FooterConfig = {
   contact: { enabled: true, title: 'Entre em contato', whatsapp: '', phone: '', email: '', address: '', hours: '' },
   social: { enabled: true, title: 'Permaneça conectado', instagram: '', facebook: '', tiktok: '', youtube: '', pinterest: '', newsletter: true },
   legal: { companyName: '', document: '', text: '' },
+  fidelizei: { enabled: true, url: '', text: 'Junte pontos nas suas compras e troque por benefícios.' },
 };
 
 /** Número do WhatsApp com DDI para o wa.me: quem digitou só DDD + número ganha o 55 do Brasil. */

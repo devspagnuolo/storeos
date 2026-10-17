@@ -43,6 +43,8 @@ export function Footer({ categories, pages = [], hasBlog = false, config, whatsa
   const pathname = usePathname();
   if (/^\/(admin|painel|checkout)(\/|$)/.test(pathname)) return null;
   const { departments, links, contact, social, legal } = config ?? DEFAULT_FOOTER;
+  // Lojas salvas antes do campo do Fidelizei não têm o bloco; o selo só aparece com link preenchido.
+  const fidelizei = config?.fidelizei ?? DEFAULT_FOOTER.fidelizei;
   const link = 'transition hover:text-brand';
 
   const departmentLinks: FooterLink[] = footerMenu
@@ -61,6 +63,16 @@ export function Footer({ categories, pages = [], hasBlog = false, config, whatsa
     (contact.address || contact.hours) && { icon: 'pin' as const, text: [contact.address, contact.hours].filter(Boolean).join('\n'), href: null },
   ].filter(Boolean) as { icon: IconName; text: string; href: string | null }[];
   const networks = SOCIAL.filter(network => social[network.key]);
+  const loyalty = fidelizei.enabled && fidelizei.url && (
+    <a href={fidelizei.url} target="_blank" rel="noopener noreferrer" className="group mt-6 flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 transition hover:border-brand">
+      <img src="/fidelizei.svg" alt="Fidelizei" width={84} height={60} className="h-[60px] w-[84px] shrink-0 object-contain" />
+      <span className="min-w-0">
+        <span className="block text-sm font-bold">Programa de fidelidade</span>
+        {fidelizei.text && <span className="mt-0.5 block text-sm text-slate-600">{fidelizei.text}</span>}
+        <span className="mt-1 block text-sm font-semibold text-brand group-hover:underline">Conheça o Fidelizei →</span>
+      </span>
+    </a>);
+  const showSocial = social.enabled && (networks.length > 0 || social.newsletter);
 
   const columns = [
     departments.enabled && departmentLinks.length > 0 && (
@@ -84,10 +96,10 @@ export function Footer({ categories, pages = [], hasBlog = false, config, whatsa
             </li>))}
         </ul>
       </div>),
-    social.enabled && (networks.length > 0 || social.newsletter) && (
+    (showSocial || loyalty) && (
       <div key="social">
-        <h2 className="text-xl font-bold tracking-tight">{social.title}</h2>
-        {networks.length > 0 && (
+        <h2 className="text-xl font-bold tracking-tight">{showSocial ? social.title : 'Programa de fidelidade'}</h2>
+        {showSocial && networks.length > 0 && (
           <ul className="mt-5 flex flex-wrap gap-3">
             {networks.map(network => (
               <li key={network.key}>
@@ -96,7 +108,8 @@ export function Footer({ categories, pages = [], hasBlog = false, config, whatsa
                 </a>
               </li>))}
           </ul>)}
-        {social.newsletter && <div className="mt-6"><p className="text-sm font-semibold">Receba novidades e ofertas</p><NewsletterForm /></div>}
+        {loyalty}
+        {showSocial && social.newsletter && <div className="mt-6"><p className="text-sm font-semibold">Receba novidades e ofertas</p><NewsletterForm /></div>}
       </div>),
   ].filter(Boolean);
 

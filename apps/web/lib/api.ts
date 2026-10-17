@@ -61,6 +61,7 @@ export type FooterConfig = {
   contact: { enabled: boolean; title: string; whatsapp: string; phone: string; email: string; address: string; hours: string };
   social: { enabled: boolean; title: string; instagram: string; facebook: string; tiktok: string; youtube: string; pinterest: string; newsletter: boolean };
   legal: { companyName: string; document: string; text: string };
+  fidelizei: { enabled: boolean; url: string; text: string };
 };
 
 export type PageLink = { slug: string; title: string; showInFooter: boolean };

@@ -93,6 +93,21 @@ export function FooterForm({ footer, whatsappNumber, footerPages }: { footer: Fo
       </section>
 
       <section className="card p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <img src="/fidelizei.svg" alt="" width={56} height={40} className="h-10 w-14 object-contain" />
+            <div><h2 className="text-lg font-bold">Fidelizei</h2><p className="text-sm text-slate-500">Selo com a logo do Fidelizei e o link do programa de fidelidade, na coluna das redes sociais.</p></div>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={config.fidelizei.enabled} onChange={event => set('fidelizei', { enabled: event.target.checked })} /> Mostrar no rodapé</label>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-medium">Link do Fidelizei<input value={config.fidelizei.url} onChange={event => set('fidelizei', { url: event.target.value })} inputMode="url" placeholder="https://fidelizaplus.com.br/…" className="input" disabled={!config.fidelizei.enabled} /></label>
+          <label className="text-sm font-medium">Texto do selo<input value={config.fidelizei.text} onChange={event => set('fidelizei', { text: event.target.value })} maxLength={160} className="input" disabled={!config.fidelizei.enabled} /></label>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">Cole o endereço da página da loja no Fidelizei. Sem link, o selo não aparece. O link abre em uma nova aba.</p>
+      </section>
+
+      <section className="card p-6">
         <h2 className="text-lg font-bold">Linha final</h2>
         <p className="text-sm text-slate-500">Aparece embaixo de tudo, junto do “© {new Date().getFullYear()}”. Recomendado para lojas com CNPJ.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
