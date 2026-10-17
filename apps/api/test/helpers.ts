@@ -2,7 +2,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { PrismaClient, ProductStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/configure-app';
 
@@ -44,7 +44,9 @@ export async function cleanup(app: NestExpressApplication) {
 /** Cria uma loja isolada por teste para não depender do seed nem de outros testes. */
 export async function createStore(stock = 5) {
   const slug = `test-${randomUUID().slice(0, 8)}`;
-  const store = await prisma.store.create({ data: { slug, name: 'Loja Teste' } });
+  // Cada loja numera os pedidos a partir de 00001; nos testes as lojas convivem no mesmo banco e muitos
+  // buscam o pedido só pelo número, então cada uma começa num ponto diferente da sequência.
+  const store = await prisma.store.create({ data: { slug, name: 'Loja Teste', orderSequence: randomInt(1, 1_000_000_000) } });
   const category = await prisma.category.create({ data: { storeId: store.id, slug: 'casa', name: 'Casa' } });
   const product = await prisma.product.create({ data: { storeId: store.id, slug: 'vaso', sku: 'VASO-1', name: 'Vaso azul', price: '49.90', status: ProductStatus.ACTIVE, categories: { create: { categoryId: category.id } } } });
   const draft = await prisma.product.create({ data: { storeId: store.id, slug: 'rascunho', sku: 'RASC-1', name: 'Rascunho', price: '10.00' } });

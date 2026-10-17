@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { generateOrderNumber, mergeItems, priceOrderLines } from './order-lines';
+import { formatOrderNumber, mergeItems, priceOrderLines } from './order-lines';
 
 describe('mergeItems', () => {
   it('soma quantidades do mesmo produto', () => {
@@ -25,10 +25,8 @@ describe('priceOrderLines', () => {
   });
 });
 
-describe('generateOrderNumber', () => {
-  it('gera números únicos com a data', () => {
-    const numbers = new Set(Array.from({ length: 1000 }, () => generateOrderNumber(new Date('2026-10-14T12:00:00Z'))));
-    expect(numbers.size).toBe(1000);
-    expect([...numbers][0]).toMatch(/^SO-261014-[0-9A-F]{8}$/);
+describe('formatOrderNumber', () => {
+  it('preenche com zeros até 5 dígitos', () => {
+    expect([1, 2, 42, 99999, 100000].map(formatOrderNumber)).toEqual(['00001', '00002', '00042', '99999', '100000']);
   });
 });

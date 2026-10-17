@@ -35,7 +35,7 @@ describe('modelos de e-mail editáveis', () => {
     expect((await api('/notifications/templates/inexistente', { method: 'PUT', token: admin, body: { subject: 'a', body: 'b' } })).status).toBe(404);
 
     const preview = await api('/notifications/templates/order-paid/preview', { method: 'POST', token: admin, body: { subject: 'Pago {{pedido}}', body: 'Valeu, {{nome}}!' } });
-    expect(preview.body.subject).toContain('Pago SO-');
+    expect(preview.body.subject).toContain('Pago 00001');
     expect(preview.body.text).toContain('Valeu, Maria!');
 
     const save = await api('/notifications/templates/order-paid', { method: 'PUT', token: admin, body: { subject: 'Pago! Pedido {{pedido}}', body: 'Obrigada pela compra, {{nome}}! Total {{total}}.' } });

@@ -61,6 +61,8 @@ model Store {
   /// Remetente das etiquetas (nome, documento, endereço). O CEP é o de origem acima.
   shippingSender         Json?
   /// Pedido pago segue sozinho: separação, nota fiscal (Bling), etiqueta (SuperFrete) e entrega.
+  /// Último número de pedido usado; o próximo pedido recebe este + 1 (00001, 00002…).
+  orderSequence          Int                     @default(0)
   orderAutomation        Boolean                 @default(false)
   /// Parcelamento no cartão definido no painel: máximo de parcelas, sem juros até N e parcela mínima sem juros.
   paymentRules           Json?

@@ -1,7 +1,7 @@
 import { BadGatewayException, BadRequestException, ConflictException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AbandonedCartStatus, OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
-import { generateOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from '../orders/order-lines';
+import { nextOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from '../orders/order-lines';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
 import { CardPayment, ChargeResult, PAYMENT_PROVIDER, PaymentProvider, paymentDeadline } from '../payments/payment-provider';
 import { clampInstallments, declineMessage, MAX_INSTALLMENTS, InstallmentOffer, installmentProblem, isValidCpf, onlyDigits, storeInstallmentLimits } from '../payments/payment-rules';
@@ -132,7 +132,7 @@ export class CheckoutService {
       const total = afterPromotions.minus(discount).plus(shipping);
       // Nenhum gateway cobra R$ 0,00: melhor recusar antes de reservar estoque e criar pedido.
       if (!total.gt(0)) throw new BadRequestException('O total do pedido precisa ser maior que zero. Revise cupom e promoções.');
-      const number = generateOrderNumber();
+      const number = await nextOrderNumber(tx, store.id);
       const created = await tx.order.create({
         data: {
           storeId: store.id, customerId: customer.id, number, status: OrderStatus.AWAITING_PAYMENT, subtotal, discount, promotionDiscount: promo.discount, promotions: promo.applied as unknown as Prisma.InputJsonArray, shipping, total, shippingMethod, shippingOptionId, couponCode: couponId ? input.couponCode!.trim().toUpperCase() : reward?.row.code ?? null,

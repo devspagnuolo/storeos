@@ -42,6 +42,15 @@ describe('checkout', () => {
     expect(order.payments[0]).toMatchObject({ provider: 'manual', status: 'PENDING' });
   });
 
+  it('numera os pedidos da loja em sequência: 00001, 00002…', async () => {
+    const { store, product } = await createStore(5);
+    await prisma.store.update({ where: { id: store.id }, data: { orderSequence: 0 } });
+    const buy = () => api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }]) });
+    const numbers = (await Promise.all([buy(), buy(), buy()])).map(r => r.body.number).sort();
+    expect(numbers).toEqual(['00001', '00002', '00003']);
+    expect((await buy()).body.number).toBe('00004');
+  });
+
   it('recusa quando não há estoque e não reserva nada', async () => {
     const { store, product } = await createStore(1);
     const result = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }]) });
