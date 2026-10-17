@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { IsBoolean, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
@@ -15,7 +15,7 @@ class SettingsDto {
   @IsOptional() @IsString() @MaxLength(300) termsUrl?: string | null;
   @IsOptional() @IsString() @MaxLength(300) privacyUrl?: string | null;
 }
-class EnrollDto { @IsOptional() @IsString() @MaxLength(14) cpf?: string; @IsBoolean() consent!: boolean; }
+class EnrollDto { @IsOptional() @IsString() @MaxLength(14) cpf?: string; @IsOptional() @IsString() @MaxLength(20) phone?: string; @IsBoolean() consent!: boolean; }
 class ReserveDto { @IsString() @MaxLength(120) rewardId!: string; @IsNumber() subtotal!: number; }
 class ReleaseDto { @IsString() @MaxLength(80) checkoutId!: string; }
 
@@ -44,6 +44,9 @@ export class FidelizeiController {
 @ApiTags('Fidelizei') @Controller('account/fidelizei')
 export class FidelizeiAccountController {
   constructor(private readonly fidelizei: FidelizeiService, private readonly account: AccountService) {}
+
+  @Get('program')
+  program(@Query('storeSlug') storeSlug = '') { return this.fidelizei.program(String(storeSlug).slice(0, 80)); }
 
   @Get()
   async loyalty(@Headers('x-customer-token') token?: string) { const ctx = await this.account.authenticate(token); return this.fidelizei.loyalty(ctx.storeId, ctx.customerId); }

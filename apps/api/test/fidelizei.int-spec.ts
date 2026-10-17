@@ -15,7 +15,9 @@ class FakeFidelizei {
     { id: 'rw-10', name: 'R$ 10 de desconto', pointsCost: 100, discountType: 'fixed', discountValue: 1000, minimumOrderCents: 5000 },
     { id: 'rw-15p', name: '15% de desconto', pointsCost: 200, discountType: 'percent', discountValue: 15, minimumOrderCents: 0 },
   ];
-  redemptions = new Map<string, { id: string; code: string; customer: string; checkoutId: string; status: string; points: number; rewardId: string }>();
+  redemptions = new Map<string, { id: string; code: string; customer: string; checkoutId: string; status: string; points: number; rewardId: string; storeosOrderId?: string }>();
+  /** Fidelizei antigo, sem a rota link-order: responde 404 sem código. */
+  supportsLink = true;
   blingOrders = new Set<string>();
   events: { id: number; eventType: string; entityId: string; externalCustomerId: string; payload: object; createdAt: string }[] = [];
   next = 1;
@@ -63,9 +65,17 @@ class FakeFidelizei {
       if (body!.subtotalCents < reward.minimumOrderCents) this.fail(409, 'Subtotal mínimo não atingido.', 'MINIMUM_ORDER_NOT_MET');
       return { data: { redemptionId: row.id, code: row.code, checkoutId: row.checkoutId, status: 'valid', discount: { type: reward.discountType, value: reward.discountValue, minimumOrderCents: reward.minimumOrderCents } } } as T;
     }
-    const action = /^\/storeos\/redemptions\/([^/]+)\/(confirm|cancel)$/.exec(url.pathname);
+    const action = /^\/storeos\/redemptions\/([^/]+)\/(confirm|cancel|link-order)$/.exec(url.pathname);
     if (action) {
+      if (action[2] === 'link-order' && !this.supportsLink) this.fail(404, 'Rota não encontrada.');
       const row = this.redemptions.get(action[1]) ?? this.fail(404, 'Resgate não encontrado.', 'REDEMPTION_NOT_FOUND');
+      if (action[2] === 'link-order') {
+        if (row.checkoutId !== body!.checkoutId) this.fail(409, 'Checkout diferente.', 'CHECKOUT_MISMATCH');
+        if (row.storeosOrderId && row.storeosOrderId !== body!.storeosOrderId) this.fail(409, 'Outro pedido.', 'ORDER_LINK_CONFLICT');
+        row.storeosOrderId = body!.storeosOrderId;
+        return { data: { id: row.id, status: 'awaiting_bling', storeosOrderId: row.storeosOrderId, pendingUntil: '2030-01-03T00:00:00.000Z', pointsRemainReserved: true } } as T;
+      }
+      if (row.status === 'ready_for_use' && row.storeosOrderId && body!.storeosOrderId !== row.storeosOrderId) this.fail(409, 'Informe o pedido StoreOS.', action[2] === 'confirm' ? 'ORDER_LINK_CONFLICT' : 'ORDER_LINK_REQUIRED');
       if (action[2] === 'confirm') {
         if (!this.blingOrders.has(body!.blingOrderNumber)) this.fail(409, 'O pedido confirmado não foi encontrado no Bling.', 'BLING_ORDER_NOT_CONFIRMED');
         row.status = 'used';
@@ -94,6 +104,15 @@ async function signIn(storeSlug: string, email: string, name: string) {
   await api('/account/login/request', { method: 'POST', body: { storeSlug, email, name } });
   const code = sent.filter(m => m.to === email).at(-1)!.text.match(/\b(\d{6})\b/)![1];
   return (await api('/account/login/verify', { method: 'POST', body: { storeSlug, email, code, name } })).body.token as string;
+}
+
+/** O checkout liga a reserva ao pedido em segundo plano: espera essa chamada terminar. */
+async function linked(rowId: string) {
+  for (let i = 0; i < 50; i++) {
+    if ((await prisma.fidelizeiRedemption.findUniqueOrThrow({ where: { id: rowId } })).orderLinkedAt) return;
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  throw new Error('reserva não foi ligada ao pedido');
 }
 
 async function connectedStore() {
@@ -161,6 +180,10 @@ describe('Fidelizei na área da cliente e no checkout', () => {
 
     const saved = await prisma.order.findFirstOrThrow({ where: { number: order.body.number }, include: { fidelizeiRedemption: true } });
     expect(saved.fidelizeiRedemption).toMatchObject({ status: 'RESERVED', discountType: 'fixed' });
+    // Logo depois do pedido, a reserva é ligada a ele no Fidelizei e passa a valer 48 horas.
+    await linked(saved.fidelizeiRedemption!.id);
+    expect(fz.calls.find(c => c.path.endsWith('/link-order'))!.body).toEqual({ checkoutId: reserved.body.checkoutId, storeosOrderId: saved.id });
+    expect((await prisma.fidelizeiRedemption.findUniqueOrThrow({ where: { id: saved.fidelizeiRedemption!.id } })).reservationExpiresAt.toISOString()).toBe('2030-01-03T00:00:00.000Z');
     expect(saved.fidelizeiRedemption!.discountAmount!.toFixed(2)).toBe('10.00');
 
     // Pago e enviado ao Bling: confirma no Fidelizei. Antes da conciliação lá, espera e tenta de novo.
@@ -176,7 +199,7 @@ describe('Fidelizei na área da cliente e no checkout', () => {
     expect(await sync.processDue()).toBe(1);
     row = await prisma.fidelizeiRedemption.findUniqueOrThrow({ where: { orderId: saved.id } });
     expect(row).toMatchObject({ status: 'CONFIRMED', lastError: null });
-    expect(fz.calls.filter(c => c.path.endsWith('/confirm')).at(-1)!.body).toEqual({ checkoutId: row.checkoutId, blingOrderId: '9001', blingOrderNumber: '26100' });
+    expect(fz.calls.filter(c => c.path.endsWith('/confirm')).at(-1)!.body).toEqual({ checkoutId: row.checkoutId, blingOrderId: '9001', blingOrderNumber: '26100', storeosOrderId: saved.id });
 
     const list = await api('/fidelizei/redemptions', { token: admin });
     expect(list.body[0]).toMatchObject({ orderNumber: order.body.number, reward: 'R$ 10 de desconto', status: 'CONFIRMED', discount: '10.00' });
@@ -199,11 +222,39 @@ describe('Fidelizei na área da cliente e no checkout', () => {
     expect(order.body).toMatchObject({ discount: '7.49', total: '42.41' });
     expect(fz.members.get(customer.id)!.balance).toBe(50);
 
+    const redemption = await prisma.fidelizeiRedemption.findUniqueOrThrow({ where: { checkoutId: reserved.body.checkoutId } });
+    await linked(redemption.id);
     await app.get(OrderLifecycleService).cancel({ storeId: store.id, number: order.body.number }, { message: 'Pix vencido' });
     expect(await app.get(FidelizeiSyncService).processDue()).toBe(1);
     expect((await prisma.fidelizeiRedemption.findUniqueOrThrow({ where: { checkoutId: reserved.body.checkoutId } })).status).toBe('CANCELLED');
-    expect(fz.calls.filter(c => c.path.endsWith('/cancel')).at(-1)!.body).toEqual({ checkoutId: reserved.body.checkoutId, reason: 'checkout_failed' });
+    // Reserva ligada ao pedido: o estorno vai pelo pedido StoreOS.
+    expect(fz.calls.filter(c => c.path.endsWith('/cancel')).at(-1)!.body).toEqual({ storeosOrderId: redemption.orderId, reason: 'order_cancelled' });
     expect(fz.members.get(customer.id)!.balance).toBe(250);
+  });
+
+  it('o cadastro do site sabe se há programa; adesão grava o celular; Fidelizei sem link-order segue como antes', async () => {
+    const { store, product } = await connectedStore();
+    expect((await api(`/account/fidelizei/program?storeSlug=${store.slug}`)).body).toEqual({ enabled: true, termsUrl: 'https://vivi.test/termos', privacyUrl: null });
+    expect((await api('/account/fidelizei/program?storeSlug=nao-existe')).body).toEqual({ enabled: false });
+
+    const token = await signIn(store.slug, 'lia@example.com', 'Lia Costa');
+    const headers = { 'x-customer-token': token };
+    await api('/account/fidelizei/enroll', { method: 'POST', headers, body: { cpf: '935.411.347-80', phone: '(11) 98888-7777', consent: true } });
+    expect(fz.calls.filter(c => c.path === '/storeos/customers/enroll').at(-1)!.body).toMatchObject({ cpf: '93541134780', phone: '11988887777', name: 'Lia Costa' });
+    expect(await prisma.customer.findFirstOrThrow({ where: { storeId: store.id, email: 'lia@example.com' } })).toMatchObject({ document: '93541134780', phone: '11988887777' });
+
+    fz.supportsLink = false;
+    const reserved = await api('/account/fidelizei/reserve', { method: 'POST', headers, body: { rewardId: 'rw-10', subtotal: 99.8 } });
+    const order = await api('/checkout', { method: 'POST', body: { ...checkoutBody(store.slug, [{ productId: product.id, quantity: 2 }], 'PIX'), customer: { name: 'Lia Costa', email: 'lia@example.com' }, cpf: '935.411.347-80', loyaltyReward: { checkoutId: reserved.body.checkoutId, code: reserved.body.code } } });
+    const saved = await prisma.order.findFirstOrThrow({ where: { number: order.body.number } });
+    await app.get(OrderLifecycleService).markPaid({ orderId: saved.id });
+    await prisma.blingOrderSync.create({ data: { storeId: store.id, orderId: saved.id, status: 'SENT', blingOrderId: '9002', blingOrderNumber: '26101', sentAt: new Date() } });
+    fz.blingOrders.add('26101');
+    expect(await app.get(FidelizeiSyncService).processDue()).toBe(1);
+    const row = await prisma.fidelizeiRedemption.findUniqueOrThrow({ where: { orderId: saved.id } });
+    expect(row).toMatchObject({ status: 'CONFIRMED', orderLinkedAt: null });
+    expect(fz.calls.filter(c => c.path.endsWith('/confirm')).at(-1)!.body).toEqual({ checkoutId: row.checkoutId, blingOrderId: '9002', blingOrderNumber: '26101' });
+    fz.supportsLink = true;
   });
 
   it('a fila de eventos marca reservas vencidas e a loja sem Fidelizei não oferece o programa', async () => {
