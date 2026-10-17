@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { ACCESS_COOKIE, adminFetch, ApiError, clearSession, REFRESH_COOKIE, saveSession, serverApiUrl, Session } from '../../lib/admin/session';
+import type { BulkProductsResult } from '../../lib/admin/types';
 
 export type FormState = { error?: string; ok?: string };
 export type LoginState = { error?: string; email?: string; storeSlug?: string };
@@ -1342,4 +1343,23 @@ export async function testFidelizeiAction(): Promise<FormState> {
 export async function disconnectFidelizeiAction() {
   await adminFetch('/fidelizei/connection', { method: 'DELETE' });
   revalidatePath('/admin/fidelizei');
+}
+
+/** Ações em lote da lista de produtos. Excluir é só no site (o Bling não muda) e só para quem nunca esteve em pedido. */
+export async function bulkProductsAction(_: FormState, form: FormData): Promise<FormState> {
+  const ids = form.getAll('ids').map(String).filter(Boolean);
+  const action = String(form.get('action') ?? '');
+  if (!ids.length) return { error: 'Selecione pelo menos um produto.' };
+  if (!['activate', 'deactivate', 'delete'].includes(action)) return { error: 'Ação inválida.' };
+  try {
+    const result = await adminFetch<BulkProductsResult>('/catalog/products/bulk', { method: 'POST', body: { ids, action } });
+    revalidatePath('/admin/produtos');
+    const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+    if (action !== 'delete') return { ok: `${plural(result.updated, 'produto', 'produtos')} ${action === 'activate' ? (result.updated === 1 ? 'ativado' : 'ativados') : (result.updated === 1 ? 'inativado' : 'inativados')}.` };
+    const blocked = result.blocked.length ? ` Não excluídos por já terem pedido (use Inativar): ${result.blocked.slice(0, 5).join(', ')}${result.blocked.length > 5 ? ` e mais ${result.blocked.length - 5}` : ''}.` : '';
+    return result.deleted ? { ok: `${plural(result.deleted, 'produto excluído', 'produtos excluídos')} do site.${blocked}` } : { error: `Nenhum produto excluído.${blocked}` };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
 }

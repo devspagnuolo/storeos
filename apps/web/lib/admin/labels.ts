@@ -8,7 +8,7 @@ export const orderStatusTone: Record<string, string> = {
   SHIPPED: 'bg-sky-100 text-sky-800', DELIVERED: 'bg-emerald-100 text-emerald-800',
 };
 
-export const productStatusLabel: Record<string, string> = { DRAFT: 'Rascunho', ACTIVE: 'Publicado', ARCHIVED: 'Arquivado' };
+export const productStatusLabel: Record<string, string> = { DRAFT: 'Rascunho', ACTIVE: 'Ativo', ARCHIVED: 'Inativo' };
 
 export const paymentMethodLabel: Record<string, string> = { PIX: 'PIX', BOLETO: 'Boleto', CREDIT_CARD: 'Cartão' };
 

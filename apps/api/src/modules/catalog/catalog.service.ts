@@ -371,11 +371,51 @@ export class CatalogService {
     const idList = ids?.split(',').map(id => id.trim()).filter(Boolean).slice(0, 24);
     const where: Prisma.ProductWhereInput = { storeId, ...(idList && { id: { in: idList } }), ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }), ...(status && { status }), ...(term && { OR: [{ name: { contains: term, mode: 'insensitive' } }, { sku: { contains: term, mode: 'insensitive' } }] }) };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 }, inventory: true, _count: { select: { variants: true } } }, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 }, inventory: true, categories: { select: { category: { select: { name: true } } }, take: 2 }, _count: { select: { variants: true, orderItems: true } } }, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.product.count({ where }),
     ]);
-    // Produto com variações mostra a soma dos saldos delas.
-    return { items: items.map(({ inventory, _count, ...p }) => { const rows = _count.variants ? inventory.filter(i => i.variantId) : inventory.filter(i => !i.variantId); return { ...p, variantCount: _count.variants, stock: rows.reduce((s, i) => s + i.quantity, 0), reserved: rows.reduce((s, i) => s + i.reserved, 0) }; }), total, page, pageSize };
+    // Contagem por situação para as abas Ativos / Inativos / Rascunhos, respeitando a busca e a categoria.
+    const byStatus = await this.prisma.product.groupBy({ by: ['status'], where: { ...where, status: undefined }, _count: true });
+    const counts = Object.fromEntries(Object.values(ProductStatus).map(s => [s, byStatus.find(row => row.status === s)?._count ?? 0])) as Record<ProductStatus, number>;
+    // Produto com variações mostra a soma dos saldos delas. Quem já esteve em algum pedido não pode ser excluído, só inativado.
+    return {
+      items: items.map(({ inventory, categories, _count, ...p }) => {
+        const rows = _count.variants ? inventory.filter(i => i.variantId) : inventory.filter(i => !i.variantId);
+        return { ...p, variantCount: _count.variants, categoryNames: categories.map(c => c.category.name), orderLines: _count.orderItems, canDelete: _count.orderItems === 0, stock: rows.reduce((s, i) => s + i.quantity, 0), reserved: rows.reduce((s, i) => s + i.reserved, 0) };
+      }),
+      total, page, pageSize, counts,
+    };
+  }
+
+  /**
+   * Excluir, inativar ou reativar vários produtos. A exclusão é só no site (o Bling não é tocado) e só vale
+   * para quem nunca entrou em um pedido, nem cancelado ou reembolsado: esses ficam como estão e voltam em `blocked`.
+   */
+  async bulkProducts(storeId: string, ids: string[], action: 'activate' | 'deactivate' | 'delete') {
+    const products = await this.prisma.product.findMany({ where: { storeId, id: { in: [...new Set(ids)].slice(0, 100) } }, select: { id: true, name: true, _count: { select: { orderItems: true } } } });
+    if (!products.length) throw new NotFoundException('Produto não encontrado');
+    if (action !== 'delete') {
+      const status = action === 'activate' ? ProductStatus.ACTIVE : ProductStatus.ARCHIVED;
+      const { count } = await this.prisma.product.updateMany({ where: { storeId, id: { in: products.map(p => p.id) } }, data: { status } });
+      return { updated: count, deleted: 0, blocked: [] as string[] };
+    }
+    const deletable = products.filter(p => p._count.orderItems === 0).map(p => p.id);
+    // Reservas em aberto no carrinho/checkout seguram o estoque; produto com reserva fica para depois.
+    const reserved = new Set((await this.prisma.inventory.findMany({ where: { productId: { in: deletable }, reserved: { gt: 0 } }, select: { productId: true } })).map(r => r.productId));
+    const ok = deletable.filter(id => !reserved.has(id));
+    // Uma corrida com um checkout novo faz a FK de OrderItem recusar a exclusão: nada é apagado e a pessoa tenta de novo.
+    try {
+      if (ok.length) await this.prisma.product.deleteMany({ where: { storeId, id: { in: ok } } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new ConflictException('Um dos produtos acabou de entrar em um pedido. Atualize a lista e tente de novo.');
+      throw error;
+    }
+    return { updated: 0, deleted: ok.length, blocked: products.filter(p => !ok.includes(p.id)).map(p => p.name) };
+  }
+
+  async deleteProduct(storeId: string, id: string) {
+    const result = await this.bulkProducts(storeId, [id], 'delete');
+    if (result.blocked.length) throw new ConflictException('Este produto já esteve em pedidos (mesmo cancelados ou reembolsados) ou tem unidades reservadas agora. Ele não pode ser excluído, só inativado.');
   }
 
   async adminGet(storeId: string, id: string) {

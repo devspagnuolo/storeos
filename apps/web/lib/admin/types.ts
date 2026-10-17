@@ -12,8 +12,9 @@ export type OrderDetail = Omit<OrderRow, 'payments' | '_count' | 'blingSync'> & 
 };
 export type Summary = { days: number; revenue: string; paidOrders: number; averageTicket: string; orders: number; awaitingPayment: number; paymentRate: number; lowStockProducts: number };
 export type AdminVariant = { id: string; sku: string; price: string | null; attributes: { name: string; value: string }[]; stock: number; reserved: number; active: boolean };
-export type AdminProduct = { ncm?: string | null; cest?: string | null; gtin?: string | null; taxOrigin?: number | null; unit?: string | null; variants?: AdminVariant[]; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; id: string; name: string; slug: string; sku: string; price: string; status: string; description: string | null; stock: number; reserved: number; images: { url: string }[]; categoryIds?: string[]; brandId?: string | null; seoTitle?: string | null; seoDescription?: string | null; updatedAt: string };
-export type AdminProductPage = { items: AdminProduct[]; total: number; page: number; pageSize: number };
+export type AdminProduct = { ncm?: string | null; cest?: string | null; gtin?: string | null; taxOrigin?: number | null; unit?: string | null; variants?: AdminVariant[]; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; id: string; name: string; slug: string; sku: string; price: string; status: string; description: string | null; stock: number; reserved: number; images: { url: string }[]; categoryIds?: string[]; brandId?: string | null; seoTitle?: string | null; seoDescription?: string | null; updatedAt: string; variantCount?: number; categoryNames?: string[]; orderLines?: number; canDelete?: boolean };
+export type AdminProductPage = { items: AdminProduct[]; total: number; page: number; pageSize: number; counts?: Record<'ACTIVE' | 'ARCHIVED' | 'DRAFT', number> };
+export type BulkProductsResult = { updated: number; deleted: number; blocked: string[] };
 
 export type ShippingRule = { id: string; name: string; states: string[]; price: string; freeAbove: string | null; freeOnly: boolean; minDays: number; maxDays: number; active: boolean; position: number };
 
