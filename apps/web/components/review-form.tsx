@@ -20,7 +20,7 @@ export function ReviewForm({ productSlug }: { productSlug: string }) {
         </div>
       </fieldset>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="font-medium">Número do pedido<input name="orderNumber" required maxLength={40} className="input" placeholder="SO-0001" /></label>
+        <label className="font-medium">Número do pedido<input name="orderNumber" required maxLength={40} className="input" placeholder="00001" /></label>
         <label className="font-medium">E-mail da compra<input name="email" type="email" required maxLength={254} autoComplete="email" className="input" /></label>
       </div>
       <label className="font-medium">Título (opcional)<input name="title" maxLength={80} className="input" placeholder="Ex.: Caimento perfeito" /></label>

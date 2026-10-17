@@ -1,6 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
 import { Money, money, sumMoney } from '../../shared/money/money';
 
 export type RequestedItem = { productId: string; variantId?: string | null; quantity: number };
@@ -58,8 +57,14 @@ export async function productsForPricing(db: Pick<Prisma.TransactionClient, 'pro
   return db.product.findMany({ where: { storeId, id: { in: items.map(i => i.productId) }, status: 'ACTIVE' }, include: { variants: { where: { active: true } } } });
 }
 
-/** Número legível e com entropia suficiente para não colidir em pedidos simultâneos. */
-export function generateOrderNumber(now = new Date()) {
-  const date = now.toISOString().slice(2, 10).replace(/-/g, '');
-  return `SO-${date}-${randomBytes(4).toString('hex').toUpperCase()}`;
+/**
+ * Próximo número sequencial da loja: 00001, 00002, 00003…
+ * Roda dentro da transação do pedido: a linha da loja fica travada até o fim, então pedidos simultâneos
+ * não repetem número, e se o pedido falhar o número volta a ficar livre (sem buracos).
+ */
+export async function nextOrderNumber(tx: Pick<Prisma.TransactionClient, 'store'>, storeId: string) {
+  const { orderSequence } = await tx.store.update({ where: { id: storeId }, data: { orderSequence: { increment: 1 } }, select: { orderSequence: true } });
+  return formatOrderNumber(orderSequence);
 }
+
+export const formatOrderNumber = (sequence: number) => String(sequence).padStart(5, '0');

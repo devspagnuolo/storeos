@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OrderStatus, Prisma, ProductStatus } from '@prisma/client';
 import { money } from '../../shared/money/money';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
-import { generateOrderNumber, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from './order-lines';
+import { nextOrderNumber, mergeItems, persistLines, priceOrderLines, productsForPricing, RequestedItem } from './order-lines';
 
 @Injectable()
 export class OrdersService {
@@ -15,7 +15,7 @@ export class OrdersService {
       if (!customer) throw new BadRequestException('Cliente não encontrado nesta loja');
       const products = await productsForPricing(tx, storeId, items);
       const { lines, subtotal } = priceOrderLines(items, products);
-      const number = generateOrderNumber();
+      const number = await nextOrderNumber(tx, storeId);
       const order = await tx.order.create({ data: { storeId, customerId: customer.id, number, subtotal, total: subtotal, items: { create: persistLines(lines) }, timeline: { create: { status: 'NEW', message: 'Pedido criado' } } } });
       await tx.outboxEvent.create({ data: { storeId, aggregateType: 'Order', aggregateId: order.id, eventName: 'orders.order-created.v1', payload: { orderNumber: number, total: subtotal.toString() } } });
       return order;

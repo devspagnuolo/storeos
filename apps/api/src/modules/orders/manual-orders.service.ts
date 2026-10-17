@@ -4,7 +4,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { isValidCpf, onlyDigits } from '../payments/payment-rules';
 import { OrderLifecycleService } from './order-lifecycle.service';
 import { applyPriceOverrides, itemKey, manualTotals } from './manual-order-rules';
-import { generateOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing } from './order-lines';
+import { nextOrderNumber, inventoryOf, mergeItems, persistLines, priceOrderLines, productsForPricing } from './order-lines';
 
 export type ManualOrderInput = {
   customer: { name: string; email: string; phone?: string; document?: string };
@@ -50,7 +50,7 @@ export class ManualOrdersService {
         create: { storeId, email, name: input.customer.name.trim(), ...(input.customer.phone && { phone: input.customer.phone.trim() }), ...(digits && { document: digits }) },
         update: { name: input.customer.name.trim(), ...(input.customer.phone && { phone: input.customer.phone.trim() }), ...(digits && { document: digits }) },
       });
-      const number = generateOrderNumber();
+      const number = await nextOrderNumber(tx, storeId);
       const notes = [`Pedido manual criado no painel${input.note ? `: ${input.note.trim()}` : ''}`, ...(priced.changed.length ? [`Preço ajustado – ${priced.changed.join('; ')}`] : [])];
       const created = await tx.order.create({
         data: {

@@ -79,6 +79,6 @@ export function renderMail(key: TemplateKey, vars: TemplateVars, options: Render
 
 /** Dados de exemplo para a pré-visualização no painel. */
 export const SAMPLE_VARS: TemplateVars = {
-  nome: 'Maria Silva', loja: 'Sua loja', pedido: 'SO-20261015-0001', total: 'R$ 189,90', transportadora: 'Correios', rastreio: 'BR123456789BR', link_rastreio: 'https://loja.exemplo.com.br/acompanhar',
+  nome: 'Maria Silva', loja: 'Sua loja', pedido: '00001', total: 'R$ 189,90', transportadora: 'Correios', rastreio: 'BR123456789BR', link_rastreio: 'https://loja.exemplo.com.br/acompanhar',
   itens: '- 2x Vestido midi (G)\n- 1x Blusa de linho', link_carrinho: 'https://loja.exemplo.com.br/recuperar/abc123',
 };

@@ -253,7 +253,12 @@ export class BlingOrdersService {
     const token = await this.auth.accessToken(storeId);
     const call = <T>(path: string, init?: { method?: string; body?: unknown }) => this.client.request<T>(token, path, init);
 
-    const existing = (await call<Listing<{ id: number; numero?: number | string }>>('/pedidos/vendas?' + new URLSearchParams({ 'numerosLojas[]': order.number }))).data?.[0];
+    // O número da loja é sequencial (00001…) e pode coincidir com pedidos antigos de outros canais no Bling:
+    // só reaproveita um pedido do mesmo dia em diante e com o mesmo total.
+    const since = new Date(order.createdAt.getTime() - 86_400_000).toISOString().slice(0, 10);
+    const total = Number(order.total);
+    const existing = ((await call<Listing<{ id: number; numero?: number | string; total?: number | string }>>('/pedidos/vendas?' + new URLSearchParams({ 'numerosLojas[]': order.number, dataInicial: since }))).data ?? [])
+      .find(row => row.total === undefined || Math.abs(Number(row.total) - total) < 0.01);
     if (existing) return { id: existing.id, number: existing.numero === undefined ? null : String(existing.numero) };
 
     const data: OrderForBling = {
