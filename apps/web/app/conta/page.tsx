@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { Header } from '../../components/header';
 import { AccountSignal } from '../../components/account/account-signal';
 import { LoginForm } from '../../components/account/login-form';
+import { FidelizeiCard } from '../../components/account/fidelizei-card';
 import { ProfileForm } from '../../components/account/profile-form';
 import { accountFetch } from '../../lib/account/session';
-import { addressLines, formatDate, statusTone, type AccountOrderSummary, type AccountProfile } from '../../lib/account/types';
+import { addressLines, formatDate, statusTone, type AccountOrderSummary, type AccountProfile, type FidelizeiLoyalty } from '../../lib/account/types';
 import { formatPrice } from '../../lib/format';
 import { logoutAction } from './actions';
 
@@ -15,7 +16,7 @@ export const metadata: Metadata = { title: 'Minha conta', robots: { index: false
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ voltar?: string; criar?: string }> }) {
   const query = await searchParams;
   const returnTo = query.voltar === 'checkout' ? 'checkout' : undefined;
-  const [profile, orders] = await Promise.all([accountFetch<AccountProfile>('/me'), accountFetch<AccountOrderSummary[]>('/orders')]);
+  const [profile, orders, fidelizei] = await Promise.all([accountFetch<AccountProfile>('/me'), accountFetch<AccountOrderSummary[]>('/orders'), accountFetch<FidelizeiLoyalty>('/fidelizei').catch(() => null)]);
   if (!profile || !orders) return <><Header /><AccountSignal signedIn={false} /><main className="shell flex justify-center py-10 sm:py-16"><LoginForm key={query.criar ? 'criar' : 'entrar'} returnTo={returnTo} signup={Boolean(query.criar)} /></main></>;
 
   const open = orders.filter(order => !['DELIVERED', 'CANCELLED', 'REFUNDED', 'RETURNED'].includes(order.status));
@@ -35,7 +36,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <Stat label="Pedidos" value={String(profile.orders)} />
         <Stat label="Em andamento" value={String(open.length)} />
-        {profile.loyalty ? <Stat label="Pontos" value={profile.loyalty.balance.toLocaleString('pt-BR')} hint={profile.loyalty.tier?.name} /> : <Stat label="Cliente desde" value={formatDate(profile.since)} />}
+        {fidelizei?.enabled && fidelizei.enrolled && fidelizei.available ? <Stat label="Pontos" value={(fidelizei.balance ?? 0).toLocaleString('pt-BR')} /> : profile.loyalty ? <Stat label="Pontos" value={profile.loyalty.balance.toLocaleString('pt-BR')} hint={profile.loyalty.tier?.name} /> : <Stat label="Cliente desde" value={formatDate(profile.since)} />}
       </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -73,7 +74,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <p className="mt-1 text-xs text-slate-500">Usado na sua última compra. Você pode trocar no checkout.</p>
             <address className="mt-3 text-sm not-italic text-slate-700">{addressLines(profile.address).map(line => <span key={line} className="block">{line}</span>)}</address>
           </section>}
-          {profile.loyalty && <section aria-labelledby="pontos" className="card p-5">
+          {fidelizei?.enabled && <FidelizeiCard loyalty={fidelizei} />}
+          {/* Com o Fidelizei ligado, ele é o programa de pontos da loja: o programa interno não aparece para não confundir. */}
+          {profile.loyalty && !fidelizei?.enabled && <section aria-labelledby="pontos" className="card p-5">
             <h2 id="pontos" className="text-lg font-bold">Meus pontos</h2>
             <p className="mt-2 text-sm text-slate-600">Saldo de <strong>{profile.loyalty.balance.toLocaleString('pt-BR')} pontos</strong>{profile.loyalty.balance >= profile.loyalty.minRedeem ? `, cerca de ${formatPrice(profile.loyalty.balance * profile.loyalty.valuePerPoint)} em desconto` : ''}.</p>
             {profile.loyalty.entries.length > 0 && <ul className="mt-3 divide-y text-sm">{profile.loyalty.entries.map(entry => <li key={entry.id} className="flex justify-between gap-3 py-2"><span className="text-slate-600">{entry.note ?? 'Movimentação'} <span className="text-xs text-slate-400">{formatDate(entry.createdAt)}</span></span><b className={entry.points < 0 ? 'text-slate-500' : 'text-emerald-700'}>{entry.points > 0 ? '+' : ''}{entry.points}</b></li>)}</ul>}

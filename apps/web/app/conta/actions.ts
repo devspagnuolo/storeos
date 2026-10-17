@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { accountApiUrl, accountFetch, clearCustomerSession, saveCustomerSession } from '../../lib/account/session';
-import type { AccountProfile } from '../../lib/account/types';
+import type { AccountProfile, FidelizeiLoyalty, ReservedReward } from '../../lib/account/types';
 import { resolveStoreSlug } from '../../lib/store-host';
 
 export type LoginState = { step: 'email' | 'code'; email?: string; name?: string; error?: string; info?: string };
@@ -60,4 +60,37 @@ export async function updateProfileAction(_: ProfileState, form: FormData): Prom
     if ((error as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw error;
     return { error: (error as Error).message };
   }
+}
+
+export type EnrollState = { error?: string; ok?: boolean };
+
+/** Adesão ao Fidelizei: só com o aceite marcado; o CPF vem do cadastro quando já existe. */
+export async function enrollFidelizeiAction(_: EnrollState, form: FormData): Promise<EnrollState> {
+  if (form.get('consent') !== 'on') return { error: 'Marque que aceita os termos do programa e a política de privacidade.' };
+  try {
+    const result = await accountFetch<FidelizeiLoyalty>('/fidelizei/enroll', { method: 'POST', body: { consent: true, ...(form.get('cpf') && { cpf: String(form.get('cpf')) }) } });
+    if (!result) return { error: 'Entre na sua conta de novo para continuar.' };
+    revalidatePath('/conta');
+    return { ok: true };
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+}
+
+/** Saldo e benefícios para o checkout; sem sessão ou sem programa, null. */
+export async function fidelizeiLoyaltyAction(): Promise<FidelizeiLoyalty | null> {
+  return accountFetch<FidelizeiLoyalty>('/fidelizei').catch(() => null);
+}
+
+export async function reserveRewardAction(rewardId: string, subtotal: number): Promise<{ reward?: ReservedReward; error?: string }> {
+  try {
+    const reward = await accountFetch<ReservedReward>('/fidelizei/reserve', { method: 'POST', body: { rewardId, subtotal } });
+    return reward ? { reward } : { error: 'Entre na sua conta de novo para usar seus pontos.' };
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+}
+
+export async function releaseRewardAction(checkoutId: string): Promise<void> {
+  await accountFetch('/fidelizei/release', { method: 'POST', body: { checkoutId } }).catch(() => null);
 }

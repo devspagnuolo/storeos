@@ -8,6 +8,8 @@ export type CheckoutForm = {
   cpf?: string;
   shippingRuleId?: string;
   couponCode?: string;
+  /** Benefício do Fidelizei reservado na conta da cliente. */
+  loyaltyReward?: { checkoutId: string; code: string };
 };
 
 export type CheckoutResult = {
@@ -18,7 +20,7 @@ export type CheckoutResult = {
 
 /** Envia o pedido direto do navegador para a API; o rate limit da API considera o IP de cada cliente. */
 export async function submitCheckout(storeSlug: string, form: CheckoutForm, items: CartItem[], card?: import('../components/card-payment').CardPayload): Promise<CheckoutResult> {
-  const { name, email, phone, paymentMethod, shippingRuleId, couponCode, cpf, ...address } = form;
+  const { name, email, phone, paymentMethod, shippingRuleId, couponCode, cpf, loyaltyReward, ...address } = form;
   const response = await fetch(`${apiUrl}/checkout`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -32,11 +34,13 @@ export async function submitCheckout(storeSlug: string, form: CheckoutForm, item
       couponCode: couponCode || undefined,
       cpf: cpf || undefined,
       card,
+      loyaltyReward,
     }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = Array.isArray(body.message) ? 'Confira os dados informados.' : body.message;
+    if (body.code === 'FIDELIZEI_EXPIRED') throw Object.assign(new Error(body.message), { code: body.code });
     throw new Error(response.status === 429 ? 'Muitas tentativas. Aguarde um minuto e tente novamente.' : message || 'Não foi possível concluir o pedido.');
   }
   return body;

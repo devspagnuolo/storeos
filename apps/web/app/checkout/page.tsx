@@ -15,6 +15,9 @@ import { formatPrice } from '../../lib/format';
 import { formatCpf, getPaymentConfig, isValidCpf, PaymentConfig } from '../../lib/payment';
 import { useStoreBrand } from '../../components/store-name';
 import { signedInCustomerAction, type SignedInCustomer } from './actions';
+import { fidelizeiLoyaltyAction, releaseRewardAction, reserveRewardAction } from '../conta/actions';
+import { FidelizeiRewards } from '../../components/fidelizei-rewards';
+import { rewardAmount, type FidelizeiLoyalty, type ReservedReward } from '../../lib/account/types';
 import { formatCep, lookupCep, onlyDigits, quoteShipping, rememberCep, ShippingQuote } from '../../lib/shipping';
 
 type Field = { name: keyof DraftData; label: string; required?: boolean; className?: string; pattern?: string; type?: string; autoComplete?: string; inputMode?: 'numeric' | 'tel' | 'email' };
@@ -65,6 +68,10 @@ export default function CheckoutPage() {
   const [couponInput, setCouponInput] = useState('');
   const [coupon, setCoupon] = useState<{ code: string; discount: number }>();
   const [couponError, setCouponError] = useState<string>();
+  const [loyalty, setLoyalty] = useState<FidelizeiLoyalty | null>(null);
+  const [reward, setReward] = useState<ReservedReward>();
+  const [rewardBusy, setRewardBusy] = useState(false);
+  const [rewardError, setRewardError] = useState<string>();
   const [method, setMethod] = useState<CheckoutForm['paymentMethod']>('PIX');
   const [cpf, setCpf] = useState('');
   const [payConfig, setPayConfig] = useState<PaymentConfig>();
@@ -93,6 +100,7 @@ export default function CheckoutPage() {
       void signedInCustomerAction().then(customer => {
         if (!customer) return;
         setAccount(customer);
+        void fidelizeiLoyaltyAction().then(setLoyalty);
         const first = customer.name.trim().split(/\s+/)[0];
         if (customer.document && isValidCpf(customer.document)) {
           setCpf(formatCpf(customer.document));
@@ -201,13 +209,37 @@ export default function CheckoutPage() {
   const chosen = quote?.options.find(o => o.id === shippingRuleId);
   const shipping = chosen ? Number(chosen.price) : 0;
   const promoDiscount = promo ? Number(promo.discount) : 0;
-  const discount = coupon?.discount ?? 0;
+  const rewardDiscount = reward ? rewardAmount(reward.discount, subtotal - promoDiscount) : 0;
+  const discount = coupon?.discount ?? rewardDiscount;
   const stockBlocked = hasStockIssues(items, availability);
   // O CPF é sempre pedido: vai na nota fiscal e no pedido registrado no ERP (e é exigido pelo Mercado Pago no cartão e no boleto).
   const blocked = Boolean(quote?.required && !quote.options.length) || !isValidCpf(cpf) || stockBlocked || step !== 'form';
 
+  async function applyReward(rewardId: string) {
+    setRewardBusy(true);
+    setRewardError(undefined);
+    const result = await reserveRewardAction(rewardId, subtotal);
+    if (result.reward) {
+      setReward(result.reward);
+      // Boleto pode levar dias e a reserva de pontos vale minutos: com benefício, só Pix ou cartão.
+      if (method === 'BOLETO') setMethod('PIX');
+    } else setRewardError(result.error);
+    setLoyalty(await fidelizeiLoyaltyAction());
+    setRewardBusy(false);
+  }
+
+  async function removeReward() {
+    if (!reward) return;
+    setRewardBusy(true);
+    await releaseRewardAction(reward.checkoutId);
+    setReward(undefined);
+    setLoyalty(await fidelizeiLoyaltyAction());
+    setRewardBusy(false);
+  }
+
   async function applyCoupon(code = couponInput) {
     if (!code.trim()) return;
+    if (reward) { setCouponError('Remova o benefício de pontos para usar um cupom: vale um desconto por vez.'); return; }
     setCouponError(undefined);
     try {
       const result = await previewCoupon(slug, code, items, shipping);
@@ -229,7 +261,7 @@ export default function CheckoutPage() {
     setError(undefined);
     try {
       if (!isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
-      const form: CheckoutForm = { name: data.name ?? '', email: data.email ?? '', phone: data.phone ? onlyDigits(data.phone) : undefined, zipCode: cep, street: data.street ?? '', number: data.number ?? '', complement: data.complement, district: data.district, city: data.city ?? '', state: data.state ?? '', paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code };
+      const form: CheckoutForm = { name: data.name ?? '', email: data.email ?? '', phone: data.phone ? onlyDigits(data.phone) : undefined, zipCode: cep, street: data.street ?? '', number: data.number ?? '', complement: data.complement, district: data.district, city: data.city ?? '', state: data.state ?? '', paymentMethod: method, cpf, shippingRuleId: quote?.required ? shippingRuleId : undefined, couponCode: coupon?.code, loyaltyReward: reward && { checkoutId: reward.checkoutId, code: reward.code } };
       const card = method === 'CREDIT_CARD' ? await cardRef.current?.tokenize(cpf) : undefined;
       const placed = await submitCheckout(slug, form, items, card);
       setOrder(placed);
@@ -239,6 +271,8 @@ export default function CheckoutPage() {
       clear();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível concluir o pedido.');
+      // Reserva de pontos vencida: tira o benefício para a cliente escolher de novo.
+      if ((e as { code?: string }).code === 'FIDELIZEI_EXPIRED') { setReward(undefined); void fidelizeiLoyaltyAction().then(setLoyalty); }
       // O estoque pode ter mudado enquanto o cliente preenchia: atualiza as linhas para mostrar o saldo real.
       void refreshStock();
     } finally {
@@ -357,7 +391,7 @@ export default function CheckoutPage() {
                         <input className="sr-only" type="radio" name="paymentMethod" value="CREDIT_CARD" checked={method === 'CREDIT_CARD'} onChange={() => setMethod('CREDIT_CARD')} />
                         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700"><PaymentIcon kind="card" /></span><span><b className="block">Cartão de crédito</b><span className="text-xs text-slate-500">Parcelamento disponível</span></span>
                       </label>}
-                      {payConfig?.boleto && <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
+                      {payConfig?.boleto && !reward && <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm transition hover:border-slate-400 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:ring-1 has-[:checked]:ring-brand">
                         <input className="sr-only" type="radio" name="paymentMethod" value="BOLETO" checked={method === 'BOLETO'} onChange={() => setMethod('BOLETO')} />
                         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700"><PaymentIcon kind="boleto" /></span><span><b className="block">Boleto bancário</b><span className="text-xs text-slate-500">Compensação em até 2 dias úteis</span></span>
                       </label>}
@@ -377,6 +411,7 @@ export default function CheckoutPage() {
                 <div className="flex gap-2"><input value={couponInput} onChange={e => setCouponInput(e.target.value)} placeholder="Cupom de desconto" aria-label="Cupom de desconto" maxLength={32} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm uppercase" /><button type="button" onClick={() => void applyCoupon()} className="button-ghost text-sm">Aplicar</button></div>
                 {couponError && <p role="alert" className="mt-2 text-xs text-red-700">{couponError}</p>}
               </div>
+              <FidelizeiRewards loyalty={loyalty} reward={reward} amount={rewardDiscount} base={subtotal - promoDiscount} busy={rewardBusy} error={rewardError} couponActive={Boolean(coupon)} onUse={id => void applyReward(id)} onRemove={() => void removeReward()} />
               {coupon && <div className="mt-3 flex justify-between text-sm text-emerald-700"><span>Cupom {coupon.code} <button type="button" onClick={() => { setCoupon(undefined); setCouponInput(''); }} className="underline">remover</button></span><span>− {formatPrice(coupon.discount)}</span></div>}
               <div className="mt-4 flex justify-between border-t pt-4"><span>Total</span><b>{formatPrice(subtotal - promoDiscount - discount + shipping)}</b></div>
               {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}

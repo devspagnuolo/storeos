@@ -13,6 +13,7 @@ class CardDto {
   @IsOptional() @IsString() @Length(8, 128) token?: string; @IsOptional() @IsString() @MaxLength(40) paymentMethodId?: string; @IsOptional() @IsInt() @Min(1) @Max(18) installments?: number; @IsOptional() @IsString() @MaxLength(20) issuerId?: string;
   @IsOptional() @Matches(/^\d{6,8}$/) bin?: string;
 }
+class LoyaltyRewardDto { @IsString() @Length(8, 80) checkoutId!: string; @IsString() @Length(8, 24) code!: string; }
 class CheckoutDto {
   @IsString() storeSlug!: string;
   @ValidateNested() @Type(() => CustomerDto) customer!: CustomerDto;
@@ -23,6 +24,7 @@ class CheckoutDto {
   @IsOptional() @IsString() @MaxLength(32) couponCode?: string;
   @IsString() @Length(11, 14) cpf!: string;
   @IsOptional() @ValidateNested() @Type(() => CardDto) card?: CardDto;
+  @IsOptional() @ValidateNested() @Type(() => LoyaltyRewardDto) loyaltyReward?: LoyaltyRewardDto;
 }
 class DraftTokenDto { @IsString() storeSlug!: string; @IsUUID() token!: string; }
 class SaveDraftDto extends DraftTokenDto { @IsOptional() @IsString() @MaxLength(14) cpf?: string; @IsObject() data!: Record<string, unknown>; }
