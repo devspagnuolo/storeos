@@ -5,19 +5,27 @@ import { AccountSignal } from '../../components/account/account-signal';
 import { LoginForm } from '../../components/account/login-form';
 import { FidelizeiCard } from '../../components/account/fidelizei-card';
 import { ProfileForm } from '../../components/account/profile-form';
-import { accountFetch } from '../../lib/account/session';
-import { addressLines, formatDate, statusTone, type AccountOrderSummary, type AccountProfile, type FidelizeiLoyalty } from '../../lib/account/types';
+import { accountApiUrl, accountFetch } from '../../lib/account/session';
+import { addressLines, formatDate, statusTone, type AccountOrderSummary, type AccountProfile, type FidelizeiLoyalty, type FidelizeiProgram } from '../../lib/account/types';
 import { formatPrice } from '../../lib/format';
+import { resolveStoreSlug } from '../../lib/store-host';
 import { logoutAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Minha conta', robots: { index: false } };
 
-export default async function AccountPage({ searchParams }: { searchParams: Promise<{ voltar?: string; criar?: string }> }) {
+/** Público: o cadastro só oferece a adesão ao Fidelizei quando a loja tem o programa ligado. */
+async function fidelizeiProgram(): Promise<FidelizeiProgram> {
+  const storeSlug = await resolveStoreSlug();
+  const response = await fetch(`${accountApiUrl}/account/fidelizei/program?storeSlug=${encodeURIComponent(storeSlug)}`, { cache: 'no-store' }).catch(() => null);
+  return response?.ok ? response.json() : { enabled: false };
+}
+
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ voltar?: string; criar?: string; fidelizei?: string }> }) {
   const query = await searchParams;
   const returnTo = query.voltar === 'checkout' ? 'checkout' : undefined;
   const [profile, orders, fidelizei] = await Promise.all([accountFetch<AccountProfile>('/me'), accountFetch<AccountOrderSummary[]>('/orders'), accountFetch<FidelizeiLoyalty>('/fidelizei').catch(() => null)]);
-  if (!profile || !orders) return <><Header /><AccountSignal signedIn={false} /><main className="shell flex justify-center py-10 sm:py-16"><LoginForm key={query.criar ? 'criar' : 'entrar'} returnTo={returnTo} signup={Boolean(query.criar)} /></main></>;
+  if (!profile || !orders) return <><Header /><AccountSignal signedIn={false} /><main className="shell flex justify-center py-10 sm:py-16"><LoginForm key={query.criar ? 'criar' : 'entrar'} returnTo={returnTo} signup={Boolean(query.criar)} program={query.criar ? await fidelizeiProgram() : undefined} /></main></>;
 
   const open = orders.filter(order => !['DELIVERED', 'CANCELLED', 'REFUNDED', 'RETURNED'].includes(order.status));
   const first = profile.name.trim().split(/\s+/)[0];
@@ -74,6 +82,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <p className="mt-1 text-xs text-slate-500">Usado na sua última compra. Você pode trocar no checkout.</p>
             <address className="mt-3 text-sm not-italic text-slate-700">{addressLines(profile.address).map(line => <span key={line} className="block">{line}</span>)}</address>
           </section>}
+          {query.fidelizei === 'erro' && fidelizei?.enabled && !fidelizei.enrolled && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Sua conta foi criada, mas não conseguimos concluir a adesão ao programa de pontos agora. Tente de novo logo abaixo.</p>}
           {fidelizei?.enabled && <FidelizeiCard loyalty={fidelizei} />}
           {/* Com o Fidelizei ligado, ele é o programa de pontos da loja: o programa interno não aparece para não confundir. */}
           {profile.loyalty && !fidelizei?.enabled && <section aria-labelledby="pontos" className="card p-5">

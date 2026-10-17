@@ -56,3 +56,6 @@ export function rewardAmount(discount: { type: string; value: number }, base: nu
   const raw = discount.type === 'percent' ? base * Math.min(discount.value, 100) / 100 : discount.value / 100;
   return Math.min(Math.round(raw * 100 + Number.EPSILON) / 100, base);
 }
+
+/** O que o cadastro precisa saber do Fidelizei antes de a pessoa ter conta. */
+export type FidelizeiProgram = { enabled: boolean; termsUrl?: string | null; privacyUrl?: string | null };

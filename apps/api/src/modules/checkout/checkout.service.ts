@@ -152,6 +152,9 @@ export class CheckoutService {
       return created;
     });
 
+    // Liga o benefício ao pedido no Fidelizei sem segurar o checkout; se falhar, a sincronização tenta de novo.
+    if (reward) void this.fidelizei.linkOrder(reward.row.id).catch(error => this.logger.warn(`Benefício do pedido ${order.number} não ligado ao Fidelizei agora: ${(error as Error).message.slice(0, 200)}`));
+
     // A cobrança fica fora da transação: chamadas a gateways não devem segurar locks no banco.
     const [payment] = order.payments;
     let charge: ChargeResult;

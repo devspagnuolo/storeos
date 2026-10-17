@@ -1538,6 +1538,8 @@ model FidelizeiRedemption {
   discountAmount       Decimal?                  @db.Decimal(14, 2)
   status               FidelizeiRedemptionStatus @default(RESERVED)
   reservationExpiresAt DateTime
+  /// Quando o Fidelizei ligou a reserva ao pedido (link-order): o prazo passa de 20 minutos para 48 horas.
+  orderLinkedAt        DateTime?
   attempts             Int                       @default(0)
   nextAttemptAt        DateTime                  @default(now())
   lastError            String?

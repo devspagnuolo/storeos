@@ -61,13 +61,14 @@ export class FidelizeiSyncService {
     const bling = order.blingSync?.blingOrderId && order.blingSync.blingOrderNumber ? order.blingSync : null;
     if (row.status === FidelizeiRedemptionStatus.RESERVED && CANCELLED_ORDER.includes(order.status)) {
       // Pedido não foi pago (ou foi cancelado antes do Bling): os pontos voltam para a cliente.
-      await this.fidelizei.cancelRemote(row, { checkoutId: row.checkoutId, reason: 'checkout_failed' });
+      await this.fidelizei.cancelRemote(row, row.orderLinkedAt ? { storeosOrderId: row.orderId!, reason: 'order_cancelled' } : { checkoutId: row.checkoutId, reason: 'checkout_failed' });
       await this.done(row, FidelizeiRedemptionStatus.CANCELLED);
       return true;
     }
+    const linkedAt = row.status === FidelizeiRedemptionStatus.RESERVED ? row.orderLinkedAt ?? await this.link(row) : row.orderLinkedAt;
     if (row.status === FidelizeiRedemptionStatus.RESERVED && bling) {
       const { apiKey } = await this.fidelizei.connectionOrFail(row.storeId, true);
-      const body = { checkoutId: row.checkoutId, blingOrderId: bling.blingOrderId!, blingOrderNumber: bling.blingOrderNumber! };
+      const body = { checkoutId: row.checkoutId, blingOrderId: bling.blingOrderId!, blingOrderNumber: bling.blingOrderNumber!, ...(linkedAt && { storeosOrderId: row.orderId! }) };
       await this.client.request(apiKey, `/storeos/redemptions/${encodeURIComponent(row.redemptionId)}/confirm`, { method: 'POST', body, idempotencyKey: idempotencyKey(`confirm-${row.redemptionId}`, body) });
       await this.done(row, FidelizeiRedemptionStatus.CONFIRMED);
       return true;
@@ -83,6 +84,16 @@ export class FidelizeiSyncService {
     return false;
   }
 
+  /** Liga a reserva ao pedido (se ainda não ligou). Um Fidelizei sem a rota link-order responde 404 sem código: segue sem ligar. */
+  private async link(row: FidelizeiRedemption) {
+    try {
+      return await this.fidelizei.linkOrder(row.id);
+    } catch (error) {
+      if (error instanceof FidelizeiApiError && error.status === 404 && !error.code) return null;
+      throw error;
+    }
+  }
+
   private done(row: FidelizeiRedemption, status: FidelizeiRedemptionStatus) {
     const now = new Date();
     return this.prisma.fidelizeiRedemption.update({ where: { id: row.id }, data: { status, attempts: 0, lastError: null, nextAttemptAt: now, ...(status === FidelizeiRedemptionStatus.CONFIRMED ? { confirmedAt: now } : { cancelledAt: now }) } });
@@ -92,7 +103,7 @@ export class FidelizeiSyncService {
     const message = (error as Error).message.slice(0, 300);
     const code = error instanceof FidelizeiApiError ? error.code : undefined;
     // A reserva venceu antes de o pedido chegar ao Bling: o desconto já foi dado e os pontos voltaram para a cliente.
-    if (row.status === FidelizeiRedemptionStatus.RESERVED && (code === 'INVALID_REDEMPTION_STATUS' || code === 'REDEMPTION_NOT_FOUND')) {
+    if (row.status === FidelizeiRedemptionStatus.RESERVED && (code === 'INVALID_REDEMPTION_STATUS' || code === 'REDEMPTION_NOT_FOUND' || code === 'RESERVATION_EXPIRED')) {
       await this.prisma.fidelizeiRedemption.update({ where: { id: row.id }, data: { status: FidelizeiRedemptionStatus.FAILED, lastError: `Não confirmado no Fidelizei: ${message}` } });
       this.logger.warn(`Benefício ${row.code} não confirmado: ${message}`);
       return;
@@ -128,7 +139,7 @@ export class FidelizeiSyncService {
     if (['redemption.expired', 'redemption.cancelled'].includes(event.eventType) && row.status === FidelizeiRedemptionStatus.RESERVED) {
       // Com pedido já criado, a reserva vencida é uma falha a olhar no painel; sem pedido, só expirou.
       const status = row.orderId ? FidelizeiRedemptionStatus.FAILED : event.eventType === 'redemption.expired' ? FidelizeiRedemptionStatus.EXPIRED : FidelizeiRedemptionStatus.CANCELLED;
-      await this.prisma.fidelizeiRedemption.update({ where: { id: row.id }, data: { status, ...(row.orderId && { lastError: 'A reserva venceu no Fidelizei antes de o pedido chegar ao Bling; os pontos voltaram para a cliente.' }) } });
+      await this.prisma.fidelizeiRedemption.update({ where: { id: row.id }, data: { status, ...(row.orderId && { lastError: 'A reserva venceu no Fidelizei antes de o pedido ser conciliado com o Bling; os pontos voltaram para a cliente.' }) } });
     }
     if (event.eventType === 'redemption.cancelled' && row.status === FidelizeiRedemptionStatus.CONFIRMED) await this.done(row, FidelizeiRedemptionStatus.CANCELLED);
   }

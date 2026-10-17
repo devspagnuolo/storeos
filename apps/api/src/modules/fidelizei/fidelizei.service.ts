@@ -151,13 +151,21 @@ export class FidelizeiService {
     }
   }
 
-  async enroll(storeId: string, customerId: string, input: { cpf?: string; consent?: boolean }) {
+  /** Público: o cadastro do site só oferece a adesão quando a loja tem o programa ligado. */
+  async program(storeSlug: string) {
+    const connection = await this.prisma.fidelizeiConnection.findFirst({ where: { store: { slug: storeSlug } }, select: { enabled: true, termsUrl: true, privacyUrl: true } });
+    return connection?.enabled ? { enabled: true, termsUrl: connection.termsUrl, privacyUrl: connection.privacyUrl } : { enabled: false };
+  }
+
+  async enroll(storeId: string, customerId: string, input: { cpf?: string; phone?: string; consent?: boolean }) {
     if (input.consent !== true) throw new BadRequestException('Para participar, marque que aceita os termos do programa e a política de privacidade.');
     const { connection, apiKey } = await this.connectionOrFail(storeId);
     const customer = await this.prisma.customer.findUniqueOrThrow({ where: { id: customerId }, select: { name: true, email: true, phone: true, document: true } });
     const cpf = onlyDigits(input.cpf ?? customer.document ?? '');
     if (!isValidCpf(cpf)) throw new BadRequestException('Informe um CPF válido. É ele que identifica você no programa de pontos.');
-    const body = { externalCustomerId: customerId, name: customer.name, cpf, email: customer.email, ...(customer.phone && { phone: customer.phone }), programConsent: true, termsVersion: connection.termsVersion, privacyVersion: connection.privacyVersion };
+    const typedPhone = onlyDigits(input.phone ?? '');
+    const phone = customer.phone || (typedPhone.length >= 10 && typedPhone.length <= 13 ? typedPhone : null);
+    const body = { externalCustomerId: customerId, name: customer.name, cpf, email: customer.email, ...(phone && { phone }), programConsent: true, termsVersion: connection.termsVersion, privacyVersion: connection.privacyVersion };
     let data: { id: string; enrolledAt: string; pointsBalance: number };
     try {
       ({ data } = await this.client.request<{ data: typeof data }>(apiKey, '/storeos/customers/enroll', { method: 'POST', body, idempotencyKey: idempotencyKey(`enroll-${customerId}`, body) }));
@@ -170,7 +178,7 @@ export class FidelizeiService {
       update: { fidelizeiCustomerId: data.id, enrolledAt: new Date(data.enrolledAt ?? Date.now()) },
     });
     // O mesmo CPF vai no pedido e no contato do Bling: é por ele que o Fidelizei credita os pontos.
-    if (!customer.document) await this.prisma.customer.update({ where: { id: customerId }, data: { document: cpf } });
+    if (!customer.document || (!customer.phone && phone)) await this.prisma.customer.update({ where: { id: customerId }, data: { ...(!customer.document && { document: cpf }), ...(!customer.phone && phone && { phone }) } });
     return this.loyalty(storeId, customerId);
   }
 
@@ -215,7 +223,7 @@ export class FidelizeiService {
     return { released: true };
   }
 
-  async cancelRemote(row: { storeId: string; redemptionId: string }, body: { checkoutId?: string; blingOrderId?: string; reason: string }) {
+  async cancelRemote(row: { storeId: string; redemptionId: string }, body: { checkoutId?: string; storeosOrderId?: string; blingOrderId?: string; reason: string }) {
     const { apiKey } = await this.connectionOrFail(row.storeId, true);
     return this.client.request<{ data: { status: string } }>(apiKey, `/storeos/redemptions/${encodeURIComponent(row.redemptionId)}/cancel`, { method: 'POST', body, idempotencyKey: idempotencyKey(`cancel-${row.redemptionId}`, body) });
   }
@@ -249,6 +257,21 @@ export class FidelizeiService {
   async attachToOrder(tx: Prisma.TransactionClient, rowId: string, orderId: string, amount: Prisma.Decimal) {
     const attached = await tx.fidelizeiRedemption.updateMany({ where: { id: rowId, orderId: null, status: FidelizeiRedemptionStatus.RESERVED }, data: { orderId, discountAmount: amount } });
     if (attached.count !== 1) throw new ConflictException('Este benefício de pontos já foi usado em outro pedido.');
+  }
+
+  /**
+   * Logo depois de criar o pedido: liga a reserva ao pedido no Fidelizei. A reserva deixa de vencer em 20 minutos
+   * e fica guardada por até 48 horas, esperando o pedido chegar ao Bling para confirmar o uso.
+   */
+  async linkOrder(rowId: string) {
+    const row = await this.prisma.fidelizeiRedemption.findUnique({ where: { id: rowId } });
+    if (!row?.orderId || row.orderLinkedAt || row.status !== FidelizeiRedemptionStatus.RESERVED) return row?.orderLinkedAt ?? null;
+    const { apiKey } = await this.connectionOrFail(row.storeId, true);
+    const body = { checkoutId: row.checkoutId, storeosOrderId: row.orderId };
+    const { data } = await this.client.request<{ data: { pendingUntil?: string } }>(apiKey, `/storeos/redemptions/${encodeURIComponent(row.redemptionId)}/link-order`, { method: 'POST', body, idempotencyKey: idempotencyKey(`link-${row.redemptionId}`, body) });
+    const linkedAt = new Date();
+    await this.prisma.fidelizeiRedemption.update({ where: { id: row.id }, data: { orderLinkedAt: linkedAt, ...(data.pendingUntil && { reservationExpiresAt: new Date(data.pendingUntil) }) } });
+    return linkedAt;
   }
 
   discountFor(discount: RewardDiscount, base: Prisma.Decimal) {
