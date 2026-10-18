@@ -53,7 +53,7 @@ export function ProductForm({ product, categories, brands, created }: { product?
       <aside className="space-y-6">
         <div className="card p-6">
           <label className="text-sm font-medium">Status<select name="status" defaultValue={product?.status ?? 'DRAFT'} className="input">{Object.entries(productStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <fieldset className="mt-5"><legend className="text-sm font-medium">Categorias</legend>{flatten(buildTree(categories)).map(c => <label key={c.id} className="mt-2 flex items-center gap-2 text-sm" style={{ paddingLeft: (c.depth - 1) * 20 }}><input type="checkbox" name="categoryIds" value={c.id} defaultChecked={product?.categoryIds?.includes(c.id)} />{c.name}</label>)}</fieldset>
+          <fieldset className="mt-5"><legend className="text-sm font-medium">Categorias</legend>{product?.categoryIds?.map(id => <input key={id} type="hidden" name="initialCategoryIds" value={id} />)}{flatten(buildTree(categories)).map(c => <label key={c.id} className="mt-2 flex items-center gap-2 text-sm" style={{ paddingLeft: (c.depth - 1) * 20 }}><input type="checkbox" name="categoryIds" value={c.id} defaultChecked={product?.categoryIds?.includes(c.id)} />{c.name}</label>)}</fieldset>
           {state.error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}
           {state.ok && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{state.ok}</p>}
           <button className="button mt-6 w-full disabled:opacity-60" disabled={pending}>{pending ? 'Salvando…' : product ? 'Salvar alterações' : 'Criar produto'}</button>

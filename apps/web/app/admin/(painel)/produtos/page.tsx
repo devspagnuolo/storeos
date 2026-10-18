@@ -46,13 +46,13 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
       <form className="mt-4 flex flex-wrap gap-2">
         <input type="hidden" name="situacao" value={tab.key} />
         <input name="q" defaultValue={q} placeholder="Buscar por nome ou código" className="input !mt-0 w-full sm:max-w-xs" />
-        <select name="categoria" defaultValue={categoria} aria-label="Filtrar por categoria" className="input !mt-0 w-full sm:max-w-xs"><option value="">Todas as categorias</option>{categories.map(c => <option key={c.id} value={c.slug}>{'— '.repeat(c.depth - 1)}{c.name}</option>)}</select>
+        <select name="categoria" defaultValue={categoria} aria-label="Filtrar por categoria" className="input !mt-0 w-full sm:max-w-xs"><option value="">Todas as categorias</option><option value="sem-categoria">Sem categoria</option>{categories.map(c => <option key={c.id} value={c.slug}>{'— '.repeat(c.depth - 1)}{c.name}</option>)}</select>
         <select name="porPagina" defaultValue={pageSize} aria-label="Itens por página" className="input !mt-0 w-auto"><option value="25">25 por página</option><option value="50">50 por página</option><option value="100">100 por página</option></select>
         <button className="button-ghost">Filtrar</button>
         {(q || categoria) && <Link href={`/admin/produtos?situacao=${tab.key}`} className="self-center text-sm underline">Limpar</Link>}
       </form>
 
-      <ProductTable key={`${tab.key}-${page}-${q}-${categoria}`} items={data.items} />
+      <ProductTable key={`${tab.key}-${page}-${q}-${categoria}`} items={data.items} categories={categories.map(c => ({ id: c.id, name: c.name, depth: c.depth }))} />
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
         <span>{data.total ? `${first}–${first + data.items.length - 1} de ${data.total}` : 'Nenhum produto'}</span>

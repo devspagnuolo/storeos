@@ -6,6 +6,9 @@ import { recordMovement } from '../inventory/stock-ledger';
 import { cleanFiscal } from './fiscal-rules';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
+/** Filtro da lista do painel para produtos sem nenhuma categoria. */
+export const UNCATEGORIZED = 'sem-categoria';
+
 export type ProductQuery = { ids?: string; category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number; attrs?: string; minPrice?: number; maxPrice?: number };
 export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; imageUrls?: string[]; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; ncm?: string | null; cest?: string | null; gtin?: string | null; taxOrigin?: number | null; unit?: string | null };
 export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string; imageColors?: string[] };
@@ -373,9 +376,11 @@ export class CatalogService {
   async adminList(storeId: string, { ids, q, status, category, page = 1, pageSize = 20 }: { ids?: string; q?: string; status?: ProductStatus; category?: string; page?: number; pageSize?: number }) {
     const term = q?.trim();
     // Filtrar por uma categoria inclui as subcategorias dela.
-    const categoryIds = category ? await this.categoryAndDescendants(storeId, category) : undefined;
+    // "sem-categoria" lista quem ainda não tem categoria no site.
+    const uncategorized = category === UNCATEGORIZED;
+    const categoryIds = category && !uncategorized ? await this.categoryAndDescendants(storeId, category) : undefined;
     const idList = ids?.split(',').map(id => id.trim()).filter(Boolean).slice(0, 24);
-    const where: Prisma.ProductWhereInput = { storeId, ...(idList && { id: { in: idList } }), ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }), ...(status && { status }), ...(term && { OR: [{ name: { contains: term, mode: 'insensitive' } }, { sku: { contains: term, mode: 'insensitive' } }] }) };
+    const where: Prisma.ProductWhereInput = { storeId, ...(idList && { id: { in: idList } }), ...(uncategorized && { categories: { none: {} } }), ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }), ...(status && { status }), ...(term && { OR: [{ name: { contains: term, mode: 'insensitive' } }, { sku: { contains: term, mode: 'insensitive' } }] }) };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 }, inventory: true, categories: { select: { category: { select: { name: true } } }, take: 2 }, _count: { select: { variants: true, orderItems: true } } }, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.product.count({ where }),
@@ -397,9 +402,21 @@ export class CatalogService {
    * Excluir, inativar ou reativar vários produtos. A exclusão é só no site (o Bling não é tocado) e só vale
    * para quem nunca entrou em um pedido, nem cancelado ou reembolsado: esses ficam como estão e voltam em `blocked`.
    */
-  async bulkProducts(storeId: string, ids: string[], action: 'activate' | 'deactivate' | 'delete') {
+  async bulkProducts(storeId: string, ids: string[], action: 'activate' | 'deactivate' | 'delete' | 'category', categoryId?: string) {
     const products = await this.prisma.product.findMany({ where: { storeId, id: { in: [...new Set(ids)].slice(0, 100) } }, select: { id: true, name: true, _count: { select: { orderItems: true } } } });
     if (!products.length) throw new NotFoundException('Produto não encontrado');
+    if (action === 'category') {
+      // Troca a categoria: os escolhidos ficam só na categoria informada (o Bling é atualizado depois, pela integração).
+      if (!categoryId) throw new BadRequestException('Escolha a categoria');
+      await this.assertCategories(storeId, [categoryId]);
+      const productIds = products.map(p => p.id);
+      await this.prisma.$transaction([
+        this.prisma.productCategory.deleteMany({ where: { productId: { in: productIds } } }),
+        this.prisma.productCategory.createMany({ data: productIds.map(productId => ({ productId, categoryId })) }),
+        this.prisma.product.updateMany({ where: { storeId, id: { in: productIds } }, data: { updatedAt: new Date() } }),
+      ]);
+      return { updated: productIds.length, deleted: 0, blocked: [] as string[] };
+    }
     if (action !== 'delete') {
       const status = action === 'activate' ? ProductStatus.ACTIVE : ProductStatus.ARCHIVED;
       const { count } = await this.prisma.product.updateMany({ where: { storeId, id: { in: products.map(p => p.id) } }, data: { status } });

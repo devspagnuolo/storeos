@@ -9,6 +9,7 @@ import { BlingAuthService } from './bling-auth.service';
 import { BlingCatalogService } from './bling-catalog.service';
 import { BlingImportService, parseImportMode } from './bling-import.service';
 import { BlingInvoicesService } from './bling-invoices.service';
+import { BlingProductCategoryService } from './bling-product-category.service';
 import { BlingTrackingService } from './bling-tracking.service';
 import { BlingStockService } from './bling-stock.service';
 import { BlingOrdersService } from './bling-orders.service';
@@ -20,7 +21,14 @@ const webOrigin = () => (process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localh
 @ApiTags('Bling')
 @Controller('bling')
 export class BlingController {
-  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService, private readonly invoices: BlingInvoicesService, private readonly webhooks: BlingWebhookService, private readonly stock: BlingStockService, private readonly tracking: BlingTrackingService, private readonly catalog: BlingCatalogService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly imports: BlingImportService, private readonly orders: BlingOrdersService, private readonly invoices: BlingInvoicesService, private readonly webhooks: BlingWebhookService, private readonly stock: BlingStockService, private readonly tracking: BlingTrackingService, private readonly catalog: BlingCatalogService, private readonly productCategories: BlingProductCategoryService) {}
+
+  /** Leva ao Bling a categoria que a loja deu a estes produtos (troca no painel, um a um ou em lote). */
+  @Post('products/category') @HttpCode(200) @RequirePermissions(Permissions.CATALOG_WRITE)
+  pushCategories(@CurrentStore() storeId: string, @Body('ids') ids?: unknown) {
+    if (!Array.isArray(ids) || !ids.length || ids.length > 100 || ids.some(id => typeof id !== 'string')) throw new BadRequestException('Informe ids como lista de até 100 produtos');
+    return this.productCategories.push(storeId, ids as string[]);
+  }
 
   @Get('status') @RequirePermissions(Permissions.SETTINGS_WRITE)
   async status(@CurrentStore() storeId: string) {
