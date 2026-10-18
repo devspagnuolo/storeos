@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { ACCESS_COOKIE, adminFetch, ApiError, clearSession, REFRESH_COOKIE, saveSession, serverApiUrl, Session } from '../../lib/admin/session';
-import type { BulkProductsResult } from '../../lib/admin/types';
+import type { BlingCategorySync, BulkProductsResult } from '../../lib/admin/types';
 
 export type FormState = { error?: string; ok?: string };
 export type LoginState = { error?: string; email?: string; storeSlug?: string };
@@ -325,7 +325,10 @@ export async function saveProductAction(_: FormState, form: FormData): Promise<F
   }
   revalidatePath('/admin/produtos');
   if (!id) redirect(`/admin/produtos/${saved.id}?criado=1`);
-  return { ok: 'Produto salvo.' };
+  // Categoria trocada na edição também vai para o Bling.
+  const before = form.getAll('initialCategoryIds').map(String).sort().join(',');
+  const changed = body.categoryIds.length > 0 && before !== [...body.categoryIds].sort().join(',');
+  return { ok: `Produto salvo.${changed ? await pushCategoriesToBling([id]) : ''}` };
 }
 
 const decimal = (value: string) => Number(value.replace(',', '.'));
@@ -1347,18 +1350,38 @@ export async function disconnectFidelizeiAction() {
   revalidatePath('/admin/fidelizei');
 }
 
-/** Ações em lote da lista de produtos. Excluir é só no site (o Bling não muda) e só para quem nunca esteve em pedido. */
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const someNames = (names: string[]) => `${names.slice(0, 5).join(', ')}${names.length > 5 ? ` e mais ${names.length - 5}` : ''}`;
+
+/** Leva a categoria dos produtos ao Bling (achados pelo código) e resume o que aconteceu lá; sem Bling conectado, não diz nada. */
+async function pushCategoriesToBling(ids: string[]): Promise<string> {
+  try {
+    const result = await adminFetch<BlingCategorySync>('/bling/products/category', { method: 'POST', body: { ids } });
+    if (!result.connected) return '';
+    const parts = [`No Bling: ${plural(result.updated, 'produto atualizado', 'produtos atualizados')}.`];
+    if (result.notFound.length) parts.push(`Não encontrados no Bling pelo código: ${someNames(result.notFound)}.`);
+    if (result.failed.length) parts.push(`Falharam no Bling: ${someNames(result.failed.map(f => f.name))} (${result.failed[0].message}).`);
+    return ` ${parts.join(' ')}`;
+  } catch (error) {
+    if (error instanceof ApiError) return ` Não foi possível atualizar o Bling agora: ${error.message}`;
+    throw error;
+  }
+}
+
+/** Ações em lote da lista de produtos. Excluir é só no site (o Bling não muda) e só para quem nunca esteve em pedido; trocar a categoria vale no site e no Bling. */
 export async function bulkProductsAction(_: FormState, form: FormData): Promise<FormState> {
   const ids = form.getAll('ids').map(String).filter(Boolean);
   const action = String(form.get('action') ?? '');
+  const categoryId = String(form.get('categoryId') ?? '');
   if (!ids.length) return { error: 'Selecione pelo menos um produto.' };
-  if (!['activate', 'deactivate', 'delete'].includes(action)) return { error: 'Ação inválida.' };
+  if (!['activate', 'deactivate', 'delete', 'category'].includes(action)) return { error: 'Ação inválida.' };
+  if (action === 'category' && !categoryId) return { error: 'Escolha a categoria.' };
   try {
-    const result = await adminFetch<BulkProductsResult>('/catalog/products/bulk', { method: 'POST', body: { ids, action } });
+    const result = await adminFetch<BulkProductsResult>('/catalog/products/bulk', { method: 'POST', body: { ids, action, ...(action === 'category' && { categoryId }) } });
     revalidatePath('/admin/produtos');
-    const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+    if (action === 'category') return { ok: `Categoria trocada em ${plural(result.updated, 'produto', 'produtos')}.${await pushCategoriesToBling(ids)}` };
     if (action !== 'delete') return { ok: `${plural(result.updated, 'produto', 'produtos')} ${action === 'activate' ? (result.updated === 1 ? 'ativado' : 'ativados') : (result.updated === 1 ? 'inativado' : 'inativados')}.` };
-    const blocked = result.blocked.length ? ` Não excluídos por já terem pedido (use Inativar): ${result.blocked.slice(0, 5).join(', ')}${result.blocked.length > 5 ? ` e mais ${result.blocked.length - 5}` : ''}.` : '';
+    const blocked = result.blocked.length ? ` Não excluídos por já terem pedido (use Inativar): ${someNames(result.blocked)}.` : '';
     return result.deleted ? { ok: `${plural(result.deleted, 'produto excluído', 'produtos excluídos')} do site.${blocked}` } : { error: `Nenhum produto excluído.${blocked}` };
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };

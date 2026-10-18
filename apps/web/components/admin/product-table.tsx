@@ -7,15 +7,17 @@ import type { AdminProduct } from '../../lib/admin/types';
 import { formatPrice } from '../../lib/format';
 
 const tone: Record<string, string> = { ACTIVE: 'bg-emerald-100 text-emerald-800', DRAFT: 'bg-slate-100 text-slate-700', ARCHIVED: 'bg-slate-200 text-slate-600' };
-type Action = 'activate' | 'deactivate' | 'delete';
+type Action = 'activate' | 'deactivate' | 'delete' | 'category';
+type CategoryOption = { id: string; name: string; depth: number };
 
 /**
- * Lista gerencial de produtos: seleção em lote, ativar, inativar e excluir.
- * Excluir apaga só no site (o Bling fica igual) e só vale para quem nunca esteve em um pedido.
+ * Lista gerencial de produtos: seleção em lote, ativar, inativar, excluir e trocar a categoria.
+ * Excluir apaga só no site (o Bling fica igual) e só vale para quem nunca esteve em um pedido; a categoria nova vai também para o Bling.
  */
-export function ProductTable({ items }: { items: AdminProduct[] }) {
+export function ProductTable({ items, categories }: { items: AdminProduct[]; categories: CategoryOption[] }) {
   const [state, action, pending] = useActionState<FormState, FormData>(bulkProductsAction, {});
   const [selected, setSelected] = useState<string[]>([]);
+  const [categoryId, setCategoryId] = useState('');
   const allChecked = items.length > 0 && selected.length === items.length;
   const toggle = (id: string) => setSelected(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id]);
 
@@ -32,6 +34,7 @@ export function ProductTable({ items }: { items: AdminProduct[] }) {
     const data = new FormData();
     ids.forEach(id => data.append('ids', id));
     data.set('action', kind);
+    if (kind === 'category') data.set('categoryId', categoryId);
     setSelected([]);
     startTransition(() => action(data));
   };
@@ -44,9 +47,13 @@ export function ProductTable({ items }: { items: AdminProduct[] }) {
           <button type="button" disabled={pending} onClick={() => run('activate', selected)} className="rounded border bg-white px-3 py-1.5 font-medium hover:border-brand">Ativar</button>
           <button type="button" disabled={pending} onClick={() => run('deactivate', selected)} className="rounded border bg-white px-3 py-1.5 font-medium hover:border-brand">Inativar</button>
           <button type="button" disabled={pending} onClick={() => run('delete', selected)} className="rounded border border-red-200 bg-white px-3 py-1.5 font-medium text-red-700 hover:border-red-400">Excluir do site</button>
+          <span className="flex min-w-0 max-w-full items-center gap-2">
+            <select value={categoryId} onChange={event => setCategoryId(event.target.value)} aria-label="Nova categoria" className="input !mt-0 min-w-0 max-w-[14rem] !py-1.5"><option value="">Mudar categoria para…</option>{categories.map(c => <option key={c.id} value={c.id}>{'— '.repeat(c.depth - 1)}{c.name}</option>)}</select>
+            <button type="button" disabled={pending || !categoryId} onClick={() => run('category', selected)} className="shrink-0 rounded border bg-white px-3 py-1.5 font-medium hover:border-brand disabled:opacity-50">Aplicar</button>
+          </span>
           <button type="button" onClick={() => setSelected([])} className="text-slate-500 underline">Limpar seleção</button>
-        </> : <span className="text-slate-500">Marque os produtos para ativar, inativar ou excluir em lote.</span>}
-        {pending && <span className="text-slate-500">Aplicando…</span>}
+        </> : <span className="text-slate-500">Marque os produtos para ativar, inativar, excluir ou mudar a categoria em lote.</span>}
+        {pending && <span className="text-slate-500">Aplicando… (com o Bling pode levar alguns segundos)</span>}
       </div>
       {(state.ok || state.error) && <p role={state.error ? 'alert' : 'status'} className={`border-x px-4 py-2 text-sm ${state.error ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'}`}>{state.error ?? state.ok}</p>}
       <div className="card overflow-x-auto !rounded-t-none">

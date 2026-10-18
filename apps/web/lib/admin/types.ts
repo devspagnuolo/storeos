@@ -15,6 +15,8 @@ export type AdminVariant = { id: string; sku: string; price: string | null; attr
 export type AdminProduct = { ncm?: string | null; cest?: string | null; gtin?: string | null; taxOrigin?: number | null; unit?: string | null; variants?: AdminVariant[]; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; id: string; name: string; slug: string; sku: string; price: string; status: string; description: string | null; stock: number; reserved: number; images: { url: string; color?: string | null }[]; categoryIds?: string[]; brandId?: string | null; seoTitle?: string | null; seoDescription?: string | null; updatedAt: string; variantCount?: number; categoryNames?: string[]; orderLines?: number; canDelete?: boolean };
 export type AdminProductPage = { items: AdminProduct[]; total: number; page: number; pageSize: number; counts?: Record<'ACTIVE' | 'ARCHIVED' | 'DRAFT', number> };
 export type BulkProductsResult = { updated: number; deleted: number; blocked: string[] };
+/** Resultado de levar a categoria dos produtos ao Bling. */
+export type BlingCategorySync = { connected: boolean; updated: number; notFound: string[]; failed: { name: string; message: string }[] };
 
 export type ShippingRule = { id: string; name: string; states: string[]; price: string; freeAbove: string | null; freeOnly: boolean; minDays: number; maxDays: number; active: boolean; position: number };
 

@@ -21,6 +21,7 @@ class FakeBling {
   patchNotFound = false;
   failPost = false;
   salesOrders = new Map<string, number>();
+  createdCategories: { id: number; descricao: string; categoriaPai?: { id: number } }[] = [];
   invoiceCalls: { method: string; path: string; body?: unknown }[] = [];
   nextId = 9000;
   products: Record<number, unknown> = {
@@ -41,14 +42,20 @@ class FakeBling {
     const url = new URL(path, 'https://x.test');
     if (url.pathname === '/empresas/me/dados-basicos') return { data: { id: 777 } };
     if (url.pathname.startsWith('/situacoes/')) return { data: { id: 42, nome: 'Em aberto' } };
-    if (url.pathname === '/categorias/produtos') return { data: [{ id: 1, descricao: 'Blusas' }, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }] };
+    if (url.pathname === '/categorias/produtos' && method === 'POST') { const id = 500 + this.createdCategories.length; this.createdCategories.push({ id, ...(init.body as { descricao: string }) }); return { data: { id } }; }
+    if (url.pathname === '/categorias/produtos') return { data: [{ id: 1, descricao: 'Blusas' }, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }, ...this.createdCategories] };
+    if (/^\/produtos\/\d+$/.test(url.pathname) && method === 'PATCH') return undefined;
     if (url.pathname === '/produtos' && url.searchParams.has('criterio')) {
       const q = url.searchParams.get('nome')?.toLowerCase();
       return { data: Object.values(this.products as Record<number, { id: number; idProdutoPai?: number; nome: string; codigo?: string; preco?: number; situacao?: string; formato?: string; estoque?: { saldoVirtualTotal?: number } }>)
         .filter(p => !q || p.nome.toLowerCase().includes(q)).map(p => ({ id: p.id, idProdutoPai: p.idProdutoPai, nome: p.nome, codigo: p.codigo, preco: p.preco, situacao: p.situacao, formato: p.formato, imagemURL: 'https://cdn.test/capa.jpg', estoque: p.estoque })) };
     }
     if (url.pathname === '/estoques/saldos') return { data: url.searchParams.getAll('idsProdutos[]').map(id => ({ produto: { id: Number(id) }, saldoVirtualTotal: (this.products[Number(id)] as { estoque?: { saldoVirtualTotal?: number } })?.estoque?.saldoVirtualTotal ?? 0 })) };
-    if (url.pathname === '/produtos' && url.searchParams.has('codigos[]')) return { data: [{ id: 555, codigo: 'VASO-1' }] };
+    if (url.pathname === '/produtos' && url.searchParams.has('codigos[]')) {
+      const codes = url.searchParams.getAll('codigos[]');
+      const known = Object.values(this.products as Record<number, { id: number; codigo?: string }>).filter(p => p.codigo && codes.includes(p.codigo)).map(p => ({ id: p.id, codigo: p.codigo }));
+      return { data: [{ id: 555, codigo: 'VASO-1' }, ...known] };
+    }
     if (url.pathname.startsWith('/produtos/')) return { data: this.products[Number(url.pathname.split('/')[2])] };
     if (url.pathname === '/pedidos/vendas' && method === 'GET') { const id = this.salesOrders.get(url.searchParams.get('numerosLojas[]')!); return { data: id ? [{ id, numero: id + 100 }] : [] }; }
     if (url.pathname === '/pedidos/vendas' && method === 'POST') {
@@ -88,7 +95,7 @@ beforeAll(async () => {
   baseUrl = (await app.getUrl()).replace('[::1]', 'localhost');
 });
 afterAll(async () => { delete process.env.WEB_ORIGIN; delete process.env.BLING_CLIENT_SECRET; await cleanup(app); });
-beforeEach(() => { bling.calls = []; bling.failOrders = false; bling.patchNotFound = false; bling.failPost = false; });
+beforeEach(() => { bling.calls = []; bling.createdCategories = []; bling.failOrders = false; bling.patchNotFound = false; bling.failPost = false; });
 
 const connect = (storeId: string) => prisma.blingConnection.create({ data: { storeId, companyId: '777', accessTokenEnc: encryptSecret('acc', resolveJwtSecret()), refreshTokenEnc: encryptSecret('ref', resolveJwtSecret()), expiresAt: new Date(Date.now() + 3_600_000) } });
 const waitFor = async <T>(read: () => Promise<T>, done: (value: T) => boolean) => { for (let i = 0; i < 60; i++) { const value = await read(); if (done(value)) return value; await new Promise(r => setTimeout(r, 100)); } throw new Error('tempo esgotado'); };
@@ -211,6 +218,50 @@ describe('importação escolhendo produtos', () => {
     } finally {
       for (const id of Object.keys(extra)) delete bling.products[Number(id)];
     }
+  });
+
+  it('troca a categoria em lote no painel e leva para o Bling, criando lá a que faltar', async () => {
+    const { store } = await createStore();
+    await connect(store.id);
+    const token = await login(api, store, ['catalog.write']);
+    const blusas = await prisma.category.create({ data: { storeId: store.id, name: 'Blusas', slug: 'blusas' } });
+    const manga = await prisma.category.create({ data: { storeId: store.id, name: 'Manga Longa', slug: 'manga-longa', parentId: blusas.id } });
+    const novidades = await prisma.category.create({ data: { storeId: store.id, name: 'Novidades', slug: 'novidades' } });
+    const make = (sku: string, name: string) => prisma.product.create({ data: { storeId: store.id, sku, name, slug: name.toLowerCase().replace(/\s+/g, '-'), price: 99 } });
+    const renda = await make('1600', 'Blusa de Renda');
+    const pantalona = await make('1700', 'Calça Pantalona');
+    const solta = await make('9999', 'Só no site');
+    await prisma.productCategory.create({ data: { productId: pantalona.id, categoryId: novidades.id } });
+
+    // Filtro "sem categoria" do painel.
+    const loose = await api('/catalog/admin/products?category=sem-categoria', { token });
+    const looseSkus = loose.body.items.map((p: { sku: string }) => p.sku);
+    expect(looseSkus).toEqual(expect.arrayContaining(['1600', '9999']));
+    expect(looseSkus).not.toContain('1700');
+
+    const ids = [renda.id, pantalona.id, solta.id];
+    expect((await api('/catalog/products/bulk', { method: 'POST', token, body: { ids, action: 'category' } })).status).toBe(400);
+    expect((await api('/catalog/products/bulk', { method: 'POST', token, body: { ids, action: 'category', categoryId: manga.id } })).body).toMatchObject({ updated: 3 });
+    const links = await prisma.productCategory.findMany({ where: { productId: { in: ids } } });
+    expect(links.map(l => l.categoryId)).toEqual([manga.id, manga.id, manga.id]); // Pantalona saiu de Novidades
+
+    const pushed = await api('/bling/products/category', { method: 'POST', token, body: { ids } });
+    expect(pushed.body).toEqual({ connected: true, updated: 2, notFound: ['Só no site'], failed: [] });
+    // "Blusas > Manga Longa" já existe no Bling (id 2): nada é criado.
+    expect(bling.calls.filter(c => c.method === 'PATCH').map(c => [c.path, c.body])).toEqual([['/produtos/1', { categoria: { id: 2 } }], ['/produtos/2', { categoria: { id: 2 } }]]);
+    expect(bling.createdCategories).toEqual([]);
+
+    // Categoria que o Bling não tem é criada lá, embaixo do pai certo.
+    const verao = await prisma.category.create({ data: { storeId: store.id, name: 'Verão', slug: 'verao', parentId: blusas.id } });
+    bling.calls = [];
+    await api('/catalog/products/bulk', { method: 'POST', token, body: { ids: [renda.id], action: 'category', categoryId: verao.id } });
+    expect((await api('/bling/products/category', { method: 'POST', token, body: { ids: [renda.id] } })).body).toMatchObject({ updated: 1 });
+    expect(bling.createdCategories).toEqual([{ id: expect.any(Number), descricao: 'Verão', categoriaPai: { id: 1 } }]);
+    expect(bling.calls.find(c => c.method === 'PATCH')?.body).toEqual({ categoria: { id: bling.createdCategories[0].id } });
+
+    // Sem Bling conectado, nada é enviado.
+    await prisma.blingConnection.delete({ where: { storeId: store.id } });
+    expect((await api('/bling/products/category', { method: 'POST', token, body: { ids } })).body).toMatchObject({ connected: false, updated: 0 });
   });
 
   it('importação que parou de avançar (servidor reiniciou) é encerrada e não trava o painel', async () => {
