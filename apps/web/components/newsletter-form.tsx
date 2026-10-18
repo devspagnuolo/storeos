@@ -8,6 +8,8 @@ export function NewsletterForm() {
   const inputId = useId();
   return (
     <form action={action} className="mt-3 flex flex-col gap-2">
+      <label className="sr-only" htmlFor={`${inputId}-name`}>Seu nome</label>
+      <input id={`${inputId}-name`} name="name" required maxLength={80} autoComplete="name" placeholder="Seu nome" className="input min-w-0" />
       <label className="sr-only" htmlFor={inputId}>Seu e-mail</label>
       <div className="flex gap-2">
         <input id={inputId} name="email" type="email" required maxLength={254} autoComplete="email" placeholder="Seu melhor e-mail" className="input min-w-0 flex-1" />
