@@ -102,11 +102,11 @@ export class BlingStockService {
     };
   }
 
-  /** SKUs de pedidos que a loja já vendeu mas o Bling ainda não recebeu: o saldo de lá não os considera. */
+  /** SKUs de pedidos que a loja já vendeu mas o Bling ainda não baixou: o saldo de lá ainda não os considera. */
   private async pendingSkus(storeId: string) {
     const since = new Date(Date.now() - 7 * 86_400_000);
     const rows = await this.prisma.orderItem.findMany({
-      where: { order: { storeId, createdAt: { gte: since }, status: { notIn: ['NEW', 'AWAITING_PAYMENT', 'CANCELLED'] }, OR: [{ blingSync: null }, { blingSync: { is: { status: { in: [BlingSyncStatus.PENDING, BlingSyncStatus.PROCESSING, BlingSyncStatus.FAILED] } } } }] } },
+      where: { order: { storeId, createdAt: { gte: since }, status: { notIn: ['NEW', 'AWAITING_PAYMENT', 'CANCELLED'] }, OR: [{ blingSync: null }, { blingSync: { is: { status: { in: [BlingSyncStatus.PENDING, BlingSyncStatus.PROCESSING, BlingSyncStatus.FAILED] } } } }, { blingSync: { is: { status: BlingSyncStatus.SENT, postedAt: null } } }] } },
       select: { sku: true },
     });
     return new Set(rows.map(row => row.sku.trim().toLowerCase()));
@@ -134,6 +134,66 @@ export class BlingStockService {
       await this.prisma.blingConnection.updateMany({ where: { storeId }, data: { stockSyncError: (error as Error).message.slice(0, 300) } });
       throw error;
     }
+  }
+
+  /**
+   * Atualização na hora (aviso do Bling): lê o saldo atual destes cadastros no Bling e copia para a loja.
+   * Cadastro com variações traz o saldo de cada variação. Só vale com a sincronização de estoque ligada.
+   */
+  async refreshProducts(storeId: string, blingProductIds: number[]) {
+    const connection = await this.prisma.blingConnection.findUnique({ where: { storeId }, select: { stockSyncEnabled: true } });
+    const ids = [...new Set(blingProductIds.filter(id => Number.isSafeInteger(id) && id > 0))].slice(0, 50);
+    if (!connection?.stockSyncEnabled || !ids.length) return 0;
+    const get = async <T>(path: string) => this.client.request<T>(await this.auth.accessToken(storeId), path);
+    const codes = new Map<number, string>();
+    for (const id of ids) {
+      const detail = (await get<{ data?: BlingProductDetail }>(`/produtos/${id}`)).data;
+      if (!detail) continue;
+      if (detail.formato === 'V') detail.variacoes?.forEach(v => { if (v.codigo?.trim()) codes.set(v.id, v.codigo.trim()); });
+      else if (detail.codigo?.trim()) codes.set(detail.id ?? id, detail.codigo.trim());
+    }
+    if (!codes.size) return 0;
+    const balances = new Map<number, number>();
+    const all = [...codes.keys()];
+    for (let i = 0; i < all.length; i += SALDO_BATCH) {
+      const query = all.slice(i, i + SALDO_BATCH).map(id => `idsProdutos[]=${id}`).join('&');
+      for (const row of (await get<Listing<Balance>>(`/estoques/saldos?${query}`)).data ?? []) if (row.produto?.id) balances.set(row.produto.id, units(row.saldoVirtualTotal));
+    }
+    const pending = await this.pendingSkus(storeId);
+    let applied = 0;
+    for (const [id, sku] of codes) {
+      // Venda do site ainda não baixada no Bling: o saldo de lá está atrasado; a baixa gera outro aviso.
+      if (!balances.has(id) || pending.has(sku.toLowerCase())) continue;
+      if (await this.applyBalance(storeId, sku, balances.get(id)!)) applied++;
+    }
+    if (applied) await this.prisma.blingConnection.update({ where: { storeId }, data: { stockSyncedAt: new Date(), stockSyncError: null } });
+    return applied;
+  }
+
+  /** Itens de um pedido de venda do Bling (venda feita fora do site): atualiza o saldo de cada produto vendido. */
+  async refreshFromSalesOrder(storeId: string, blingOrderId: string) {
+    const connection = await this.prisma.blingConnection.findUnique({ where: { storeId }, select: { stockSyncEnabled: true } });
+    if (!connection?.stockSyncEnabled) return 0;
+    const order = (await this.client.request<{ data?: { itens?: { produto?: { id?: number } }[] } }>(await this.auth.accessToken(storeId), `/pedidos/vendas/${encodeURIComponent(blingOrderId)}`)).data;
+    return this.refreshProducts(storeId, (order?.itens ?? []).map(item => Number(item.produto?.id)));
+  }
+
+  /** Copia o saldo do Bling para a linha de estoque do SKU (produto simples ou variação), nunca abaixo do reservado. */
+  private async applyBalance(storeId: string, sku: string, balance: number) {
+    const variant = await this.prisma.productVariant.findFirst({ where: { sku: { equals: sku, mode: 'insensitive' }, product: { storeId } }, select: { id: true, productId: true } });
+    const product = variant ? null : await this.prisma.product.findFirst({ where: { storeId, sku: { equals: sku, mode: 'insensitive' }, variants: { none: {} } }, select: { id: true } });
+    const productId = variant?.productId ?? product?.id;
+    if (!productId) return false;
+    const variantId = variant?.id ?? null;
+    return this.prisma.$transaction(async tx => {
+      const row = await tx.inventory.findFirst({ where: { storeId, productId, variantId } });
+      if (!row) return false;
+      const target = Math.max(balance, row.reserved);
+      if (target === row.quantity) return false;
+      await tx.inventory.update({ where: { id: row.id }, data: { quantity: target } });
+      await recordMovement(tx, { storeId, productId, variantId, type: StockMovementType.ADJUSTMENT, delta: target - row.quantity, reason: REASON, actorId: 'bling' });
+      return true;
+    });
   }
 
   setEnabled(storeId: string, enabled: boolean) {

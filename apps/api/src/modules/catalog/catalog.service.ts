@@ -6,6 +6,17 @@ import { recordMovement } from '../inventory/stock-ledger';
 import { cleanFiscal } from './fiscal-rules';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
+/**
+ * Produto com saldo: com variações, alguma variação ativa com estoque; sem elas, a linha do próprio produto.
+ * Estoque zerado (inclusive pelo Bling) tira o produto da vitrine até voltar a ter saldo.
+ */
+export const IN_STOCK: Prisma.ProductWhereInput = {
+  OR: [
+    { variants: { some: { active: true, inventory: { some: { quantity: { gt: 0 } } } } } },
+    { variants: { none: { active: true } }, inventory: { some: { variantId: null, quantity: { gt: 0 } } } },
+  ],
+};
+
 /** Filtro da lista do painel para produtos sem nenhuma categoria. */
 export const UNCATEGORIZED = 'sem-categoria';
 
@@ -49,7 +60,8 @@ export class CatalogService {
     // Vitrine com produtos escolhidos a dedo: só entram os ativos da loja, na ordem escolhida.
     const ids = query.ids?.split(',').map(id => id.trim()).filter(Boolean).slice(0, 24);
     const filters = [attributeWhere(parseAttributeFilters(query.attrs)), priceWhere(query.minPrice, query.maxPrice)].filter(Boolean) as Prisma.ProductWhereInput[];
-    const where: Prisma.ProductWhereInput = { ...(await this.scopeWhere(storeId, query)), ...(ids && { id: { in: ids } }), ...(filters.length && { AND: filters }) };
+    const scope = await this.scopeWhere(storeId, query);
+    const where: Prisma.ProductWhereInput = { ...scope, ...(ids && { id: { in: ids } }), AND: [...(scope.AND as Prisma.ProductWhereInput[]), ...filters] };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({ where, include: { images: { orderBy: { position: 'asc' }, take: 1 } }, skip: (page - 1) * pageSize, take: pageSize, orderBy: { createdAt: 'desc' } }),
       this.prisma.product.count({ where }),
@@ -111,6 +123,7 @@ export class CatalogService {
     return {
       storeId,
       status: ProductStatus.ACTIVE,
+      AND: [IN_STOCK],
       ...(categoryIds && { categories: { some: { categoryId: { in: categoryIds } } } }),
       ...(query.brand && { brand: { slug: query.brand } }),
       ...(query.collection && { collections: { some: { collection: { slug: query.collection, active: true } } } }),
@@ -152,7 +165,7 @@ export class CatalogService {
   async bySlug(storeSlug: string, slug: string) {
     const storeId = await this.storeId(storeSlug);
     const product = storeId && await this.prisma.product.findFirst({
-      where: { storeId, slug, status: ProductStatus.ACTIVE },
+      where: { storeId, slug, status: ProductStatus.ACTIVE, ...IN_STOCK },
       include: { brand: { select: { name: true, slug: true } }, images: { orderBy: { position: 'asc' } }, variants: { where: { active: true }, orderBy: { position: 'asc' } }, inventory: true, categories: { include: { category: { select: { name: true, slug: true } } } } },
     });
     if (!product) throw new NotFoundException('Produto não encontrado');

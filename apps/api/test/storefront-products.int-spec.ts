@@ -11,8 +11,10 @@ describe('vitrine com produtos escolhidos', () => {
   it('lista só ativos da própria loja, na ordem escolhida, e o painel resolve os ids', async () => {
     const { store, product, draft } = await createStore(5);
     const other = await createStore(5);
-    const second = await prisma.product.create({ data: { storeId: store.id, slug: 'cesto', sku: 'CESTO-1', name: 'Cesto', price: '20.00', status: 'ACTIVE' } });
-    const ids = [second.id, product.id, draft.id, other.product.id].join(',');
+    const second = await prisma.product.create({ data: { storeId: store.id, slug: 'cesto', sku: 'CESTO-1', name: 'Cesto', price: '20.00', status: 'ACTIVE', inventory: { create: { storeId: store.id, quantity: 2 } } } });
+    // Ativo mas sem estoque: fica fora da vitrine.
+    const empty = await prisma.product.create({ data: { storeId: store.id, slug: 'cesto-vazio', sku: 'CESTO-0', name: 'Cesto vazio', price: '20.00', status: 'ACTIVE', inventory: { create: { storeId: store.id, quantity: 0 } } } });
+    const ids = [second.id, empty.id, product.id, draft.id, other.product.id].join(',');
     const pub = await api(`/catalog/products?store=${store.slug}&ids=${ids}&pageSize=24`);
     expect(pub.status).toBe(200);
     expect(pub.body.items.map((p: { id: string }) => p.id)).toEqual([second.id, product.id]);
