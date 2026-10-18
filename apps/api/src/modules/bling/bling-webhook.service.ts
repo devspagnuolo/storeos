@@ -4,6 +4,7 @@ import { BlingSyncStatus, BlingWebhookStatus, Prisma } from '@prisma/client';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { BlingAuthService } from './bling-auth.service';
+import { BlingStockService } from './bling-stock.service';
 import { BlingClient } from './bling.client';
 
 export type BlingWebhookPayload = {
@@ -17,8 +18,13 @@ export type BlingWebhookPayload = {
     numero?: string | number;
     numeroLoja?: string;
     situacao?: { id?: string | number; valor?: string | number };
+    /** Avisos de estoque (stock.* e virtual_stock.*) trazem o produto movimentado. */
+    produto?: { id?: string | number };
   };
 };
+
+/** Avisos de estoque do Bling: entrada, saída ou balanço de um produto (o saldo é relido na hora). */
+const isStockEvent = (event?: string) => /^(virtual_)?stock\./.test(event ?? '');
 
 /** Valida a assinatura e persiste uma caixa de entrada idempotente antes do ACK. */
 /** Situações padrão do módulo de vendas do Bling (mesmos ids em todas as contas). */
@@ -29,7 +35,7 @@ export class BlingWebhookService {
   private readonly logger = new Logger(BlingWebhookService.name);
   private running = false;
 
-  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient) {}
+  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly stock: BlingStockService) {}
 
   async receive(payload: BlingWebhookPayload, rawBody: Buffer | undefined, signature?: string) {
     const secret = process.env.BLING_CLIENT_SECRET;
@@ -42,8 +48,10 @@ export class BlingWebhookService {
       throw new UnauthorizedException('Assinatura do Bling inválida');
     }
 
-    if (payload.event !== 'order.created' && payload.event !== 'order.updated') return { received: true, ignored: true };
-    if (payload.companyId === undefined || payload.companyId === null || payload.data?.id === undefined || payload.data.id === null) {
+    const stock = isStockEvent(payload.event);
+    if (payload.event !== 'order.created' && payload.event !== 'order.updated' && !stock) return { received: true, ignored: true };
+    const remote = stock ? payload.data?.produto?.id : payload.data?.id;
+    if (payload.companyId === undefined || payload.companyId === null || remote === undefined || remote === null) {
       return { received: true, ignored: true };
     }
 
@@ -57,10 +65,10 @@ export class BlingWebhookService {
       data: [{
         eventId,
         companyId,
-        event: payload.event,
+        event: payload.event!,
         version: payload.version ?? 'v1',
-        remoteId: String(payload.data.id),
-        orderNumber: payload.data.numeroLoja?.trim() || null,
+        remoteId: String(remote),
+        orderNumber: stock ? null : payload.data?.numeroLoja?.trim() || null,
         payload: payload as unknown as Prisma.InputJsonValue,
       }],
       skipDuplicates: true,
@@ -116,7 +124,9 @@ export class BlingWebhookService {
         if (!claimed.count) continue;
         const row = await this.prisma.blingWebhookEvent.findUniqueOrThrow({ where: { id: event.id } });
         try {
-          await this.processOrder(JSON.parse(JSON.stringify(row.payload)) as BlingWebhookPayload);
+          const payload = JSON.parse(JSON.stringify(row.payload)) as BlingWebhookPayload;
+          if (isStockEvent(payload.event)) await this.processStock(payload);
+          else await this.processOrder(payload);
           await this.prisma.blingWebhookEvent.update({
             where: { id: row.id },
             data: { status: BlingWebhookStatus.PROCESSED, processedAt: new Date(), lastError: null },
@@ -146,6 +156,14 @@ export class BlingWebhookService {
     return processed;
   }
 
+  /** Estoque mexido no Bling (venda lá, entrada, balanço): a loja copia o saldo atual do produto na hora. */
+  private async processStock(payload: BlingWebhookPayload) {
+    const productId = Number(payload.data?.produto?.id);
+    if (payload.companyId === undefined || payload.companyId === null || !Number.isSafeInteger(productId)) return;
+    const connections = await this.prisma.blingConnection.findMany({ where: { companyId: String(payload.companyId) }, select: { storeId: true } });
+    for (const { storeId } of connections) await this.stock.refreshProducts(storeId, [productId]);
+  }
+
   private async processOrder(payload: BlingWebhookPayload) {
     if (payload.event !== 'order.created' && payload.event !== 'order.updated') return;
     const companyId = payload.companyId;
@@ -170,7 +188,11 @@ export class BlingWebhookService {
       : orderNumber
         ? await this.prisma.order.findFirst({ where: { storeId: { in: storeIds }, number: orderNumber }, select: { id: true, storeId: true } })
         : null;
-    if (!order) return;
+    if (!order) {
+      // Venda feita no próprio Bling (ou em outro canal dele): baixa na loja o estoque dos produtos vendidos.
+      if (remoteId) for (const storeId of storeIds) await this.stock.refreshFromSalesOrder(storeId, remoteId);
+      return;
+    }
 
     const currentSync = await this.prisma.blingOrderSync.findUnique({
       where: { orderId: order.id },

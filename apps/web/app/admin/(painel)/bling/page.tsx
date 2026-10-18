@@ -69,7 +69,7 @@ export default async function BlingPage({ searchParams }: { searchParams: Promis
 
           <section className="card mt-6 p-6">
             <h2 className="text-lg font-bold">Conferência e estoque</h2>
-            <p className="mb-4 mt-1 text-sm text-slate-500">O Bling é a fonte do estoque. Compare produtos, preços e saldos com a loja e copie os saldos do Bling (manual ou a cada 10 minutos). Saldos de produtos com pedido pago ainda não enviado ao Bling, e abaixo do reservado, são preservados.</p>
+            <p className="mb-4 mt-1 text-sm text-slate-500">O Bling é a fonte do estoque. Com a sincronização ligada, cada venda ou ajuste de estoque no Bling chega à loja na hora, e as vendas do site baixam no Bling logo após o pagamento; a cada 10 minutos tudo é conferido de novo. Produto com estoque zero sai da vitrine até voltar a ter saldo. Saldos de produtos com pedido pago ainda não enviado ao Bling, e abaixo do reservado, são preservados.</p>
             <BlingStockPanel enabled={status.stockSync.enabled} syncedAt={status.stockSync.syncedAt} error={status.stockSync.error} />
           </section>
 

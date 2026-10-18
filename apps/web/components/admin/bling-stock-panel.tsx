@@ -26,7 +26,7 @@ export function BlingStockPanel({ enabled, syncedAt, error }: { enabled: boolean
       <button type="button" onClick={() => { if (window.confirm('Copiar o saldo do Bling para a loja? O estoque atual será substituído (com registro no histórico de estoque).')) sync(); }} disabled={pending} className="button disabled:opacity-50">Sincronizar estoque agora</button>
       <form action={setBlingStockSyncAction} className="ml-auto flex items-center gap-2 text-sm">
         <input type="hidden" name="enabled" value={enabled ? 'false' : 'true'} />
-        {enabled ? <><span className="badge bg-emerald-100 text-emerald-800">Automática a cada 10 min</span><button className="text-xs text-red-700 underline">Desativar</button></> : <button className="rounded-lg border px-3 py-2 text-sm font-medium">Ativar sincronização automática</button>}
+        {enabled ? <><span className="badge bg-emerald-100 text-emerald-800">Ligada: na hora e conferência a cada 10 min</span><button className="text-xs text-red-700 underline">Desativar</button></> : <button className="rounded-lg border px-3 py-2 text-sm font-medium">Ativar sincronização automática</button>}
       </form>
     </div>
     {syncedAt && <p className="mt-2 text-xs text-slate-500">Última sincronização: {new Date(syncedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
