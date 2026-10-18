@@ -34,10 +34,10 @@ export class ShippingService {
     return this.carrier.enabled && Boolean((await this.originZipFor(storeId)).zip);
   }
 
-  async setOriginZip(storeId: string, zip: string | null) {
+  async setOriginZip(storeId: string, zip: string | null, extraDays?: number) {
     const digits = (zip ?? '').replace(/\D/g, '');
     if (digits && (digits.length !== 8 || !stateFromZip(digits))) throw new BadRequestException('CEP de origem inválido');
-    await this.prisma.store.update({ where: { id: storeId }, data: { shippingOriginZip: digits || null } });
+    await this.prisma.store.update({ where: { id: storeId }, data: { shippingOriginZip: digits || null, ...(extraDays !== undefined && { shippingExtraDays: extraDays }) } });
     return this.carrierStatus(storeId);
   }
 
@@ -49,8 +49,12 @@ export class ShippingService {
     const origin = await this.originZipFor(storeId);
     if (!this.carrier.enabled || !origin.zip) return [];
     try {
-      const offers = await this.carrier.quote({ fromZip: origin.zip, toZip: zipCode.replace(/\D/g, ''), packages: buildPackages(items, products) });
-      return offers.map(offer => ({ ...offer, free: false }));
+      const [offers, extra] = await Promise.all([
+        this.carrier.quote({ fromZip: origin.zip, toZip: zipCode.replace(/\D/g, ''), packages: buildPackages(items, products) }),
+        this.extraDays(storeId),
+      ]);
+      // O prazo mostrado é o da transportadora mais os dias de manuseio que a loja definiu.
+      return offers.map(offer => ({ ...offer, minDays: offer.minDays + extra, maxDays: offer.maxDays + extra, free: false }));
     } catch (error) {
       this.logger.error(`Cotação de frete falhou: ${(error as Error).message}`);
       if (!hasFallback) throw new ServiceUnavailableException('Não foi possível calcular o frete agora. Tente novamente em instantes.');
@@ -73,8 +77,12 @@ export class ShippingService {
   }
 
   async carrierStatus(storeId: string) {
-    const origin = await this.originZipFor(storeId);
-    return { enabled: this.carrier.enabled && Boolean(origin.zip), credentials: this.carrier.enabled, provider: this.carrier.provider, originZip: origin.zip || null, originSource: origin.source };
+    const [origin, extraDays] = await Promise.all([this.originZipFor(storeId), this.extraDays(storeId)]);
+    return { enabled: this.carrier.enabled && Boolean(origin.zip), credentials: this.carrier.enabled, provider: this.carrier.provider, originZip: origin.zip || null, originSource: origin.source, extraDays };
+  }
+
+  private async extraDays(storeId: string) {
+    return (await this.prisma.store.findUnique({ where: { id: storeId }, select: { shippingExtraDays: true } }))?.shippingExtraDays ?? 0;
   }
 
   stateOrFail(zipCode: string) {

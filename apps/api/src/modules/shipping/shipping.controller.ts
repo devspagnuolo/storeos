@@ -14,7 +14,7 @@ class QuoteDto {
   @Matches(/^\d{5}-?\d{3}$/) zipCode!: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => OrderItemDto) items!: OrderItemDto[];
 }
-class OriginDto { @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @Matches(/^(\d{5}-?\d{3})?$/) zipCode?: string | null; }
+class OriginDto { @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @Matches(/^(\d{5}-?\d{3})?$/) zipCode?: string | null; @IsOptional() @IsInt() @Min(0) @Max(30) extraDays?: number; }
 class CreateRuleDto {
   @IsString() @Length(2, 60) name!: string;
   @IsOptional() @IsArray() @IsIn(STATES, { each: true }) states?: string[];
@@ -43,8 +43,8 @@ class UpdateRuleDto {
   @Post('quote') @HttpCode(200) @Throttle({ default: { limit: 60, ttl: 60_000 } }) quote(@Body() dto: QuoteDto) { return this.shipping.quote(dto.storeSlug, dto.zipCode, dto.items); }
   /** Painel: mostra se a cotação em transportadoras está ligada. */
   @Get('carrier') @RequirePermissions(Permissions.SETTINGS_WRITE) carrierStatus(@CurrentStore() storeId: string) { return this.shipping.carrierStatus(storeId); }
-  /** CEP de onde a loja despacha, editável sem mexer nas variáveis do servidor. Vazio volta a usar o do servidor. */
-  @Put('origin') @RequirePermissions(Permissions.SETTINGS_WRITE) setOrigin(@CurrentStore() storeId: string, @Body() dto: OriginDto) { return this.shipping.setOriginZip(storeId, dto.zipCode ?? null); }
+  /** CEP de onde a loja despacha (vazio volta a usar o do servidor) e dias somados ao prazo da transportadora. */
+  @Put('origin') @RequirePermissions(Permissions.SETTINGS_WRITE) setOrigin(@CurrentStore() storeId: string, @Body() dto: OriginDto) { return this.shipping.setOriginZip(storeId, dto.zipCode ?? null, dto.extraDays); }
   @Get('rules') @RequirePermissions(Permissions.SETTINGS_WRITE) list(@CurrentStore() storeId: string) { return this.shipping.list(storeId); }
   @Post('rules') @RequirePermissions(Permissions.SETTINGS_WRITE) create(@CurrentStore() storeId: string, @Body() dto: CreateRuleDto) { return this.shipping.create(storeId, dto); }
   @Patch('rules/:id') @RequirePermissions(Permissions.SETTINGS_WRITE) update(@CurrentStore() storeId: string, @Param('id') id: string, @Body() dto: UpdateRuleDto) { return this.shipping.update(storeId, id, dto); }

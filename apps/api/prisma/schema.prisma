@@ -58,6 +58,8 @@ model Store {
   whatsappMessage        String?
   /// CEP de onde a loja despacha (8 dígitos). Sem ele vale SHIPPING_ORIGIN_ZIP do servidor.
   shippingOriginZip      String?
+  /// Dias de manuseio somados ao prazo da transportadora na cotação (garantia do processo interno).
+  shippingExtraDays      Int                     @default(0)
   /// Remetente das etiquetas (nome, documento, endereço). O CEP é o de origem acima.
   shippingSender         Json?
   /// Pedido pago segue sozinho: separação, nota fiscal (Bling), etiqueta (SuperFrete) e entrega.

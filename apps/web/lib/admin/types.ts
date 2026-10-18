@@ -112,7 +112,7 @@ export type EmailTemplateRow = { key: string; label: string; description: string
 
 export type ShippingSender = { name: string; document: string; phone?: string; street: string; number: string; complement?: string; district: string; city: string; state: string };
 export type OrderAutomation = { enabled: boolean; sender: Partial<ShippingSender> | null; missing: string[]; superFrete: boolean; bling: boolean };
-export type CarrierStatus = { enabled: boolean; credentials: boolean; provider: string; originZip: string | null; originSource: 'store' | 'server' | null };
+export type CarrierStatus = { enabled: boolean; credentials: boolean; provider: string; originZip: string | null; originSource: 'store' | 'server' | null; extraDays: number };
 export type EnvironmentReport = {
   variables: { name: string; group: string; importance: 'required' | 'recommended' | 'optional'; description: string; set: boolean }[];
   unrecognized: { name: string; suggestion: string | null }[];

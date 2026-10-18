@@ -957,15 +957,17 @@ export async function restoreEmailTemplateAction(_: TemplateFormState, form: For
 
 export async function saveShippingOriginAction(_: FormState, form: FormData): Promise<FormState> {
   const zip = String(form.get('zipCode') ?? '').trim();
+  const extraDays = Number(String(form.get('extraDays') ?? '0').trim() || 0);
+  if (!Number.isInteger(extraDays) || extraDays < 0 || extraDays > 30) return { error: 'Dias a mais no prazo: use um número de 0 a 30.' };
   try {
-    await adminFetch('/shipping/origin', { method: 'PUT', body: { zipCode: zip ? zip : null } });
+    await adminFetch('/shipping/origin', { method: 'PUT', body: { zipCode: zip ? zip : null, extraDays } });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     throw error;
   }
   revalidatePath('/admin/frete');
   revalidatePath('/admin/diagnostico');
-  return { ok: zip ? 'CEP de origem salvo.' : 'CEP da loja removido. Vale o do servidor, se houver.' };
+  return { ok: zip ? 'CEP de origem e prazo salvos.' : 'Prazo salvo. CEP da loja removido: vale o do servidor, se houver.' };
 }
 
 export async function saveCampaignAction(_: FormState, form: FormData): Promise<FormState> {

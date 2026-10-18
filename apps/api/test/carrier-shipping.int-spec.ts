@@ -88,6 +88,17 @@ describe('frete por transportadora', () => {
     await api('/shipping/quote', { method: 'POST', body });
     expect(calls[0].fromZip).toBe('30130010');
 
+    // Dias a mais da loja somam no prazo da transportadora (cotação e checkout); o valor não muda.
+    expect((await api('/shipping/origin', { method: 'PUT', token: admin, body: { zipCode: '30130-010', extraDays: 2 } })).body).toMatchObject({ extraDays: 2 });
+    const padded = await api('/shipping/quote', { method: 'POST', body });
+    expect(padded.body.options).toMatchObject([{ id: 'me:1', price: '22.50', minDays: 7, maxDays: 10 }, { id: 'me:2', price: '45.10', minDays: 4, maxDays: 4 }]);
+    expect((await api('/shipping/origin', { method: 'PUT', token: admin, body: { zipCode: '30130-010', extraDays: 31 } })).status).toBe(400);
+    // Salvar só o CEP (sem extraDays) mantém os dias.
+    expect((await api('/shipping/origin', { method: 'PUT', token: admin, body: { zipCode: '30130-010' } })).body).toMatchObject({ extraDays: 2 });
+    await api('/shipping/origin', { method: 'PUT', token: admin, body: { zipCode: '30130-010', extraDays: 0 } });
+    calls.length = 0;
+    await api('/shipping/quote', { method: 'POST', body });
+
     // CEP inválido é recusado; sem permissão também.
     expect((await api('/shipping/origin', { method: 'PUT', token: admin, body: { zipCode: '12345' } })).status).toBe(400);
     expect((await api('/shipping/origin', { method: 'PUT', body: { zipCode: '30130010' } })).status).toBe(401);
