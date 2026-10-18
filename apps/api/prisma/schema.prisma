@@ -288,6 +288,8 @@ model ProductImage {
   url       String
   alt       String?
   position  Int     @default(0)
+  /// Valor da cor (ex.: "Preto") quando a foto mostra uma cor específica; vazio = foto geral do produto.
+  color     String?
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, position])

@@ -173,6 +173,46 @@ describe('importação de produtos do Bling', () => {
 });
 
 describe('importação escolhendo produtos', () => {
+  it('traz as fotos de cada cor das variações e a loja mantém a cor de cada foto', async () => {
+    const { store } = await createStore();
+    await connect(store.id);
+    const token = await login(api, store, ['catalog.write', 'settings.write']);
+    const media = (...links: string[]) => ({ imagens: { externas: links.map(link => ({ link })) } });
+    const extra: Record<number, unknown> = {
+      20: { id: 20, nome: 'Vestido Floral', codigo: '1800', preco: 199, situacao: 'A', formato: 'V', midia: media('https://cdn.test/floral.jpg'), variacoes: [
+        { id: 21, codigo: '1801', variacao: { nome: 'Cor:Preto;Tamanho:G' }, estoque: { saldoVirtualTotal: 2 }, midia: media('https://cdn.test/preto-1.jpg', 'https://cdn.test/preto-2.jpg') },
+        { id: 22, codigo: '1802', variacao: { nome: 'Cor:Preto;Tamanho:GG' }, estoque: { saldoVirtualTotal: 1 }, midia: media('https://cdn.test/preto-1.jpg') },
+        { id: 23, codigo: '1803', variacao: { nome: 'Cor:Verde;Tamanho:G' }, estoque: { saldoVirtualTotal: 3 } },
+      ] },
+      // A variação 23 não traz a mídia no detalhe do pai: a importação busca o cadastro dela.
+      23: { id: 23, idProdutoPai: 20, nome: 'Vestido Floral Cor:Verde;Tamanho:G', codigo: '1803', situacao: 'A', formato: 'S', midia: media('https://cdn.test/verde.jpg') },
+    };
+    Object.assign(bling.products, extra);
+    try {
+      images.downloaded = [];
+      expect((await api('/bling/import', { method: 'POST', token, body: { ids: [20] } })).status).toBe(202);
+      const done = await waitFor(async () => (await api('/bling/status', { token })).body.import, job => job.status !== 'RUNNING');
+      expect(done).toMatchObject({ status: 'DONE', created: 1, failed: 0 });
+      expect(bling.calls.some(c => c.path === '/produtos/23')).toBe(true);
+      expect(images.downloaded.sort()).toEqual(['https://cdn.test/floral.jpg', 'https://cdn.test/preto-1.jpg', 'https://cdn.test/preto-2.jpg', 'https://cdn.test/verde.jpg']);
+
+      const page = await api(`/catalog/products/vestido-floral?store=${store.slug}`);
+      expect(page.body.images.map((i: { color: string | null }) => i.color)).toEqual([null, 'Preto', 'Preto', 'Verde']);
+      expect(page.body.variants).toHaveLength(3);
+
+      // Salvar pelo painel sem informar cores mantém a cor de cada foto; com imageColors, a lojista troca.
+      const product = await prisma.product.findFirstOrThrow({ where: { storeId: store.id, sku: '1800' } });
+      const urls = ['https://cdn.test/a.jpg', 'https://cdn.test/b.jpg', 'https://cdn.test/c.jpg'];
+      const colors = async () => (await prisma.productImage.findMany({ where: { productId: product.id }, orderBy: { position: 'asc' } })).map(i => [i.url, i.color]);
+      expect((await api(`/catalog/products/${product.id}`, { method: 'PATCH', token, body: { imageUrls: urls, imageColors: ['', 'Preto', 'Verde'] } })).status).toBe(200);
+      expect(await colors()).toEqual([[urls[0], null], [urls[1], 'Preto'], [urls[2], 'Verde']]);
+      expect((await api(`/catalog/products/${product.id}`, { method: 'PATCH', token, body: { imageUrls: [urls[2], urls[0], urls[1]] } })).status).toBe(200);
+      expect(await colors()).toEqual([[urls[2], 'Verde'], [urls[0], null], [urls[1], 'Preto']]);
+    } finally {
+      for (const id of Object.keys(extra)) delete bling.products[Number(id)];
+    }
+  });
+
   it('importação que parou de avançar (servidor reiniciou) é encerrada e não trava o painel', async () => {
     const { store } = await createStore();
     await connect(store.id);

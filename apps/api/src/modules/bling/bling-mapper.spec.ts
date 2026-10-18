@@ -1,4 +1,4 @@
-import { BlingCategory, byCode, meetsCodeFrom, productCodeNumber, blingText, normalizeVariants, categoryPath, contactPayload, OrderForBling, parseVariation, salesOrderPayload, toImportProduct } from './bling-mapper';
+import { BlingCategory, byCode, isColorAttribute, meetsCodeFrom, productCodeNumber, blingText, normalizeVariants, categoryPath, contactPayload, OrderForBling, parseVariation, salesOrderPayload, toImportProduct } from './bling-mapper';
 
 const categories = new Map<number, BlingCategory>([[1, { id: 1, descricao: 'Blusas' }], [2, { id: 2, descricao: 'Manga Longa', categoriaPai: { id: 1 } }], [3, { id: 3, descricao: 'Renda', categoriaPai: { id: 2 } }]]);
 
@@ -100,5 +100,21 @@ describe('byCode', () => {
   it('orders Bling products by code, ascending', () => {
     const rows = ['1502', '1500-B', '1510', 'SEM', '1500', '1501', '1500-A'].map(codigo => ({ codigo }));
     expect(rows.sort(byCode).map(r => r.codigo)).toEqual(['1500', '1500-A', '1500-B', '1501', '1502', '1510', 'SEM']);
+  });
+});
+
+describe('colorImages', () => {
+  it('pega as fotos da primeira variação de cada cor', () => {
+    const media = (link: string) => ({ imagens: { externas: [{ link }] } });
+    const detail = { id: 1, nome: 'Vestido', codigo: '1800', variacoes: [
+      { id: 2, codigo: '1801', variacao: { nome: 'Cor:Preto;Tamanho:G' }, midia: media('https://cdn.test/p.jpg') },
+      { id: 3, codigo: '1802', variacao: { nome: 'Cor:Preto;Tamanho:GG' }, midia: media('https://cdn.test/p2.jpg') },
+      { id: 4, codigo: '1803', variacao: { nome: 'Cor:Marrom;Tamanho:G' } },
+      { id: 5, codigo: '1804', variacao: { nome: 'Cor:Marrom;Tamanho:GG' }, midia: media('https://cdn.test/m.jpg') },
+    ] };
+    const product = toImportProduct(detail, new Map(), 1);
+    expect('error' in product ? product : product.colorImages).toEqual([{ color: 'Preto', urls: ['https://cdn.test/p.jpg'] }, { color: 'Marrom', urls: ['https://cdn.test/m.jpg'] }]);
+    expect(isColorAttribute('Tamanho')).toBe(false);
+    expect(['Cor', 'cores', 'Color'].every(isColorAttribute)).toBe(true);
   });
 });

@@ -20,7 +20,7 @@ class CreateProductDto {
   @IsOptional() @IsInt() @Min(0) @Max(1_000_000) stock?: number;
   @IsOptional() @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }) imageUrl?: string;
   /** Galeria completa, na ordem; substitui as fotos atuais. */
-  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }, { each: true }) imageUrls?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(60) @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }, { each: true }) imageUrls?: string[];
   @IsOptional() @IsString() brandId?: string;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
@@ -46,7 +46,9 @@ class UpdateProductDto {
   /** String vazia remove a imagem principal. */
   @IsOptional() @ValidateIf((_, v) => v !== '') @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }) imageUrl?: string;
   /** Galeria completa, na ordem; substitui as fotos atuais. */
-  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }, { each: true }) imageUrls?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(60) @IsUrl({ protocols: ['https', 'http'], require_protocol: true, require_tld: false }, { each: true }) imageUrls?: string[];
+  /** Cor de cada foto, na mesma ordem de imageUrls ("" = foto geral). Sem este campo, as fotos mantêm a cor que já tinham. */
+  @IsOptional() @IsArray() @ArrayMaxSize(60) @IsString({ each: true }) @MaxLength(60, { each: true }) imageColors?: string[];
   /** null remove a marca. */
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() brandId?: string | null;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;

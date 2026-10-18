@@ -7,7 +7,8 @@ import { resolveStoreSlug } from './store-host';
 
 export { apiUrl };
 
-export type ProductImage = { url: string; alt: string | null };
+/** `color`: a foto mostra essa cor do produto (troca quando a cliente escolhe a cor); vazio = foto geral. */
+export type ProductImage = { url: string; alt: string | null; color?: string | null };
 export type ProductSummary = { id: string; name: string; slug: string; sku: string; price: string; images?: ProductImage[] };
 export type ProductVariant = { id: string; sku: string; price: string | null; attributes: { name: string; value: string }[]; available: number };
 export type ProductDetail = ProductSummary & { description: string | null; available: number; variants?: ProductVariant[]; categories: { name: string; slug: string }[]; brand?: { name: string; slug: string } | null; seoTitle?: string | null; seoDescription?: string | null };

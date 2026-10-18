@@ -6,6 +6,10 @@ import { productStatusLabel, slugify } from '../../lib/admin/labels';
 import type { AdminProduct } from '../../lib/admin/types';
 import type { Brand, Category } from '../../lib/api';
 import { buildTree, flatten } from '../../lib/category-tree';
+import { isColorAttribute } from '../../lib/product-colors';
+
+/** Cores das variações do produto, para marcar qual foto mostra cada cor. */
+const colorsOf = (product?: AdminProduct) => [...new Set((product?.variants ?? []).flatMap(v => v.attributes.filter(a => isColorAttribute(a.name)).map(a => a.value)))];
 
 export function ProductForm({ product, categories, brands, created }: { product?: AdminProduct; categories: Category[]; brands: Brand[]; created?: boolean }) {
   const [state, action, pending] = useActionState(saveProductAction, created ? { ok: 'Produto criado.' } : {});
@@ -14,7 +18,7 @@ export function ProductForm({ product, categories, brands, created }: { product?
   return (
     <form action={action} className="grid gap-6 lg:grid-cols-[1fr_320px]">
       {product && <input type="hidden" name="id" value={product.id} />}
-      <div className="card grid gap-4 p-6 sm:grid-cols-2">
+      <div className="card grid min-w-0 gap-4 p-6 sm:grid-cols-2 [&>*]:min-w-0">
         <label className="text-sm font-medium sm:col-span-2">Nome<input name="name" required minLength={2} maxLength={160} defaultValue={product?.name} className="input" onChange={e => { if (!slugTouched) setSlug(slugify(e.target.value)); }} /></label>
         <label className="text-sm font-medium">URL (slug)<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" value={slug} onChange={e => { setSlugTouched(true); setSlug(e.target.value); }} className="input font-mono text-sm" /></label>
         <label className="text-sm font-medium">SKU<input name="sku" required maxLength={60} defaultValue={product?.sku} className="input" /></label>
@@ -44,7 +48,7 @@ export function ProductForm({ product, categories, brands, created }: { product?
         </fieldset>
         <label className="text-sm font-medium sm:col-span-2">Título para o Google <span className="font-normal text-slate-400">(até 70 caracteres)</span><input name="seoTitle" maxLength={70} defaultValue={product?.seoTitle ?? ''} className="input" /></label>
         <label className="text-sm font-medium sm:col-span-2">Descrição para o Google <span className="font-normal text-slate-400">(até 160)</span><textarea name="seoDescription" rows={2} maxLength={160} defaultValue={product?.seoDescription ?? ''} className="input" /></label>
-        <div className="sm:col-span-2"><ImageUploader name="imageUrls" kind="product" multiple label="Fotos do produto" initial={product?.images.map(image => image.url) ?? []} /></div>
+        <div className="sm:col-span-2"><ImageUploader name="imageUrls" kind="product" multiple label="Fotos do produto" initial={product?.images.map(image => image.url) ?? []} initialColors={product?.images.map(image => image.color)} colors={colorsOf(product)} /></div>
       </div>
       <aside className="space-y-6">
         <div className="card p-6">

@@ -8,12 +8,13 @@ import type { ProductVariant } from '../lib/api';
 import { useCart } from '../lib/cart';
 import { track } from '../lib/track';
 import { formatPrice } from '../lib/format';
+import { COLOR_EVENT, isColorAttribute } from '../lib/product-colors';
 
-type Props = { product: { id: string; slug: string; name: string; price: string; image?: string }; available: number; variants?: ProductVariant[]; buttonLabel?: string };
+type Props = { product: { id: string; slug: string; name: string; price: string; image?: string }; available: number; variants?: ProductVariant[]; buttonLabel?: string; colorImages?: Record<string, string> };
 
 const labelOf = (variant: ProductVariant) => variant.attributes.map(a => a.value).join(' / ');
 
-export function AddToCart({ product, available: initialAvailable, variants: initialVariants = [], buttonLabel = 'Adicionar ao carrinho' }: Props) {
+export function AddToCart({ product, available: initialAvailable, variants: initialVariants = [], buttonLabel = 'Adicionar ao carrinho', colorImages = {} }: Props) {
   const add = useCart(state => state.add);
   const cartItems = useCart(state => state.items);
   const { slug: storeSlug } = useStoreBrand();
@@ -51,6 +52,8 @@ export function AddToCart({ product, available: initialAvailable, variants: init
   const max = Math.min(Math.max(stock - inCart, 0), 99);
   const price = selected?.price ?? product.price;
   const ready = (!hasVariants || Boolean(selected && stock > 0)) && max > 0;
+  const colorName = attributeNames.find(isColorAttribute);
+  const colorImage = colorName && picked[colorName] ? colorImages[picked[colorName].toLowerCase()] : undefined;
 
   return (
     <div className="mt-8 grid gap-5">
@@ -62,7 +65,7 @@ export function AddToCart({ product, available: initialAvailable, variants: init
               // Esgotada = nenhuma variação com este valor (e as demais escolhas já feitas) tem saldo.
               const soldOut = !variants.some(v => v.attributes[index]?.value === value && v.available > 0 && attributeNames.every((other, i) => i === index || !picked[other] || picked[other] === v.attributes[i]?.value));
               const active = picked[name] === value;
-              return <button key={value} type="button" aria-pressed={active} onClick={() => { setPicked(current => ({ ...current, [name]: value })); setQuantity(1); }} className={`rounded-xl border px-4 py-2 text-sm font-medium ${active ? 'border-brand bg-brand text-white' : 'border-slate-300 bg-white hover:border-brand'} ${soldOut ? 'opacity-40 line-through' : ''}`}>{value}</button>;
+              return <button key={value} type="button" aria-pressed={active} onClick={() => { setPicked(current => ({ ...current, [name]: value })); setQuantity(1); if (isColorAttribute(name)) window.dispatchEvent(new CustomEvent(COLOR_EVENT, { detail: value })); }} className={`rounded-xl border px-4 py-2 text-sm font-medium ${active ? 'border-brand bg-brand text-white' : 'border-slate-300 bg-white hover:border-brand'} ${soldOut ? 'opacity-40 line-through' : ''}`}>{value}</button>;
             })}
           </div>
         </fieldset>))}
@@ -72,7 +75,7 @@ export function AddToCart({ product, available: initialAvailable, variants: init
         <select id="quantity" value={quantity} onChange={e => setQuantity(Number(e.target.value))} disabled={!ready} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 disabled:opacity-50">
           {Array.from({ length: Math.max(Math.min(max, 10), 1) }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
         </select>
-        <button className="button disabled:opacity-60" disabled={!ready} onClick={() => { add({ productId: product.id, ...(selected && { variantId: selected.id, variantLabel: labelOf(selected) }), slug: product.slug, name: product.name, price: price, image: product.image }, quantity); track('add_to_cart', { value: Number(price) * quantity, items: [{ id: product.id, name: product.name, price: Number(price), quantity }] }); setAdded({ name: selected ? `${product.name} (${labelOf(selected)})` : product.name, quantity, at: Date.now() }); setQuantity(1); }}>
+        <button className="button disabled:opacity-60" disabled={!ready} onClick={() => { add({ productId: product.id, ...(selected && { variantId: selected.id, variantLabel: labelOf(selected) }), slug: product.slug, name: product.name, price: price, image: colorImage ?? product.image }, quantity); track('add_to_cart', { value: Number(price) * quantity, items: [{ id: product.id, name: product.name, price: Number(price), quantity }] }); setAdded({ name: selected ? `${product.name} (${labelOf(selected)})` : product.name, quantity, at: Date.now() }); setQuantity(1); }}>
           {hasVariants && !selected ? 'Escolha as opções' : hasVariants && stock < 1 ? 'Opção esgotada' : buttonLabel}
         </button>
         {(!hasVariants || selected) && stock > 0 && max < 1 && <p className="w-full text-sm text-amber-700">Você já tem no carrinho todas as {stock} unidades disponíveis.</p>}
