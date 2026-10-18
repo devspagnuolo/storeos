@@ -106,11 +106,25 @@ export class BlingImportService {
           }
           const existingId = detail.codigo ? bySku.get(detail.codigo.trim().toLowerCase()) : undefined;
           if (existingId && mode === 'new') { counters.skipped++; counters.processed++; continue; } // produto já existe: a loja manda
+          // As fotos de cada cor estão nas variações; quando o detalhe não traz a mídia delas, busca cada uma.
+          for (const variation of (detail.variacoes ?? []).slice(0, 30)) {
+            if (variation.midia === undefined) variation.midia = (await get<{ data: { midia?: BlingProductDetail['midia'] } }>(`/produtos/${variation.id}`)).data?.midia ?? {};
+          }
           const product = toImportProduct(detail, categories, counters.processed + 1, slug => !existingId && slugs.has(slug));
           if ('error' in product) throw new Error(product.error);
           if (product.imageUrls.length) {
             const hasPhotos = existingId ? await this.prisma.productImage.count({ where: { productId: existingId } }) > 0 : false;
             product.imageUrls = hasPhotos ? [] : await this.standardImages(storeId, product.imageUrls, product.name, errors);
+          }
+          if (product.colorImages?.length) {
+            const have = new Set(existingId ? (await this.prisma.productImage.findMany({ where: { productId: existingId, color: { not: null } }, select: { color: true } })).map(i => i.color!.toLowerCase()) : []);
+            const saved: { color: string; urls: string[] }[] = [];
+            for (const entry of product.colorImages) {
+              if (have.has(entry.color.toLowerCase())) continue;
+              const urls = await this.standardImages(storeId, entry.urls, `${product.name} ${entry.color}`, errors);
+              if (urls.length) saved.push({ color: entry.color, urls });
+            }
+            product.colorImages = saved;
           }
           await this.importer.save(storeId, product, existingId, { preserveCommercial: true });
           slugs.add(product.slug);

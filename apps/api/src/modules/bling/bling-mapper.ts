@@ -2,6 +2,8 @@
 import { normalizeCest, normalizeGtin, normalizeNcm, normalizeOrigin, normalizeUnit } from '../catalog/fiscal-rules';
 import { ImportProduct, ImportVariant, slugify } from '../catalog/product-csv';
 
+export type BlingMedia = { imagens?: { externas?: { link?: string }[]; internas?: { link?: string }[] } };
+
 export type BlingProductDetail = {
   id: number; nome: string; codigo?: string; preco?: number; situacao?: string; formato?: string;
   descricaoCurta?: string; descricaoComplementar?: string; marca?: string;
@@ -10,8 +12,8 @@ export type BlingProductDetail = {
   gtin?: string; gtinEmbalagem?: string; unidade?: string;
   tributacao?: { ncm?: string; cest?: string; origem?: number | string };
   estoque?: { saldoVirtualTotal?: number };
-  midia?: { imagens?: { externas?: { link?: string }[]; internas?: { link?: string }[] } };
-  variacoes?: { id: number; nome?: string; codigo?: string; preco?: number; gtin?: string; variacao?: { nome?: string }; estoque?: { saldoVirtualTotal?: number } }[];
+  midia?: BlingMedia;
+  variacoes?: { id: number; nome?: string; codigo?: string; preco?: number; gtin?: string; variacao?: { nome?: string }; estoque?: { saldoVirtualTotal?: number }; midia?: BlingMedia }[];
   seo?: { title?: string; description?: string };
 };
 /** Código mínimo padrão para importar produtos do Bling. */
@@ -72,7 +74,7 @@ export function categoryPath(id: number | undefined, categories: Map<number, Bli
 
 const money = (value: unknown) => Math.max(0, Math.round(Number(value ?? 0) * 100) / 100);
 const units = (value: unknown) => Math.max(0, Math.floor(Number(value ?? 0)));
-const links = (detail: BlingProductDetail) => [...new Set([...(detail.midia?.imagens?.externas ?? []), ...(detail.midia?.imagens?.internas ?? [])].map(i => i.link ?? '').filter(url => /^https:\/\/\S+$/.test(url)))].slice(0, 10);
+const links = (detail: { midia?: BlingMedia }) => [...new Set([...(detail.midia?.imagens?.externas ?? []), ...(detail.midia?.imagens?.internas ?? [])].map(i => i.link ?? '').filter(url => /^https:\/\/\S+$/.test(url)))].slice(0, 10);
 
 /** NCM, CEST, origem, GTIN e unidade do cadastro; o que vier fora do formato é ignorado (a nota é conferida no Bling). */
 function fiscalOf(detail: BlingProductDetail) {
@@ -110,6 +112,22 @@ export function normalizeVariants(parentName: string, raw: RawVariant[]): Import
   });
 }
 
+/** Atributo que representa a cor da peça ("Cor", "Cores", "Color"). */
+export const isColorAttribute = (name: string) => /^(cor|cores|colou?r)$/i.test(name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim());
+
+/** Fotos de cada cor: as da primeira variação daquela cor que tem foto no Bling (tamanhos da mesma cor repetem a foto). */
+export function colorImages(detail: BlingProductDetail, variants: ImportVariant[]) {
+  const index = variants[0]?.attributes.findIndex(a => isColorAttribute(a.name)) ?? -1;
+  if (index < 0) return [];
+  const byColor = new Map<string, string[]>();
+  for (const raw of detail.variacoes ?? []) {
+    const color = variants.find(v => v.sku.toLowerCase() === raw.codigo?.trim().toLowerCase())?.attributes[index]?.value;
+    const urls = links(raw);
+    if (color && urls.length && !byColor.has(color.toLowerCase())) byColor.set(color.toLowerCase(), urls);
+  }
+  return [...byColor].map(([key, urls]) => ({ color: variants.flatMap(v => v.attributes[index]?.value ?? []).find(c => c.toLowerCase() === key)!, urls }));
+}
+
 /** Produto do Bling no formato que o importador do catálogo já entende. `takenSlug` evita colisão com outro SKU. */
 export function toImportProduct(detail: BlingProductDetail, categories: Map<number, BlingCategory>, line: number, takenSlug: (slug: string) => boolean = () => false): ImportProduct | { error: string } {
   const name = detail.nome?.trim();
@@ -134,7 +152,7 @@ export function toImportProduct(detail: BlingProductDetail, categories: Map<numb
     ...(detail.profundidade && { lengthCm: Math.max(1, Math.min(300, Math.round(detail.profundidade))) }),
     stock: units(detail.estoque?.saldoVirtualTotal),
     ...(detail.seo?.title && { seoTitle: detail.seo.title.slice(0, 70) }), ...(detail.seo?.description && { seoDescription: detail.seo.description.slice(0, 160) }),
-    imageUrls: links(detail), variants,
+    imageUrls: links(detail), variants, colorImages: colorImages(detail, variants),
     ...fiscalOf(detail),
   };
 }

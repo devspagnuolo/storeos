@@ -81,6 +81,14 @@ export class ProductImportService {
       const urls = p.imageUrls.slice(have);
       if (urls.length) await this.prisma.productImage.createMany({ data: urls.map((url, i) => ({ productId: id, url, alt: p.name, position: have + i })) });
     }
+    if (p.colorImages?.length) {
+      // Fotos por cor entram depois das gerais; uma cor que já tem fotos na loja não é tocada.
+      const existing = await this.prisma.productImage.findMany({ where: { productId: id }, select: { color: true, position: true } });
+      const have = new Set(existing.flatMap(i => i.color ? [i.color.toLowerCase()] : []));
+      let position = existing.reduce((max, i) => Math.max(max, i.position + 1), 0);
+      const rows = p.colorImages.filter(c => !have.has(c.color.toLowerCase())).flatMap(c => c.urls.map(url => ({ productId: id, url, alt: `${p.name} - ${c.color}`, color: c.color, position: position++ })));
+      if (rows.length) await this.prisma.productImage.createMany({ data: rows });
+    }
     if (p.variants.length && !keep) {
       const current = await this.prisma.productVariant.findMany({ where: { productId: id }, select: { id: true, sku: true } });
       await this.catalog.replaceVariants(storeId, id, p.variants.map(v => ({ id: current.find(c => c.sku.toLowerCase() === v.sku.toLowerCase())?.id, sku: v.sku, attributes: v.attributes, price: v.price, stock: v.stock, ...(v.gtin && { gtin: v.gtin }) })));

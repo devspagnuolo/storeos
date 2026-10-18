@@ -5,6 +5,8 @@ export interface ImportProduct {
   line: number; slug: string; name: string; sku: string; price: number; description?: string; status: 'ACTIVE' | 'DRAFT';
   categories: string[][]; brand?: string; weightGrams?: number; widthCm?: number; heightCm?: number; lengthCm?: number;
   stock: number; seoTitle?: string; seoDescription?: string; imageUrls: string[]; variants: ImportVariant[];
+  /** Fotos por cor (Bling: as fotos de cada variação), mostradas quando a cliente escolhe a cor. */
+  colorImages?: { color: string; urls: string[] }[];
   ncm?: string; cest?: string; gtin?: string; taxOrigin?: number; unit?: string;
 }
 export interface ImportError { line: number; message: string }

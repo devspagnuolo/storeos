@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AddToCart } from '../../../components/add-to-cart';
+import { ProductGallery } from '../../../components/product-gallery';
 import { Header } from '../../../components/header';
 import { ReviewsSection, Stars } from '../../../components/reviews-section';
 import { TrackView } from '../../../components/track-view';
@@ -29,7 +30,9 @@ export default async function ProductPage({ params }: Props) {
   // Tema avançado: só opções de apresentação. Preço, estoque, opções e compra nunca mudam por tema.
   const detail = engineSection(engine, 'product', 'storeos.product-detail.v1');
   if (!product) notFound();
-  const image = product.images?.[0];
+  const image = product.images?.find(i => !i.color) ?? product.images?.[0];
+  // Primeira foto de cada cor, para o carrinho mostrar a cor escolhida.
+  const colorImages = Object.fromEntries((product.images ?? []).filter(i => i.color).reverse().map(i => [i.color!.toLowerCase(), i.url]));
   const siteUrl = await resolveSiteUrl();
   // Dados estruturados para o Google exibir preço e disponibilidade no resultado de busca.
   const jsonLd = { '@context': 'https://schema.org', '@type': 'Product', name: product.name, sku: product.sku, brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined, description: product.description, image: product.images?.map(i => i.url), offers: { '@type': 'Offer', url: `${siteUrl}/produto/${product.slug}`, priceCurrency: 'BRL', price: product.price, availability: `https://schema.org/${product.available > 0 ? 'InStock' : 'OutOfStock'}` },
@@ -46,7 +49,7 @@ export default async function ProductPage({ params }: Props) {
       <main className="shell py-10">
         <nav className="mb-6 text-sm text-slate-500"><Link href="/categorias">Produtos</Link>{product.categories[0] && <> / <Link href={`/categorias/${product.categories[0].slug}`}>{product.categories[0].name}</Link></>}</nav>
         <div className="grid gap-10 md:grid-cols-2">
-          <div className="card aspect-square overflow-hidden bg-gradient-to-br from-slate-100 to-violet-100">{image && <img src={image.url} alt={image.alt || product.name} className="h-full w-full object-cover" />}</div>
+          <ProductGallery images={product.images ?? []} name={product.name} />
           <div>
             {product.brand && <Link href={`/marcas/${product.brand.slug}`} className="text-sm font-semibold text-brand">{product.brand.name}</Link>}
             <h1 className="text-3xl font-bold">{product.name}</h1>
@@ -54,7 +57,7 @@ export default async function ProductPage({ params }: Props) {
             <p className="mt-4 text-3xl font-black">{formatPrice(product.price)}</p>
             <p className="mt-1 text-sm text-slate-500">ou no PIX, com confirmação rápida</p>
             {product.description && engineFlag(detail?.showDescription, true) && <p className="mt-6 leading-relaxed text-slate-700">{product.description}</p>}
-            <AddToCart product={{ id: product.id, slug: product.slug, name: product.name, price: product.price, image: image?.url }} available={product.available} variants={product.variants ?? []} buttonLabel={engineText(detail?.buttonLabel) || undefined} />
+            <AddToCart product={{ id: product.id, slug: product.slug, name: product.name, price: product.price, image: image?.url }} available={product.available} variants={product.variants ?? []} buttonLabel={engineText(detail?.buttonLabel) || undefined} colorImages={colorImages} />
             {engineFlag(detail?.showSku, true) && <p className="mt-8 text-xs text-slate-400">SKU {product.sku}</p>}
           </div>
         </div>

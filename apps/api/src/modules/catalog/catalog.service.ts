@@ -8,7 +8,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
 export type ProductQuery = { ids?: string; category?: string; brand?: string; collection?: string; q?: string; page?: number; pageSize?: number; attrs?: string; minPrice?: number; maxPrice?: number };
 export type CreateProductInput = { name: string; slug: string; sku: string; price: number; description?: string; categoryIds?: string[]; status?: ProductStatus; stock?: number; imageUrl?: string; imageUrls?: string[]; brandId?: string | null; seoTitle?: string; seoDescription?: string; weightGrams?: number | null; widthCm?: number | null; heightCm?: number | null; lengthCm?: number | null; ncm?: string | null; cest?: string | null; gtin?: string | null; taxOrigin?: number | null; unit?: string | null };
-export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string };
+export type UpdateProductInput = Partial<Omit<CreateProductInput, 'sku'>> & { sku?: string; imageColors?: string[] };
 export type CreateBrandInput = { name: string; slug: string; logoUrl?: string };
 export type CollectionInput = { name?: string; slug?: string; description?: string; active?: boolean; position?: number; skus?: string[] };
 /** Galeria na ordem enviada, sem repetidas; `imageUrl` sozinho continua valendo como foto principal. */
@@ -322,7 +322,7 @@ export class CatalogService {
   }
 
   /** Atualiza dados, status, categorias, imagem principal e saldo físico (o reservado não muda aqui). */
-  async update(storeId: string, id: string, { categoryIds, stock, imageUrl, imageUrls, ...raw }: UpdateProductInput) {
+  async update(storeId: string, id: string, { categoryIds, stock, imageUrl, imageUrls, imageColors, ...raw }: UpdateProductInput) {
     const dto = this.fiscal(raw);
     const existing = await this.prisma.product.findFirst({ where: { id, storeId }, include: { inventory: true, _count: { select: { variants: true } } } });
     if (!existing) throw new NotFoundException('Produto não encontrado');
@@ -345,8 +345,14 @@ export class CatalogService {
           await recordMovement(tx, { storeId, productId: id, type: StockMovementType.ADJUSTMENT, delta: stock - (inventory?.quantity ?? 0), reason: 'Edição do produto' });
         }
         if (imageUrls !== undefined) {
+          // A cor de cada foto vem junto (imageColors) ou é mantida pela URL, para a página seguir trocando as fotos por cor.
+          const previous = new Map((await tx.productImage.findMany({ where: { productId: id }, select: { url: true, color: true } })).map(i => [i.url, i.color]));
+          const colorOf = (url: string) => {
+            const index = imageUrls.indexOf(url);
+            return imageColors ? imageColors[index]?.trim() || null : previous.get(url) ?? null;
+          };
           await tx.productImage.deleteMany({ where: { productId: id } });
-          await tx.productImage.createMany({ data: [...new Set(imageUrls)].map((url, position) => ({ productId: id, url, alt: product.name, position })) });
+          await tx.productImage.createMany({ data: [...new Set(imageUrls)].map((url, position) => ({ productId: id, url, alt: product.name, position, color: colorOf(url) })) });
         } else if (imageUrl !== undefined) {
           const main = await tx.productImage.findFirst({ where: { productId: id }, orderBy: { position: 'asc' } });
           if (!imageUrl) { if (main) await tx.productImage.delete({ where: { id: main.id } }); }

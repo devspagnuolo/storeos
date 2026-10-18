@@ -295,6 +295,8 @@ export async function saveProductAction(_: FormState, form: FormData): Promise<F
     stock: Number(text('stock') || 0),
     // A galeria inteira vem na ordem mostrada; na edição, lista vazia remove as fotos.
     imageUrls: id ? form.getAll('imageUrls').map(String) : form.getAll('imageUrls').length ? form.getAll('imageUrls').map(String) : undefined,
+    // Cor de cada foto (mesma ordem); só existe quando o produto tem variações de cor.
+    imageColors: id && form.has('imageColors') ? form.getAll('imageColors').map(String) : undefined,
     categoryIds: form.getAll('categoryIds').map(String),
     // Na edição, vazio remove a marca; na criação, simplesmente não envia.
     brandId: text('brandId') || (id ? null : undefined),

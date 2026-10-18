@@ -3,16 +3,17 @@ import { useId, useRef, useState } from 'react';
 import { guidelineText, MediaKind } from '../../lib/image-guidelines';
 
 type UploadedFile = { url: string; name: string | null; width: number | null; height: number | null; warning: string | null };
-type Item = { url: string; note?: string; warning?: string | null };
+type Item = { url: string; note?: string; warning?: string | null; color?: string };
 
 /**
  * Envio de imagens do computador do lojista (uma ou várias), com a dimensão recomendada à vista.
  * As URLs finais vão em campos ocultos `name`, uma por imagem, na ordem mostrada.
+ * Com `colors`, cada foto ganha a escolha da cor que ela mostra (campo `imageColors`, na mesma ordem; vazio = foto geral).
  */
-export function ImageUploader({ name, kind, multiple = false, initial = [], onUploaded, label }: { name?: string; kind: MediaKind; multiple?: boolean; initial?: string[]; onUploaded?: (urls: string[]) => void; label?: string }) {
+export function ImageUploader({ name, kind, multiple = false, initial = [], initialColors = [], colors, onUploaded, label }: { name?: string; kind: MediaKind; multiple?: boolean; initial?: string[]; initialColors?: (string | null | undefined)[]; colors?: string[]; onUploaded?: (urls: string[]) => void; label?: string }) {
   const inputId = useId();
   const picker = useRef<HTMLInputElement>(null);
-  const [items, setItems] = useState<Item[]>(initial.map(url => ({ url })));
+  const [items, setItems] = useState<Item[]>(initial.map((url, i) => ({ url, color: initialColors[i] ?? '' })));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -27,7 +28,7 @@ export function ImageUploader({ name, kind, multiple = false, initial = [], onUp
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(Array.isArray(body.message) ? 'Confira as imagens enviadas.' : body.message || 'Não foi possível enviar as imagens.');
       const sent: Item[] = (body.files as UploadedFile[]).map(file => ({ url: file.url, note: file.width && file.height ? `${file.width} × ${file.height} px` : undefined, warning: file.warning }));
-      setItems(current => (multiple ? [...current, ...sent].slice(0, 12) : sent));
+      setItems(current => (multiple ? [...current, ...sent].slice(0, 60) : sent));
       onUploaded?.(sent.map(item => item.url));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível enviar as imagens.');
@@ -61,6 +62,14 @@ export function ImageUploader({ name, kind, multiple = false, initial = [], onUp
               <img src={item.url} alt="" className="h-28 w-full rounded object-cover" />
               <p className="mt-1 text-slate-500">{item.note ?? ''}{multiple && index === 0 && kind === 'product' ? ' · principal' : ''}</p>
               {item.warning && <p className="mt-1 text-amber-700">{item.warning}</p>}
+              {colors?.length ? (
+                <label className="mt-1 flex items-center gap-1 text-slate-600">Cor
+                  <select name="imageColors" value={item.color ?? ''} onChange={e => { const color = e.target.value; setItems(current => current.map((it, i) => (i === index ? { ...it, color } : it))); }} className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-1 py-0.5">
+                    <option value="">Todas (foto geral)</option>
+                    {[...new Set([...colors, ...(item.color && !colors.includes(item.color) ? [item.color] : [])])].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+              ) : null}
               <div className="mt-1 flex gap-2">
                 {multiple && index > 0 && <button type="button" className="underline" onClick={() => move(index, -1)}>←</button>}
                 {multiple && index < items.length - 1 && <button type="button" className="underline" onClick={() => move(index, 1)}>→</button>}
