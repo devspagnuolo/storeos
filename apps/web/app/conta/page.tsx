@@ -56,7 +56,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 <Link href={`/conta/pedidos/${encodeURIComponent(order.number)}`} className="card flex items-center gap-4 p-4 transition hover:border-brand/40 hover:shadow-md">
                   <div className="flex shrink-0 -space-x-3">
                     {order.preview.map((item, index) => item.imageUrl
-                      ? <img key={index} src={item.imageUrl} alt="" className="h-12 w-12 rounded-lg border-2 border-white object-cover" />
+                      ? <img key={index} src={item.imageUrl} alt="" className="h-12 w-12 rounded-lg border-2 border-white bg-white object-contain object-center" />
                       : <span key={index} className="flex h-12 w-12 items-center justify-center rounded-lg border-2 border-white bg-slate-100 text-xs text-slate-400" aria-hidden>✦</span>)}
                   </div>
                   <div className="min-w-0 flex-1">

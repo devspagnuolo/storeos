@@ -73,7 +73,7 @@ export default async function AccountOrderPage({ params }: { params: Promise<{ n
           <h2 id="itens" className="text-lg font-bold">Itens</h2>
           <ul className="mt-3 divide-y">
             {order.items.map(item => <li key={item.sku} className="flex items-center gap-4 py-3">
-              {item.imageUrl ? <img src={item.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" /> : <span aria-hidden className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">✦</span>}
+              {item.imageUrl ? <img src={item.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-lg bg-white object-contain object-center" /> : <span aria-hidden className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">✦</span>}
               <div className="min-w-0 flex-1">
                 {item.productSlug ? <Link href={`/produto/${item.productSlug}`} className="font-medium hover:text-brand">{item.name}</Link> : <p className="font-medium">{item.name}</p>}
                 <p className="text-sm text-slate-500">{item.quantity} × {formatPrice(item.unitPrice)}</p>

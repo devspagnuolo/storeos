@@ -16,14 +16,14 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
   const main = shown[Math.min(index, shown.length - 1)];
   return (
     <div className="min-w-0">
-      <div className="card aspect-square overflow-hidden bg-gradient-to-br from-slate-100 to-violet-100">
-        {main && <img key={main.url} src={main.url} alt={main.alt || name} className="h-full w-full object-cover" />}
+      <div className="card aspect-square overflow-hidden bg-white">
+        {main && <img key={main.url} src={main.url} alt={main.alt || name} className="h-full w-full object-contain object-center" />}
       </div>
       {shown.length > 1 && (
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="list" aria-label="Fotos do produto">
           {shown.map((image, i) => (
             <button key={image.url} type="button" role="listitem" onClick={() => setIndex(i)} aria-label={`Ver foto ${i + 1}`} aria-current={i === index} className={`h-20 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${i === index ? 'border-brand' : 'border-transparent opacity-80 hover:opacity-100'}`}>
-              <img src={image.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+              <img src={image.url} alt="" className="h-full w-full bg-white object-contain object-center" loading="lazy" />
             </button>
           ))}
         </div>

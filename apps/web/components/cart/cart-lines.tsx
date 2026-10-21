@@ -21,7 +21,7 @@ export function CartLines({ items, availability, compact = false }: { items: Car
         return (
           <li key={key} className={compact ? 'py-3' : 'p-4'}>
             <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap sm:gap-4">
-              {!compact && <div className="h-16 w-16 shrink-0 sm:h-20 sm:w-20 overflow-hidden rounded-xl bg-slate-100">{item.image && <img src={item.image} alt={item.name} className="h-full w-full object-cover" />}</div>}
+              {!compact && <div className="h-16 w-16 shrink-0 sm:h-20 sm:w-20 overflow-hidden rounded-xl bg-slate-100">{item.image && <img src={item.image} alt={item.name} className="h-full w-full object-contain object-center" />}</div>}
               <div className="min-w-0 flex-1">
                 <Link href={`/produto/${item.slug}`} className="font-semibold hover:text-brand">{item.name}</Link>
                 {item.variantLabel && <p className="text-sm text-slate-600">{item.variantLabel}</p>}
