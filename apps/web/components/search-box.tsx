@@ -62,7 +62,7 @@ export function SearchBox({ className = '' }: { className?: string }) {
           {items.map((item, index) => (
             <li key={item.id} id={`${listId}-${index}`} role="option" aria-selected={index === active}>
               <Link href={`/produto/${item.slug}`} onClick={() => setOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 text-sm ${index === active ? 'bg-slate-100' : 'hover:bg-slate-50'}`}>
-                {item.images?.[0] ? <img src={item.images[0].url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" /> : <span className="h-10 w-10 shrink-0 rounded-lg bg-slate-100" />}
+                {item.images?.[0] ? <img src={item.images[0].url} alt="" className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain object-center" /> : <span className="h-10 w-10 shrink-0 rounded-lg bg-slate-100" />}
                 <span className="min-w-0 flex-1 truncate">{item.name}</span>
                 <span className="font-semibold">{formatPrice(item.price)}</span>
               </Link>
