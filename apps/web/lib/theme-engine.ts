@@ -2,6 +2,7 @@ import { cache } from 'react';
 import type { ThemeDocument } from '@storeos/contracts';
 import { getStore } from './api';
 import { contrastRatio, hexToChannels } from './theme';
+import { CLASSIC_LOOK_PACKAGE } from './classic-look';
 
 /**
  * Documento do Theme Engine que desenha esta requisição. Na vitrine é o publicado (só chega se a loja estiver
@@ -18,6 +19,16 @@ export async function activeEngineDocument(): Promise<ThemeDocument | null> {
   return (await getStore()).publishedTheme?.document ?? null;
 }
 
+/**
+ * As seções extras de categoria e produto do editor clássico (vantagens, "Combina com", newsletter) continuam na loja
+ * quando ela está no tema "Minha loja", que é a conversão do editor clássico: assim a migração não muda o que o cliente vê.
+ */
+export async function showsClassicPageSections(): Promise<boolean> {
+  if (override().document) return false;
+  const published = (await getStore()).publishedTheme;
+  return !published || published.release.package.key === CLASSIC_LOOK_PACKAGE;
+}
+
 /** Configurações da primeira seção visível de um tipo dentro do modelo de página, ou null quando o tema não a usa. */
 export function engineSection(document: ThemeDocument | null, pageType: keyof ThemeDocument['templates'], type: string): Record<string, unknown> | null {
   const section = document?.templates[pageType]?.sections.find(item => item.enabled && item.type === type);
@@ -32,8 +43,12 @@ const HEX = /^#[0-9a-f]{6}$/i;
 const RADIUS = /^(?:[0-9]{1,2}px|9999px)$/;
 const FONTS: Record<string, string> = { system: 'system-ui, sans-serif', 'sans-serif': 'Arial, Helvetica, sans-serif', serif: 'Georgia, "Times New Roman", serif' };
 
+// "Minha loja" (editor clássico convertido) usa as mesmas medidas e fontes que o editor clássico usava.
+const CLASSIC_RADIUS: Record<string, string> = { '0px': '0px', '4px': '0.375rem', '8px': '0.75rem', '9999px': '9999px' };
+const CLASSIC_SERIF = 'ui-serif, Georgia, Cambria, "Times New Roman", serif';
+
 /** Tokens de design do tema convertidos nas mesmas variáveis CSS da vitrine. Só aceita valores validados. */
-export function engineStyle(document: ThemeDocument | null): Record<string, string> {
+export function engineStyle(document: ThemeDocument | null, { classic = false }: { classic?: boolean } = {}): Record<string, string> {
   if (!document) return {};
   const tokens = document.global.designTokens;
   const style: Record<string, string> = {};
@@ -47,8 +62,10 @@ export function engineStyle(document: ThemeDocument | null): Record<string, stri
   const text = tokens.colors?.text;
   if (text && HEX.test(text)) style.color = text;
   const radius = String(tokens.shape?.buttonRadius ?? '');
-  if (RADIUS.test(radius)) style['--btn-radius'] = radius;
-  const font = FONTS[String(tokens.typography?.fontFamily ?? '')];
+  if (RADIUS.test(radius)) style['--btn-radius'] = classic ? CLASSIC_RADIUS[radius] ?? radius : radius;
+  const fontToken = String(tokens.typography?.fontFamily ?? '');
+  // No visual clássico a fonte sem serifa é a escolhida no editor clássico; o tema só troca quando pede serifa.
+  const font = classic ? (fontToken === 'serif' ? CLASSIC_SERIF : undefined) : FONTS[fontToken];
   if (font) style.fontFamily = font;
   return style;
 }

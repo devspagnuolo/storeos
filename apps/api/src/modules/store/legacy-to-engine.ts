@@ -28,7 +28,8 @@ export function legacyDesignTokens(config: StorefrontConfig): ThemeDesignTokens 
   const primary = HEX.test(config.accentColor ?? '') ? config.accentColor! : '#6D28D9';
   const background = HEX.test(design.backgroundColor ?? '') ? design.backgroundColor! : dark ? '#0A0A0B' : '#FFFFFF';
   const text = HEX.test(design.textColor ?? '') ? design.textColor! : dark ? '#F4F4F5' : '#0F172A';
-  const serif = design.font === 'serif' || design.headingFont === 'serif';
+  // Só o texto: títulos com serifa continuam vindo da escolha de fonte dos títulos do editor clássico.
+  const serif = design.font === 'serif';
   return {
     colors: { primary, background, text },
     typography: { fontFamily: serif ? 'serif' : 'sans-serif' },
@@ -121,6 +122,16 @@ function convertSection(section: HomeSection, id: string, options: LegacyConvers
   }
 }
 
+/** O que a loja mostra nas páginas fora da inicial quando nenhum tema escolhe: vazio = texto padrão da loja. */
+const CLASSIC_PAGE_SETTINGS: Record<string, Record<string, ThemeJsonValue>> = {
+  'storeos.product-collection.v1': { heading: '', subheading: '', limit: 24, columns: 4, mobileColumns: 2 },
+  'storeos.product-detail.v1': { showSku: true, showDescription: true, showVariants: true, buttonLabel: 'Adicionar ao carrinho' },
+  'storeos.search-results.v1': { heading: 'Buscar produtos', limit: 24, mobileColumns: 2 },
+  'storeos.cart-summary.v1': { heading: 'Seu carrinho', buttonLabel: 'Finalizar compra', showShippingQuote: true },
+  'storeos.not-found.v1': { heading: 'Página não encontrada', message: 'O endereço pode ter mudado ou o produto não está mais disponível.', buttonLabel: 'Ver produtos' },
+  'storeos.blog-list.v1': { heading: 'Blog', limit: 12 },
+};
+
 /** Seções da página inicial do editor clássico, ou o destaque antigo quando a loja ainda não usa seções. */
 function legacyHome(config: StorefrontConfig): HomeSection[] {
   if (config.home?.sections?.length) return config.home.sections;
@@ -169,9 +180,12 @@ export function legacyToEngineDocument(config: StorefrontConfig, manifest: Theme
       ...(footer ? [footer] : []),
     ] };
   }
-  for (const template of Object.values(document.templates)) {
+  for (const [pageType, template] of Object.entries(document.templates)) {
     for (const section of template?.sections ?? []) {
       if (section.type === 'storeos.announcement.v1') section.settings = { ...section.settings, text: announcement };
+      // As outras páginas ficam como o editor clássico as desenhava (mesmos títulos, botões e quantidades).
+      const classic = pageType === 'home' || pageType === 'landing' ? undefined : CLASSIC_PAGE_SETTINGS[section.type];
+      if (classic) section.settings = { ...section.settings, ...classic };
     }
   }
   return document;

@@ -10,7 +10,7 @@ import { resolveSiteUrl } from '../../../lib/store-host';
 import { HomeSections } from '../../../components/storefront/home-sections';
 import { getProduct, getReviews, getStore } from '../../../lib/api';
 import { formatPrice } from '../../../lib/format';
-import { activeEngineDocument, engineFlag, engineSection, engineText } from '../../../lib/theme-engine';
+import { activeEngineDocument, showsClassicPageSections, engineFlag, engineSection, engineText } from '../../../lib/theme-engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const slug = (await params).slug;
-  const [product, reviews, store, engine] = await Promise.all([getProduct(slug), getReviews(slug), getStore(), activeEngineDocument()]);
+  const [product, reviews, store, engine, classicSections] = await Promise.all([getProduct(slug), getReviews(slug), getStore(), activeEngineDocument(), showsClassicPageSections()]);
   // Tema avançado: só opções de apresentação. Preço, estoque, opções e compra nunca mudam por tema.
   const detail = engineSection(engine, 'product', 'storeos.product-detail.v1');
   if (!product) notFound();
@@ -64,7 +64,7 @@ export default async function ProductPage({ params }: Props) {
         <ReviewsSection productSlug={product.slug} reviews={reviews} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([jsonLd, breadcrumb]).replace(/</g, '\\u003c') }} />
       </main>
-      {!engine && <HomeSections sections={store.themeConfig?.pages?.product?.sections ?? []} />}
+      {classicSections && <HomeSections sections={store.themeConfig?.pages?.product?.sections ?? []} />}
     </>
   );
 }

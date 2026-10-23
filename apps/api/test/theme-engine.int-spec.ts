@@ -195,10 +195,10 @@ describe('motor de temas', () => {
     const revision = (await api(`/themes/installations/${oldId}/draft`, { method: 'PATCH', token: editor, body: { revision: old.body.draft.revision, document: edited } })).body.revision;
     expect((await api(`/themes/installations/${oldId}/publish`, { method: 'POST', token: editor, body: { revision } })).status).toBe(201);
 
-    // A 1.1 já foi instalada acima: atualizar avisa em vez de sobrescrever aquele rascunho.
+    // Os rascunhos não guardados dos temas abertos antes foram descartados: a versão nova volta a ser oferecida.
     let list = await api('/themes/installations', { token: editor });
-    expect(list.body.find((item: { id: string }) => item.id === oldId).upgrade).toBeNull();
-    expect((await api(`/themes/installations/${oldId}/upgrade`, { method: 'POST', token: editor })).status).toBe(409);
+    expect(list.body.map((item: { id: string }) => item.id)).toEqual([oldId]);
+    expect(list.body[0].upgrade).toMatchObject({ version: '1.3.0' });
 
     const other = await createStore(1);
     const editorB = await login(api, other.store, ['settings.write']);
@@ -218,7 +218,9 @@ describe('motor de temas', () => {
     expect(hero.settings).toMatchObject({ title: 'Mantido na atualização', visibility: 'all' });
     expect((await api(`/store/public/${other.store.slug}`)).body.publishedTheme).toBeNull();
     expect((await api(`/themes/installations/${upgraded.body.installation.id}/validate`, { method: 'POST', token: editorB })).body.errors).toEqual([]);
-    expect((await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editorB })).status).toBe(409);
+    // A versão antiga, fora do ar, dá lugar à nova: não sobra rascunho duplicado do mesmo tema.
+    expect((await api('/themes/installations', { token: editorB })).body.map((item: { id: string }) => item.id)).toEqual([upgraded.body.installation.id]);
+    expect((await api(`/themes/installations/${oldBId}/upgrade`, { method: 'POST', token: editorB })).status).toBe(404);
   });
 
   it('traz a loja do editor clássico para o editor de temas como rascunho, sem publicar', async () => {
@@ -256,5 +258,67 @@ describe('motor de temas', () => {
 
     const viewer = await login(api, store, []);
     expect((await api('/themes/installations/from-storefront', { method: 'POST', token: viewer })).status).toBe(403);
+  });
+
+  it('deixa a loja no editor novo sozinha, publicando a conversão do editor clássico', async () => {
+    const { store } = await createStore(1);
+    const editor = await login(api, store, ['settings.write']);
+    await prisma.store.update({ where: { id: store.id }, data: { themeConfig: { accentColor: '#9D174D', announcementText: 'Troca fácil', home: { sections: [
+      { id: 'destaque', type: 'hero', hidden: false, props: { title: 'Bem-vinda', description: '', cta: 'Comprar', ctaHref: '/categorias', imageUrl: null, imageAlt: '', layout: 'split' } },
+    ] } } } });
+    // Rascunhos acumulados de antes: um guardado e um não.
+    const library = (await api('/themes/library', { token: editor })).body as { id: string; package: { key: string } }[];
+    const editorial = library.find(item => item.package.key === 'storeos-editorial')!;
+    const noir = library.find(item => item.package.key === 'storeos-noir')!;
+    const kept = (await api('/themes/installations', { method: 'POST', token: editor, body: { releaseId: editorial.id } })).body.installation.id as string;
+    expect((await api(`/themes/installations/${kept}/keep`, { method: 'POST', token: editor })).status).toBe(201);
+    const loose = (await api('/themes/installations', { method: 'POST', token: editor, body: { releaseId: noir.id } })).body.installation.id as string;
+
+    // Fora da loja piloto nada muda.
+    process.env.THEME_ENGINE_PILOT_STORES = '';
+    expect((await api('/themes/current', { method: 'POST', token: editor })).body.migrated).toBe(false);
+    expect((await api(`/store/public/${store.slug}`)).body.publishedTheme).toBeNull();
+    process.env.THEME_ENGINE_PILOT_STORES = '*';
+
+    const first = await api('/themes/current', { method: 'POST', token: editor });
+    expect(first.status).toBe(201);
+    expect(first.body.migrated).toBe(true);
+    expect(first.body.status.active).toMatchObject({ name: 'Minha loja', live: true });
+    const live = (await api(`/store/public/${store.slug}`)).body.publishedTheme;
+    expect(live.release.package.key).toBe('storeos-minha-loja');
+    expect(live.document.global.designTokens.colors.primary).toBe('#9D174D');
+    expect(live.document.global.settings.announcementText).toBe('Troca fácil');
+    expect(live.document.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1').settings.title).toBe('Bem-vinda');
+
+    // Só o tema no ar e o rascunho guardado ficam; o outro foi arquivado, sem apagar nada.
+    const list = (await api('/themes/installations', { token: editor })).body as { id: string; status: string }[];
+    expect(list.map(item => item.id).sort()).toEqual([first.body.status.active.installationId, kept].sort());
+    expect((await prisma.themeInstallation.findUniqueOrThrow({ where: { id: loose } })).status).toBe('REMOVED');
+    expect(await prisma.themeDraft.count({ where: { installationId: loose, status: 'ARCHIVED' } })).toBe(1);
+
+    // Chamar de novo não publica outra vez.
+    const again = await api('/themes/current', { method: 'POST', token: editor });
+    expect(again.body.migrated).toBe(false);
+    expect(await prisma.themeEnginePublication.count({ where: { storeId: store.id } })).toBe(1);
+
+    // O tema no ar não pode ser descartado; o guardado pode.
+    expect((await api(`/themes/installations/${first.body.status.active.installationId}/discard`, { method: 'POST', token: editor })).status).toBe(409);
+    expect((await api(`/themes/installations/${kept}/discard`, { method: 'POST', token: editor })).status).toBe(201);
+    expect((await api('/themes/installations', { token: editor })).body).toHaveLength(1);
+
+    // Publicar outro tema descarta o rascunho do anterior, mas a versão publicada dele volta como rascunho guardado.
+    const other = (await api('/themes/installations', { method: 'POST', token: editor, body: { releaseId: noir.id } })).body;
+    expect((await api(`/themes/installations/${other.installation.id}/publish`, { method: 'POST', token: editor, body: { revision: other.draft.revision } })).status).toBe(201);
+    const minhaLoja = first.body.status.active.installationId as string;
+    expect((await prisma.themeInstallation.findUniqueOrThrow({ where: { id: minhaLoja } })).status).toBe('REMOVED');
+    const publication = (await api('/themes/publications', { token: editor })).body.find((item: { installationId: string }) => item.installationId === minhaLoja);
+    const restored = await api(`/themes/publications/${publication.id}/restore`, { method: 'POST', token: editor, body: { revision: 1 } });
+    expect(restored.status).toBe(201);
+    const back = (await api('/themes/installations', { token: editor })).body.find((item: { id: string }) => item.id === minhaLoja);
+    expect(back).toMatchObject({ status: 'INACTIVE' });
+    expect(back.savedAt).toBeTruthy();
+
+    const viewer = await login(api, store, []);
+    expect((await api('/themes/current', { method: 'POST', token: viewer })).status).toBe(403);
   });
 });

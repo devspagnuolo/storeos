@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ThemeDraftEditor, type LinkOption } from '../../../../../../components/admin/theme-draft-editor';
-import { restoreThemePublicationAction, upgradeThemeAction } from '../../../../actions';
+import { discardThemeDraftAction, keepThemeDraftAction, restoreThemePublicationAction, upgradeThemeAction } from '../../../../actions';
 import { getCategories, getCollections, getPages } from '../../../../../../lib/api';
 import { adminFetch } from '../../../../../../lib/admin/session';
 import type { ThemeStatus } from '../../../../../../lib/admin/storefront';
@@ -14,7 +14,7 @@ type ThemeDraftResponse = {
 
 type Publication = { id: string; version: number; createdAt: string; installationId: string; themeName: string; themeVersion: string; live: boolean };
 
-export default async function EditThemePage({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ erro?: string; restaurado?: string; atualizado?: string; convertido?: string }> }) {
+export default async function EditThemePage({ params, searchParams }: { params: Promise<{ installationId: string }>; searchParams: Promise<{ erro?: string; restaurado?: string; atualizado?: string; convertido?: string; guardado?: string }> }) {
   const { installationId } = await params;
   const query = await searchParams;
   const [result, status, latest] = await Promise.all([
@@ -32,7 +32,9 @@ export default async function EditThemePage({ params, searchParams }: { params: 
     ...pages.map(item => ({ group: 'Páginas', label: item.title, href: '/p/' + item.slug })),
   ];
   const publications = (await adminFetch<Publication[]>('/themes/publications').catch(() => [])).filter(item => item.installationId === result.installation.id);
-  const upgrade = (await adminFetch<{ id: string; upgrade: { version: string } | null }[]>('/themes/installations').catch(() => [])).find(item => item.id === result.installation.id)?.upgrade;
+  const listed = (await adminFetch<{ id: string; savedAt: string | null; upgrade: { version: string } | null }[]>('/themes/installations').catch(() => [])).find(item => item.id === result.installation.id);
+  const upgrade = listed?.upgrade;
+  const live = result.installation.status === 'ACTIVE';
   return <>
     <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">Personalizar loja</Link> <span className="text-slate-400">›</span> <Link href="/painel/site/temas" className="font-medium text-brand hover:underline">Escolher tema</Link></nav>
     {query.restaurado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Versão trazida de volta como rascunho. Confira a prévia e publique quando estiver pronta; a loja ainda não mudou.</p>}
@@ -43,6 +45,13 @@ export default async function EditThemePage({ params, searchParams }: { params: 
       <form action={upgradeThemeAction}><input type="hidden" name="installationId" value={result.installation.id} /><button className="button" type="submit">Atualizar para a versão {upgrade.version}</button></form>
     </section>}
     {query.erro && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">{query.erro}</p>}
+    {query.guardado && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Rascunho guardado. Ele fica em Personalizar loja › Rascunhos guardados até você publicar ou descartar.</p>}
+    {!live && <section className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-surface p-4 text-sm">
+      <p className="min-w-0 text-slate-700">{listed?.savedAt ? 'Rascunho guardado: ele continua na lista mesmo se você abrir outro tema.' : 'Este tema é um teste: as mudanças são salvas sozinhas, mas se você abrir outro tema sem guardar, este rascunho é descartado.'}</p>
+      {listed?.savedAt
+        ? <form action={discardThemeDraftAction}><input type="hidden" name="installationId" value={result.installation.id} /><input type="hidden" name="back" value="site" /><button className="button-ghost text-red-700" type="submit">Descartar rascunho</button></form>
+        : <form action={keepThemeDraftAction}><input type="hidden" name="installationId" value={result.installation.id} /><button className="button-ghost" type="submit">Guardar este rascunho</button></form>}
+    </section>}
     <div className="mt-4">
       <ThemeDraftEditor key={query.restaurado ?? 'editor'} installationId={result.installation.id} initialRevision={result.draft.revision} initialDocument={result.draft.document} manifest={result.installation.release.manifest} publishEnabled={status?.publishEnabled ?? false} links={links} published={latest.publication ? { version: latest.publication.version, document: latest.publication.document } : null} />
     </div>

@@ -131,7 +131,8 @@ function ColorRow({ label, value, fallback, onChange, onReset }: { label: string
   </div>;
 }
 
-export function StorefrontBuilder({ state, hasBanners, institutional }: { state: StorefrontState; hasBanners: boolean; institutional: { slug: string; title: string }[] }) {
+/** `brandOnly`: com o tema no editor novo, aqui ficam só logo e favicon (o resto da loja é editado no tema). */
+export function StorefrontBuilder({ state, hasBanners, institutional, brandOnly = false }: { state: StorefrontState; hasBanners: boolean; institutional: { slug: string; title: string }[]; brandOnly?: boolean }) {
   const router = useRouter();
   const base = useMemo<StorefrontConfig>(() => state.draft ?? state.published ?? {}, [state.draft, state.published]);
   const [doc, setDoc] = useState<Doc>(() => ({
@@ -139,7 +140,7 @@ export function StorefrontBuilder({ state, hasBanners, institutional }: { state:
     pages: { category: (base.pages?.category?.sections ?? []).map(hydrate), product: (base.pages?.product?.sections ?? []).map(hydrate) },
     design: base.design ?? {}, accentColor: accentOf(base), announcementText: base.announcementText ?? '',
   }));
-  const [page, setPage] = useState<PageId>('home');
+  const [page, setPage] = useState<PageId>(brandOnly ? 'brand' : 'home');
   const [open, setOpen] = useState<string | null>(null);
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [view, setView] = useState<'edit' | 'preview'>('edit');
@@ -231,19 +232,19 @@ export function StorefrontBuilder({ state, hasBanners, institutional }: { state:
         <p role="status" aria-live="polite" className={'inline-flex items-center gap-1.5 text-xs font-medium ' + (problem ? 'text-red-700' : status === 'saved' ? 'text-emerald-700' : 'text-slate-500')}>{status === 'saving' && <span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-brand" />}{statusText[status]}</p>
       </div>
       <div className="flex w-full items-center gap-2 sm:w-auto">
-        <div role="group" aria-label="Mostrar" className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 xl:hidden">{(['edit', 'preview'] as const).map(v => <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)} className={'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium ' + (view === v ? 'bg-surface text-brand shadow-sm' : 'text-slate-500')}><Svg d={v === 'edit' ? 'pencil' : 'eye'} size={14} />{v === 'edit' ? 'Editar' : 'Prévia'}</button>)}</div>
-        <a href={PREVIEW_PATH[page]} target="_blank" rel="noopener" aria-label="Pré-visualizar em nova aba" className="button-ghost gap-1.5 !px-3 !py-2 text-sm"><Svg d="external" size={15} /><span className="hidden sm:inline">Pré-visualizar</span></a>
+        {!brandOnly && <div role="group" aria-label="Mostrar" className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 xl:hidden">{(['edit', 'preview'] as const).map(v => <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)} className={'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium ' + (view === v ? 'bg-surface text-brand shadow-sm' : 'text-slate-500')}><Svg d={v === 'edit' ? 'pencil' : 'eye'} size={14} />{v === 'edit' ? 'Editar' : 'Prévia'}</button>)}</div>}
+        {!brandOnly && <a href={PREVIEW_PATH[page]} target="_blank" rel="noopener" aria-label="Pré-visualizar em nova aba" className="button-ghost gap-1.5 !px-3 !py-2 text-sm"><Svg d="external" size={15} /><span className="hidden sm:inline">Pré-visualizar</span></a>}
         <button type="button" className="button ml-auto gap-1.5 !px-4 !py-2 text-sm disabled:opacity-60" disabled={status === 'saving' || status === 'conflict'} onClick={() => void publish()}>Publicar</button>
       </div>
       {message && <p role={status === 'saved' ? 'status' : 'alert'} className={'w-full rounded-lg px-3 py-2 text-sm ' + (status === 'saved' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700')}>{message}{status === 'conflict' && <> <button type="button" className="font-semibold underline" onClick={() => router.refresh()}>Recarregar</button></>}</p>}
     </div>
 
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+    <div className={'grid gap-6 ' + (brandOnly ? '' : 'xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]')}>
       <div className={'min-w-0 content-start gap-4 ' + (view === 'preview' ? 'hidden xl:grid' : 'grid')}>
-        <nav aria-label="O que personalizar" className="card p-1.5">
+        {!brandOnly && <><nav aria-label="O que personalizar" className="card p-1.5">
           <ul className="grid grid-cols-5 gap-1">{PAGES.map(id => <li key={id} className="min-w-0"><button type="button" aria-current={page === id ? 'page' : undefined} title={PAGE_LABEL[id]} onClick={() => { setPage(id); setOpen(null); }} className={'flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold transition sm:text-xs ' + (page === id ? 'bg-violet-50 text-brand' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Svg d={PAGE_ICON[id]} size={18} /><span className="max-w-full truncate">{PAGE_TAB[id]}</span></button></li>)}</ul>
         </nav>
-        <div className="px-1"><h2 className="text-xl font-bold">{PAGE_LABEL[page]}</h2><p className="mt-1 text-sm text-slate-500">{PAGE_HELP[page]}</p></div>
+        <div className="px-1"><h2 className="text-xl font-bold">{PAGE_LABEL[page]}</h2><p className="mt-1 text-sm text-slate-500">{PAGE_HELP[page]}</p></div></>}
 
         {editable && <section className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3" aria-label={`Seções da ${PAGE_LABEL[page].toLowerCase()}`}>
           <ol className="grid grid-cols-[minmax(0,1fr)] gap-2">{sections.map((section, index) => {
@@ -331,7 +332,7 @@ export function StorefrontBuilder({ state, hasBanners, institutional }: { state:
           </Card>
         </div>}
 
-        {page === 'brand' && <div className="grid gap-4">
+        {page === 'brand' && <div className={'grid gap-4 ' + (brandOnly ? 'md:grid-cols-2' : '')}>
           <Card title="Logo" help="Aparece no topo da loja. Prefira PNG ou SVG com fundo transparente.">
             {doc.design.logoUrl ? <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><img src={doc.design.logoUrl} alt="Logo atual" className="max-h-12 max-w-40 object-contain" /><button type="button" className="ml-auto text-sm text-slate-500 underline hover:text-red-700" onClick={() => setDesign({ logoUrl: null })}>Remover</button></div>
               : <p className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">Sem logo: a loja mostra o nome em texto.</p>}
@@ -341,14 +342,14 @@ export function StorefrontBuilder({ state, hasBanners, institutional }: { state:
             {doc.design.faviconUrl && <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><span className="flex items-center gap-2 rounded-t-lg bg-surface px-3 py-1.5 text-xs shadow-sm"><img src={doc.design.faviconUrl} alt="Favicon atual" className="h-4 w-4 object-contain" />Sua loja</span><button type="button" className="ml-auto text-sm text-slate-500 underline hover:text-red-700" onClick={() => setDesign({ faviconUrl: null })}>Remover</button></div>}
             <ImageUploader kind="other" label="Enviar favicon (quadrado, 64 × 64 px ou maior)" onUploaded={urls => setDesign({ faviconUrl: urls[0] })} />
           </Card>
-          <Card title="Faixa de aviso" help="Fica no topo de todas as páginas. O frete grátis aparece ali sozinho, a partir das suas regras de frete; use este campo para outro recado.">
+          {!brandOnly && <Card title="Faixa de aviso" help="Fica no topo de todas as páginas. O frete grátis aparece ali sozinho, a partir das suas regras de frete; use este campo para outro recado.">
             <label className="text-sm font-medium">Mensagem no topo da loja<input className="input" maxLength={100} placeholder="Troca fácil em até 30 dias" value={doc.announcementText} onChange={e => update({ announcementText: e.currentTarget.value })} /></label>
             {doc.announcementText && <p aria-hidden className="truncate rounded-lg px-3 py-2 text-center text-xs font-semibold" style={{ backgroundColor: doc.accentColor, color: accentFg }}>{doc.announcementText}</p>}
-          </Card>
+          </Card>}
         </div>}
       </div>
 
-      <section className={'min-w-0 xl:sticky xl:top-[9.5rem] xl:self-start ' + (view === 'edit' ? 'hidden xl:block' : 'block')} aria-label="Prévia">
+      {!brandOnly && <section className={'min-w-0 xl:sticky xl:top-[9.5rem] xl:self-start ' + (view === 'edit' ? 'hidden xl:block' : 'block')} aria-label="Prévia">
         <div className="card overflow-hidden p-0">
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-3 py-2">
             <span aria-hidden className="hidden gap-1.5 sm:flex"><span className="h-2.5 w-2.5 rounded-full bg-red-400" /><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /></span>
@@ -363,7 +364,7 @@ export function StorefrontBuilder({ state, hasBanners, institutional }: { state:
           </div>
         </div>
         <p className="mt-2 px-1 text-xs text-slate-500">A prévia atualiza depois de cada salvamento automático. Ela mostra o rascunho; os clientes só veem o que foi publicado.</p>
-      </section>
+      </section>}
     </div>
   </div>;
 }
