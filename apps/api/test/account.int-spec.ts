@@ -99,6 +99,20 @@ describe('área do cliente', () => {
     expect(log.subject).not.toContain(code);
   });
 
+  it('tentativas em paralelo não passam do limite de 5 por código', async () => {
+    const { store, product } = await createStore(5);
+    await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }]) });
+    sent.length = 0;
+    await api('/account/login/request', { method: 'POST', body: { storeSlug: store.slug, email: 'maria@example.com' } });
+    const code = codeFor('maria@example.com')!;
+    const wrong = code === '000000' ? '111111' : '000000';
+    const burst = await Promise.all(Array.from({ length: 20 }, () => api('/account/login/verify', { method: 'POST', body: { storeSlug: store.slug, email: 'maria@example.com', code: wrong } })));
+    expect(burst.every(r => r.status === 400)).toBe(true);
+    const row = await prisma.customerLoginCode.findFirstOrThrow({ where: { storeId: store.id, email: 'maria@example.com' }, orderBy: { createdAt: 'desc' } });
+    expect(row.attempts).toBe(5);
+    expect((await api('/account/login/verify', { method: 'POST', body: { storeSlug: store.slug, email: 'maria@example.com', code } })).status).toBe(400);
+  });
+
   it('código usado não vale de novo e sessão de uma loja não abre outra', async () => {
     const a = await createStore(5);
     const b = await createStore(5);
