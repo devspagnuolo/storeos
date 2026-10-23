@@ -48,11 +48,10 @@ export class AccountService {
     const store = await this.prisma.store.findUnique({ where: { slug: storeSlug }, select: { id: true } });
     if (!store) throw invalid;
     const pending = await this.prisma.customerLoginCode.findFirst({ where: { storeId: store.id, email, usedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
-    if (!pending || pending.attempts >= CODE_MAX_ATTEMPTS) throw invalid;
-    if (pending.codeHash !== hashLoginCode(email, code)) {
-      await this.prisma.customerLoginCode.update({ where: { id: pending.id }, data: { attempts: { increment: 1 } } });
-      throw invalid;
-    }
+    if (!pending) throw invalid;
+    // A tentativa é contada antes de comparar e só se ainda houver saldo: requisições em paralelo não passam do limite.
+    const attempt = await this.prisma.customerLoginCode.updateMany({ where: { id: pending.id, usedAt: null, attempts: { lt: CODE_MAX_ATTEMPTS } }, data: { attempts: { increment: 1 } } });
+    if (!attempt.count || pending.codeHash !== hashLoginCode(email, code)) throw invalid;
     // Marca como usado só se ninguém usou antes (duas abas com o mesmo código).
     const claimed = await this.prisma.customerLoginCode.updateMany({ where: { id: pending.id, usedAt: null }, data: { usedAt: new Date() } });
     if (!claimed.count) throw invalid;
