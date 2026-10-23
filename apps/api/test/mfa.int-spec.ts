@@ -27,7 +27,9 @@ describe('verificação em duas etapas e sessões', () => {
     expect(setup.body.otpauthUrl).toContain('otpauth://totp/');
     expect((await api('/auth/mfa/enable', { method: 'POST', token, body: { code: '000000' } })).status).toBe(400);
     // O passo atual é consumido na ativação; o login usa o próximo passo válido.
-    const enabled = await api('/auth/mfa/enable', { method: 'POST', token, body: { code: totpAt(setup.body.secret, currentStep()) } });
+    // Guardado uma vez: se a virada dos 30 s cair no meio do teste, o replay continua sendo do mesmo passo.
+    const step = currentStep();
+    const enabled = await api('/auth/mfa/enable', { method: 'POST', token, body: { code: totpAt(setup.body.secret, step) } });
     expect(enabled.status).toBe(200);
     expect(enabled.body.recoveryCodes).toHaveLength(8);
     expect((await api('/auth/mfa', { token })).body).toEqual({ enabled: true, recoveryCodesLeft: 8 });
@@ -37,8 +39,8 @@ describe('verificação em duas etapas e sessões', () => {
     expect(missing.body.code).toBe('MFA_REQUIRED');
     expect((await api('/auth/login', { method: 'POST', body: { ...body, code: '123456' } })).body.code).toBe('MFA_INVALID');
     // Replay do mesmo passo usado na ativação é recusado.
-    expect((await api('/auth/login', { method: 'POST', body: { ...body, code: totpAt(setup.body.secret, currentStep()) } })).status).toBe(401);
-    const ok = await api('/auth/login', { method: 'POST', body: { ...body, code: totpAt(setup.body.secret, currentStep() + 1) } });
+    expect((await api('/auth/login', { method: 'POST', body: { ...body, code: totpAt(setup.body.secret, step) } })).status).toBe(401);
+    const ok = await api('/auth/login', { method: 'POST', body: { ...body, code: totpAt(setup.body.secret, step + 1) } });
     expect(ok.status).toBe(200);
 
     const recovery = enabled.body.recoveryCodes[0] as string;
