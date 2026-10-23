@@ -9,6 +9,8 @@ import { TrackView } from '../../../components/track-view';
 import { resolveSiteUrl } from '../../../lib/store-host';
 import { HomeSections } from '../../../components/storefront/home-sections';
 import { getProduct, getReviews, getStore } from '../../../lib/api';
+import { ProductShipping } from '../../../components/product-shipping';
+import { freeInstallmentOffer, getPaymentConfig } from '../../../lib/payment';
 import { formatPrice } from '../../../lib/format';
 import { activeEngineDocument, showsClassicPageSections, engineFlag, engineSection, engineText } from '../../../lib/theme-engine';
 
@@ -30,6 +32,9 @@ export default async function ProductPage({ params }: Props) {
   // Tema avançado: só opções de apresentação. Preço, estoque, opções e compra nunca mudam por tema.
   const detail = engineSection(engine, 'product', 'storeos.product-detail.v1');
   if (!product) notFound();
+  const payment = await getPaymentConfig(store.slug);
+  const offer = freeInstallmentOffer(Number(product.price), payment.card);
+  const methods = ['PIX', ...(payment.card ? ['cartão'] : []), ...(payment.boleto ? ['boleto'] : [])];
   const image = product.images?.find(i => !i.color) ?? product.images?.[0];
   // Primeira foto de cada cor, para o carrinho mostrar a cor escolhida.
   const colorImages = Object.fromEntries((product.images ?? []).filter(i => i.color).reverse().map(i => [i.color!.toLowerCase(), i.url]));
@@ -47,7 +52,7 @@ export default async function ProductPage({ params }: Props) {
       <Header />
       <TrackView id={product.id} name={product.name} price={Number(product.price)} />
       <main className="shell py-10">
-        <nav className="mb-6 text-sm text-slate-500"><Link href="/categorias">Produtos</Link>{product.categories[0] && <> / <Link href={`/categorias/${product.categories[0].slug}`}>{product.categories[0].name}</Link></>}</nav>
+        <nav aria-label="Navegação" className="mb-6 text-sm text-slate-500"><Link href="/">Início</Link> / <Link href="/categorias">Produtos</Link>{product.categories[0] && <> / <Link href={`/categorias/${product.categories[0].slug}`}>{product.categories[0].name}</Link></>}</nav>
         <div className="grid gap-10 md:grid-cols-2">
           <ProductGallery images={product.images ?? []} name={product.name} />
           <div>
@@ -55,9 +60,12 @@ export default async function ProductPage({ params }: Props) {
             <h1 className="text-3xl font-bold">{product.name}</h1>
             {reviews.summary.count > 0 && <a href="#avaliacoes" className="mt-1 flex items-center gap-2 text-sm"><Stars value={reviews.summary.average} /><span className="text-slate-500">{reviews.summary.average.toFixed(1).replace('.', ',')} ({reviews.summary.count})</span></a>}
             <p className="mt-4 text-3xl font-black">{formatPrice(product.price)}</p>
-            <p className="mt-1 text-sm text-slate-500">ou no PIX, com confirmação rápida</p>
+            {offer
+              ? <p className="mt-1 text-sm text-slate-600">em até <b>{offer.installments}x de {formatPrice(offer.amount)} sem juros</b> no cartão</p>
+              : <p className="mt-1 text-sm text-slate-500">Pague com {methods.length > 1 ? `${methods.slice(0, -1).join(', ')} ou ${methods.at(-1)}` : methods[0]}</p>}
             {product.description && engineFlag(detail?.showDescription, true) && <p className="mt-6 leading-relaxed text-slate-700">{product.description}</p>}
             <AddToCart product={{ id: product.id, slug: product.slug, name: product.name, price: product.price, image: image?.url }} available={product.available} variants={product.variants ?? []} buttonLabel={engineText(detail?.buttonLabel) || undefined} colorImages={colorImages} />
+            {product.available > 0 && <ProductShipping product={{ id: product.id, slug: product.slug, name: product.name, price: product.price }} />}
             {engineFlag(detail?.showSku, true) && <p className="mt-8 text-xs text-slate-400">SKU {product.sku}</p>}
           </div>
         </div>

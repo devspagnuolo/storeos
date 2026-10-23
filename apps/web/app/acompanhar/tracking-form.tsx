@@ -4,13 +4,13 @@ import { trackOrderAction, type TrackState } from './actions';
 
 const date = (value: string | null) => value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
 
-export function TrackingForm() {
+export function TrackingForm({ initialNumber }: { initialNumber?: string }) {
   const [state, action, pending] = useActionState<TrackState, FormData>(trackOrderAction, {});
   const order = state.order;
   return <>
     <form action={action} className="mt-6 grid gap-4 sm:grid-cols-2">
-      <label className="text-sm font-medium">Número do pedido<input name="number" required defaultValue={state.number} className="input mt-1" autoComplete="off" /></label>
-      <label className="text-sm font-medium">E-mail da compra<input name="email" type="email" required defaultValue={state.email} className="input mt-1" autoComplete="email" /></label>
+      <label className="text-sm font-medium">Número do pedido<input name="number" required defaultValue={state.number ?? initialNumber} className="input mt-1" autoComplete="off" /></label>
+      <label className="text-sm font-medium">E-mail da compra<input name="email" type="email" required defaultValue={state.email} className="input mt-1" autoComplete="email" autoFocus={Boolean(initialNumber)} /></label>
       <div className="sm:col-span-2"><button disabled={pending} className="button">{pending ? 'Consultando…' : 'Acompanhar pedido'}</button></div>
     </form>
     {state.error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{state.error}</p>}

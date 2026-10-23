@@ -67,6 +67,19 @@ export function loadMercadoPago(publicKey: string): Promise<MercadoPagoSdk> {
   return sdkLoading.then(() => new window.MercadoPago!(publicKey, { locale: 'pt-BR' }));
 }
 
+/**
+ * Maior parcelamento sem juros que a regra da loja permite para este preço (a mesma regra que o servidor valida).
+ * É só a vitrine: o checkout continua usando a oferta real do Mercado Pago.
+ */
+export function freeInstallmentOffer(price: number, card: PaymentConfig['card']): { installments: number; amount: number } | null {
+  if (!card || !(price > 0)) return null;
+  for (let n = Math.min(card.maxFreeInstallments, card.maxInstallments); n > 1; n--) {
+    const amount = Math.floor((price * 100) / n) / 100;
+    if (isEligibleFreeInstallment(n, amount, card.maxFreeInstallments, card.minFreeInstallment)) return { installments: n, amount };
+  }
+  return null;
+}
+
 /** Filtra a oferta real do Mercado Pago: nunca inventa quantidade/preço que o gateway não retornou. */
 export function isEligibleFreeInstallment(installments: number, installmentAmount: number, maxFree: number, minimum: number) {
   if (installments <= 1) return true;

@@ -18,7 +18,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { slug } = await params;
   const page = Math.max(Number((await searchParams).page) || 1, 1);
   const category = (await getCategories()).find(c => c.slug === slug);
-  return { alternates: { canonical: page > 1 ? `/categorias/${slug}?page=${page}` : `/categorias/${slug}` }, title: category ? `${category.name}` : 'Categoria', description: category?.description ?? undefined };
+  return { alternates: { canonical: page > 1 ? `/categorias/${slug}?page=${page}` : `/categorias/${slug}` }, title: category ? `${category.name}` : 'Categoria', description: category?.description ?? undefined, openGraph: { title: category?.name ?? 'Categoria', description: category?.description ?? undefined, type: 'website', locale: 'pt_BR' } };
 }
 
 export default async function CategoryPage({ params, searchParams }: Props) {

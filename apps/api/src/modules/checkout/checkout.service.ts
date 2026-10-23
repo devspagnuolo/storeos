@@ -162,7 +162,7 @@ export class CheckoutService {
       // A regra de parcelas vale no servidor, não só na tela: confere o pedido final com a oferta real do Mercado Pago para este cartão.
       const problem = installmentProblem(card.installments, Number(order.total), await this.offersFor(card, bin, Number(order.total)), storeInstallmentLimits(store.paymentRules));
       if (problem) {
-        await this.lifecycle.cancel({ orderId: order.id }, { message: 'Parcelamento recusado pela regra da loja', paymentStatus: PaymentStatus.CANCELLED });
+        await this.lifecycle.cancel({ orderId: order.id }, { message: 'Parcelamento recusado pela regra da loja', paymentStatus: PaymentStatus.CANCELLED, atCheckout: true });
         throw new BadRequestException(problem);
       }
     }
@@ -171,13 +171,13 @@ export class CheckoutService {
     } catch (error) {
       // Sem cobrança não há como pagar: cancela o pedido e devolve o estoque reservado.
       this.logger.error(`Falha ao gerar cobrança do pedido ${order.number}: ${(error as Error).message}`);
-      await this.lifecycle.cancel({ orderId: order.id }, { message: 'Falha ao gerar a cobrança', paymentStatus: PaymentStatus.FAILED });
+      await this.lifecycle.cancel({ orderId: order.id }, { message: 'Falha ao gerar a cobrança', paymentStatus: PaymentStatus.FAILED, atCheckout: true });
       throw new BadGatewayException('Não foi possível gerar o pagamento agora. Tente novamente em instantes.');
     }
     if (isCard && (charge.status === PaymentStatus.FAILED || charge.status === PaymentStatus.CANCELLED)) {
       // Cartão recusado na hora: libera o estoque e deixa o cliente tentar de novo com outro cartão.
       await this.prisma.payment.update({ where: { id: payment.id }, data: { provider: charge.provider, transactionId: charge.transactionId, status: charge.status } });
-      await this.lifecycle.cancel({ orderId: order.id }, { message: `Cartão recusado (${charge.declineDetail ?? 'sem detalhe'})`, paymentStatus: charge.status });
+      await this.lifecycle.cancel({ orderId: order.id }, { message: `Cartão recusado (${charge.declineDetail ?? 'sem detalhe'})`, paymentStatus: charge.status, atCheckout: true });
       throw new HttpException(declineMessage(charge.declineDetail), HttpStatus.PAYMENT_REQUIRED);
     }
     await this.prisma.payment.update({ where: { id: payment.id }, data: { provider: charge.provider, transactionId: charge.transactionId, status: charge.status, instructions: charge.instructions } });

@@ -50,8 +50,12 @@ export class OrderLifecycleService {
     });
   }
 
-  /** Cancela um pedido ainda não pago e devolve a reserva ao estoque disponível. */
-  async cancel(ref: OrderRef, source: { actorId?: string; message?: string; paymentStatus?: PaymentStatus } = {}) {
+  /**
+   * Cancela um pedido ainda não pago e devolve a reserva ao estoque disponível.
+   * `atCheckout`: a cobrança falhou ainda na tela do checkout (cartão recusado, gateway fora). O cliente já vê o erro e tenta de novo,
+   * então os e-mails de "pedido recebido" e "pedido cancelado" deste pedido não são enviados.
+   */
+  async cancel(ref: OrderRef, source: { actorId?: string; message?: string; paymentStatus?: PaymentStatus; atCheckout?: boolean } = {}) {
     return this.prisma.$transaction(async tx => {
       const order = await this.find(tx, ref);
       const moved = await tx.order.updateMany({ where: { id: order.id, status: { in: [OrderStatus.NEW, OrderStatus.AWAITING_PAYMENT] } }, data: { status: OrderStatus.CANCELLED } });
@@ -75,7 +79,7 @@ export class OrderLifecycleService {
       }
       await tx.payment.updateMany({ where: { orderId: order.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } }, data: { status: source.paymentStatus ?? PaymentStatus.CANCELLED } });
       await tx.orderTimeline.create({ data: { orderId: order.id, status: OrderStatus.CANCELLED, message: source.message ?? 'Pedido cancelado', actorId: source.actorId } });
-      await tx.outboxEvent.create({ data: { storeId: order.storeId, aggregateType: 'Order', aggregateId: order.id, eventName: 'orders.order-cancelled.v1', payload: { orderNumber: order.number } } });
+      await tx.outboxEvent.create({ data: { storeId: order.storeId, aggregateType: 'Order', aggregateId: order.id, eventName: 'orders.order-cancelled.v1', payload: { orderNumber: order.number, ...(source.atCheckout && { atCheckout: true }) } } });
       return true;
     });
   }
