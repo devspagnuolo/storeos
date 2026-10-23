@@ -62,6 +62,22 @@ export class ThemeEngineController {
     return this.themes.fromStorefront(storeId, req.user.sub);
   }
 
+  /** Deixa a loja no editor novo: sem tema no ar, publica a conversão do editor clássico. Sem efeito quando já há tema no ar. */
+  @Post('current')
+  ensureCurrent(@CurrentStore() storeId: string, @Req() req: { user: { sub: string } }) {
+    return this.themes.ensureCurrent(storeId, req.user.sub);
+  }
+
+  @Post('installations/:installationId/keep')
+  keep(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
+    return this.themes.keepDraft(storeId, installationId);
+  }
+
+  @Post('installations/:installationId/discard')
+  discard(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
+    return this.themes.discardDraft(storeId, installationId);
+  }
+
   @Get('installations/:installationId/draft')
   getDraft(@CurrentStore() storeId: string, @Param('installationId') installationId: string) {
     return this.themes.getDraft(storeId, installationId);

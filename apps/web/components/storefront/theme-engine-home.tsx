@@ -7,6 +7,9 @@ import { getCategories, getProducts, type StoreInfo } from '../../lib/api';
 import { gridColumns, visibilityClass } from '../../lib/responsive-grid';
 import { productSource, videoEmbedUrl } from '../../lib/engine-media';
 import { EngineCarousel } from './engine-carousel';
+import { BannerCarousel } from '../banner-carousel';
+import { HomeSections } from './home-sections';
+import { CLASSIC_LOOK_PACKAGE, classicPiece } from '../../lib/classic-look';
 
 type PublishedTheme = {
   document: ThemeDocument;
@@ -36,9 +39,13 @@ export async function ThemeEngineHome({ theme, store }: { theme: PublishedTheme;
   const fontToken = theme.document.global.designTokens.typography?.fontFamily;
   const fontFamily = fontToken === 'serif' ? 'Georgia, serif' : fontToken === 'sans-serif' ? 'Arial, sans-serif' : 'system-ui, sans-serif';
 
-  return <div style={{ backgroundColor: background, color: foreground, fontFamily }}>
+  // "Minha loja" mantém o desenho do editor clássico (cores e fontes vêm da página, como antes).
+  const classic = theme.release.manifest.slug === CLASSIC_LOOK_PACKAGE;
+
+  return <div style={classic ? undefined : { backgroundColor: background, color: foreground, fontFamily }}>
     {sections.map(section => {
-      const content = <ThemeHomeSection key={section.id} section={section} store={store} products={products} categories={categories} primary={primary} globalSettings={theme.document.global.settings} />;
+      const piece = classic ? classicPiece(section) : null;
+      const content = piece ? (piece.kind === 'banners' ? (piece.slides.length ? <BannerCarousel key={section.id} slides={piece.slides} /> : null) : <HomeSections key={section.id} sections={[piece.section]} />) : <ThemeHomeSection key={section.id} section={section} store={store} products={products} categories={categories} primary={primary} globalSettings={theme.document.global.settings} />;
       const visibility = visibilityClass(section.settings.visibility);
       return visibility ? <div key={section.id} className={visibility}>{content}</div> : content;
     })}

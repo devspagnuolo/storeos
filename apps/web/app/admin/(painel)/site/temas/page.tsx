@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { convertStorefrontAction, deactivateThemeAction, installThemeAction, upgradeThemeAction } from '../../../actions';
+import { convertStorefrontAction, discardThemeDraftAction, installThemeAction, upgradeThemeAction } from '../../../actions';
 import { ReadyThemeGallery, type ReadyThemeCard } from '../../../../../components/admin/ready-themes';
 import { adminFetch } from '../../../../../lib/admin/session';
 import type { ThemeStatus } from '../../../../../lib/admin/storefront';
@@ -16,7 +16,7 @@ type ThemeRelease = {
   };
   package: { key: string; name: string; description: string | null };
 };
-type ThemeInstallation = { id: string; releaseId: string; status: string; installedAt: string; release: ThemeRelease; drafts: { revision: number; updatedAt: string }[]; upgrade?: { releaseId: string; version: string } | null };
+type ThemeInstallation = { id: string; releaseId: string; status: string; installedAt: string; release: ThemeRelease; drafts: { revision: number; updatedAt: string }[]; savedAt?: string | null; upgrade?: { releaseId: string; version: string } | null };
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const FONT_SAMPLES: Record<string, { label: string; family: string }> = { serif: { label: 'Serifada', family: 'Georgia, serif' }, 'sans-serif': { label: 'Sem serifa', family: 'Arial, sans-serif' }, system: { label: 'Padrão', family: 'system-ui, sans-serif' } };
@@ -34,7 +34,7 @@ function ThemeSwatch({ theme }: { theme: ThemeRelease }) {
   </div>;
 }
 
-export default async function ThemesPage({ searchParams }: { searchParams: Promise<{ instalado?: string; erro?: string }> }) {
+export default async function ThemesPage({ searchParams }: { searchParams: Promise<{ instalado?: string; erro?: string; descartado?: string }> }) {
   const [ready, library, installations, status, params] = await Promise.all([
     adminFetch<ReadyThemeCard[]>('/store/storefront/themes'),
     adminFetch<ThemeRelease[]>('/themes/library'),
@@ -50,14 +50,15 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
   return <>
     <nav aria-label="Caminho" className="text-sm"><Link href="/painel/site" className="font-medium text-brand hover:underline">← Personalizar loja</Link></nav>
     <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-3xl font-bold">Escolher tema</h1><p className="mt-2 max-w-3xl text-slate-600">Escolha um ponto de partida para a identidade da sua loja. O tema entra como rascunho: a loja que os clientes veem só muda quando você publicar.</p></div>
+      <div><h1 className="text-3xl font-bold">Escolher tema</h1><p className="mt-2 max-w-3xl text-slate-600">Escolha um ponto de partida para a identidade da sua loja. O tema entra como rascunho: a loja que os clientes veem só muda quando você publicar. Rascunhos que você não guardar são descartados quando abre outro tema.</p></div>
       <Link href="/painel/site" className="button">Continuar editando a loja</Link>
     </div>
 
-    {params.instalado && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema instalado como rascunho. Sua loja publicada não mudou; clique em “Continuar editando” para montar o tema.</p>}
+    {params.instalado && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Tema instalado como rascunho. Sua loja publicada não mudou; clique em “Continuar editando” para montar o tema. Para não perder o rascunho ao abrir outro tema, use “Guardar este rascunho” no editor.</p>}
+    {params.descartado && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Rascunho descartado. A loja não mudou.</p>}
     {params.erro && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{params.erro}</p>}
 
-    {unified ? <section className="mt-8 rounded-2xl border bg-surface p-5">
+    {unified ? !status?.active?.live && <section className="mt-8 rounded-2xl border bg-surface p-5">
       <h2 className="text-xl font-bold">Sua loja atual no editor novo</h2>
       <p className="mt-1 max-w-3xl text-sm text-slate-600">Todos os temas agora usam o mesmo editor. Traga para ele as cores, os banners e as seções que você já montou: vira um rascunho do tema “Minha loja”, e a loja só muda quando você publicar.{currentStore ? ' Fazer de novo substitui o rascunho anterior dessa conversão.' : ''}</p>
       <form action={convertStorefrontAction} className="mt-4"><button className="button" type="submit">{currentStore ? 'Trazer a loja atual de novo' : 'Trazer minha loja atual'}</button></form>
@@ -99,7 +100,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
       <h2 className="text-xl font-bold">Instalados nesta loja</h2>
       {installations.length ? <div className="mt-4 grid gap-3">{installations.map(item => <article key={item.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border bg-surface p-4">
         <div><h3 className="font-semibold">{item.release.manifest.displayName}</h3><p className="mt-1 text-sm text-slate-500">Versão {item.release.version} · instalado em {new Date(item.installedAt).toLocaleDateString('pt-BR')} · rascunho {item.drafts[0]?.revision ?? '—'}</p></div>
-        <div className="flex flex-wrap items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.status === 'ACTIVE' && status?.active?.live ? 'No ar' : 'Rascunho'}</span><Link className="button-ghost" href={'/painel/site/temas/' + item.id}>Continuar editando</Link>{item.upgrade && <form action={upgradeThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button" type="submit" title="Cria um rascunho na versão nova com suas cores, textos e seções; nada é publicado">Atualizar para a versão {item.upgrade.version}</button></form>}{item.status === 'ACTIVE' && <form action={deactivateThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button-ghost" type="submit">Desativar e voltar ao editor</button></form>}</div>
+        <div className="flex flex-wrap items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.status === 'ACTIVE' && status?.active?.live ? 'No ar' : item.savedAt ? 'Rascunho guardado' : 'Rascunho (descartado ao abrir outro tema)'}</span><Link className="button-ghost" href={'/painel/site/temas/' + item.id}>Continuar editando</Link>{item.upgrade && <form action={upgradeThemeAction}><input type="hidden" name="installationId" value={item.id} /><button className="button" type="submit" title="Cria um rascunho na versão nova com suas cores, textos e seções; nada é publicado">Atualizar para a versão {item.upgrade.version}</button></form>}{item.status !== 'ACTIVE' && <form action={discardThemeDraftAction}><input type="hidden" name="installationId" value={item.id} /><button className="button-ghost text-red-700" type="submit">Descartar</button></form>}</div>
       </article>)}</div> : <p className="mt-3 rounded-xl border border-dashed p-6 text-sm text-slate-500">Você ainda não instalou um tema.</p>}
     </section>
   </>;

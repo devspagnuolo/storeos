@@ -1291,6 +1291,34 @@ export async function validateThemeDraftAction(installationId: string): Promise<
   }
 }
 
+/** Guarda o rascunho do tema na lista: ele deixa de ser descartado quando outro tema é aberto. */
+export async function keepThemeDraftAction(form: FormData): Promise<void> {
+  const installationId = String(form.get('installationId') ?? '').trim();
+  if (!/^[a-zA-Z0-9_-]{1,96}$/.test(installationId)) redirect('/admin/site/temas?erro=Tema+inv%C3%A1lido.');
+  const back = `/admin/site/temas/${encodeURIComponent(installationId)}`;
+  try {
+    await adminFetch(`/themes/installations/${encodeURIComponent(installationId)}/keep`, { method: 'POST' });
+  } catch (error) {
+    redirect(`${back}?erro=${encodeURIComponent(error instanceof ApiError ? error.message : 'Não foi possível guardar o rascunho.')}`);
+  }
+  revalidatePath('/admin/site');
+  redirect(`${back}?guardado=1`);
+}
+
+/** Descarta o rascunho de um tema fora do ar (fica arquivado, não é apagado). */
+export async function discardThemeDraftAction(form: FormData): Promise<void> {
+  const installationId = String(form.get('installationId') ?? '').trim();
+  const back = String(form.get('back') ?? '') === 'site' ? '/admin/site' : '/admin/site/temas';
+  if (!/^[a-zA-Z0-9_-]{1,96}$/.test(installationId)) redirect(`${back}?erro=Tema+inv%C3%A1lido.`);
+  try {
+    await adminFetch(`/themes/installations/${encodeURIComponent(installationId)}/discard`, { method: 'POST' });
+  } catch (error) {
+    redirect(`${back}?erro=${encodeURIComponent(error instanceof ApiError ? error.message : 'Não foi possível descartar o rascunho.')}`);
+  }
+  revalidatePath('/admin/site', 'layout');
+  redirect(back === '/admin/site' ? '/admin/site?salvo=descartado' : '/admin/site/temas?descartado=1');
+}
+
 /** Traz uma versão publicada de volta como rascunho do mesmo tema; nunca publica. */
 export async function restoreThemePublicationAction(form: FormData): Promise<void> {
   const publicationId = String(form.get('publicationId') ?? '').trim();

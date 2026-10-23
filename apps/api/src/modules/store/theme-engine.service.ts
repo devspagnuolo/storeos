@@ -103,6 +103,18 @@ export function settingsIssues(document: unknown, manifest: ThemeReleaseManifest
 export class ThemeEngineService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Tira da lista os rascunhos de temas fora do ar que a lojista não pediu para guardar. Nada é apagado: a instalação
+   * fica REMOVED e o rascunho ARCHIVED; reinstalar o tema ou trazer uma publicação de volta reabre.
+   */
+  private async discardUnsaved(tx: Prisma.TransactionClient, storeId: string, keepId: string) {
+    const stale = await tx.themeInstallation.findMany({ where: { storeId, status: 'INACTIVE', savedAt: null, id: { not: keepId } }, select: { id: true } });
+    if (!stale.length) return;
+    const ids = stale.map(item => item.id);
+    await tx.themeDraft.updateMany({ where: { storeId, installationId: { in: ids }, status: 'DRAFT' }, data: { status: 'ARCHIVED' } });
+    await tx.themeInstallation.updateMany({ where: { storeId, id: { in: ids } }, data: { status: 'REMOVED' } });
+  }
+
   /** Catálogo curado: só a versão mais nova de cada tema listado. Versões antigas seguem valendo para quem já instalou. */
   async listLibrary() {
     const releases = await this.prisma.themeRelease.findMany({
@@ -164,10 +176,13 @@ export class ThemeEngineService {
       const existing = await tx.themeInstallation.findUnique({ where: { storeId_releaseId: { storeId, releaseId: newer.id } } });
       if (existing && existing.status !== 'REMOVED') throw new ConflictException('A versão nova deste tema já está instalada. Abra-a em “Instalados nesta loja”.');
       const installation = existing
-        ? await tx.themeInstallation.update({ where: { id_storeId: { id: existing.id, storeId } }, data: { status: 'INACTIVE' } })
-        : await tx.themeInstallation.create({ data: { storeId, releaseId: newer.id, status: 'INACTIVE' } });
+        ? await tx.themeInstallation.update({ where: { id_storeId: { id: existing.id, storeId } }, data: { status: 'INACTIVE', savedAt: current.savedAt } })
+        : await tx.themeInstallation.create({ data: { storeId, releaseId: newer.id, status: 'INACTIVE', savedAt: current.savedAt } });
       await tx.themeDraft.updateMany({ where: { storeId, installationId: installation.id, status: 'DRAFT' }, data: { status: 'ARCHIVED' } });
       const draft = await tx.themeDraft.create({ data: { storeId, installationId: installation.id, document: document as unknown as Prisma.InputJsonValue, updatedBy: actorId } });
+      // A versão antiga, se não estiver no ar, dá lugar à nova: não fica um rascunho duplicado do mesmo tema.
+      if (current.status === 'INACTIVE') await tx.themeInstallation.update({ where: { id_storeId: { id: current.id, storeId } }, data: { savedAt: null } });
+      await this.discardUnsaved(tx, storeId, installation.id);
       return { installation, draft, fromVersion: current.release.version, toVersion: newer.version };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
@@ -201,6 +216,8 @@ export class ThemeEngineService {
           updatedBy: actorId,
         },
       });
+      // Abrir um tema novo descarta os rascunhos de outros temas que não foram guardados.
+      await this.discardUnsaved(tx, storeId, installation.id);
       return { installation, draft };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
@@ -230,8 +247,42 @@ export class ThemeEngineService {
         : await tx.themeInstallation.create({ data: { storeId, releaseId: release.id, status: 'INACTIVE' } });
       await tx.themeDraft.updateMany({ where: { storeId, installationId: installation.id, status: 'DRAFT' }, data: { status: 'ARCHIVED' } });
       const draft = await tx.themeDraft.create({ data: { storeId, installationId: installation.id, document: document as unknown as Prisma.InputJsonValue, updatedBy: actorId } });
+      await this.discardUnsaved(tx, storeId, installation.id);
       return { installation, draft };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /**
+   * Garante que a loja está no editor novo: sem tema no ar, converte o que o editor clássico publicou (cores, aviso,
+   * banners e seções) para o tema "Minha loja" e publica essa conversão, que é a mesma loja desenhada pelo editor novo.
+   * Só age onde a publicação de temas está liberada; esvaziar THEME_ENGINE_PILOT_STORES desliga tudo.
+   */
+  async ensureCurrent(storeId: string, actorId: string) {
+    if (!(await this.publishEnabled(storeId))) return { migrated: false, status: await this.status(storeId) };
+    const active = await this.prisma.themeInstallation.findFirst({ where: { storeId, status: 'ACTIVE' }, select: { id: true } });
+    if (active) return { migrated: false, status: await this.status(storeId) };
+    const { installation, draft } = await this.fromStorefront(storeId, actorId);
+    await this.publish(storeId, installation.id, draft.revision, actorId);
+    return { migrated: true, status: await this.status(storeId) };
+  }
+
+  /** Guarda o rascunho na lista "Rascunhos guardados": ele não é descartado quando outro tema é aberto. */
+  async keepDraft(storeId: string, installationId: string) {
+    const result = await this.prisma.themeInstallation.updateMany({ where: { id: installationId, storeId, status: { not: 'REMOVED' } }, data: { savedAt: new Date() } });
+    if (result.count !== 1) throw new NotFoundException('Tema não encontrado nesta loja.');
+    return { ok: true };
+  }
+
+  /** Descarta o rascunho de um tema fora do ar (arquiva, não apaga). O tema no ar nunca é descartado. */
+  async discardDraft(storeId: string, installationId: string) {
+    const installation = await this.prisma.themeInstallation.findFirst({ where: { id: installationId, storeId, status: { not: 'REMOVED' } }, select: { status: true } });
+    if (!installation) throw new NotFoundException('Tema não encontrado nesta loja.');
+    if (installation.status === 'ACTIVE') throw new ConflictException('Este tema está no ar e não pode ser descartado. Escolha outro tema e publique antes.');
+    await this.prisma.$transaction([
+      this.prisma.themeDraft.updateMany({ where: { storeId, installationId, status: 'DRAFT' }, data: { status: 'ARCHIVED' } }),
+      this.prisma.themeInstallation.update({ where: { id_storeId: { id: installationId, storeId } }, data: { status: 'REMOVED', savedAt: null } }),
+    ]);
+    return { ok: true };
   }
 
   async getDraft(storeId: string, installationId: string) {
@@ -336,6 +387,8 @@ export class ThemeEngineService {
         where: { id_storeId: { id: installationId, storeId } },
         data: { status: 'ACTIVE' },
       });
+      // O tema que saiu do ar continua no histórico de publicações; o rascunho dele só fica se tiver sido guardado.
+      await this.discardUnsaved(tx, storeId, installationId);
       return publication;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
@@ -383,6 +436,19 @@ export class ThemeEngineService {
   async restorePublication(storeId: string, publicationId: string, expectedRevision: number, actorId: string) {
     const publication = await this.prisma.themeEnginePublication.findFirst({ where: { id: publicationId, storeId }, select: { installationId: true, document: true } });
     if (!publication) throw new NotFoundException('Versão não encontrada nesta loja.');
+    const installation = await this.prisma.themeInstallation.findFirstOrThrow({
+      where: { id: publication.installationId, storeId },
+      select: { status: true, drafts: { where: { status: 'DRAFT' }, select: { id: true }, take: 1 } },
+    });
+    if (installation.status === 'REMOVED' || !installation.drafts.length) {
+      // Tema descartado: volta como rascunho guardado com o documento desta versão.
+      const draft = await this.prisma.$transaction(async tx => {
+        await tx.themeInstallation.update({ where: { id_storeId: { id: publication.installationId, storeId } }, data: { status: installation.status === 'REMOVED' ? 'INACTIVE' : installation.status, savedAt: new Date() } });
+        await tx.themeDraft.updateMany({ where: { storeId, installationId: publication.installationId, status: 'DRAFT' }, data: { status: 'ARCHIVED' } });
+        return tx.themeDraft.create({ data: { storeId, installationId: publication.installationId, document: publication.document as Prisma.InputJsonValue, updatedBy: actorId } });
+      });
+      return { installationId: publication.installationId, revision: draft.revision };
+    }
     const draft = await this.saveDraft(storeId, publication.installationId, expectedRevision, publication.document, actorId);
     return { installationId: publication.installationId, revision: draft.revision };
   }

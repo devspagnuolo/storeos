@@ -611,6 +611,8 @@ model ThemeInstallation {
   status       ThemeInstallationStatus  @default(INACTIVE)
   installedAt  DateTime                 @default(now())
   updatedAt    DateTime                 @updatedAt
+  /// Quando a lojista escolheu guardar este rascunho. Sem isso, o rascunho de um tema fora do ar é descartado ao abrir outro tema.
+  savedAt      DateTime?
   release      ThemeRelease             @relation(fields: [releaseId], references: [id], onDelete: Restrict)
   drafts       ThemeDraft[]
   publications ThemeEnginePublication[]

@@ -7,6 +7,7 @@ import { BlogIndexView, BlogPostView } from '../../../../components/blog/blog-pa
 import { ContentPageView } from '../../../../components/blog/content-page-view';
 import { adminFetch } from '../../../../lib/admin/session';
 import { engineStyle, setEngineDraft } from '../../../../lib/theme-engine';
+import { CLASSIC_LOOK_PACKAGE } from '../../../../lib/classic-look';
 import CategoryPage from '../../../categorias/[slug]/page';
 import ProductPage from '../../../produto/[slug]/page';
 import SearchPage from '../../../busca/page';
@@ -65,7 +66,7 @@ export default async function ThemeDraftPreview({ params, searchParams }: { para
   else if (page === 'erro') body = await NotFound();
   else body = <ThemeEngineHome theme={{ document, release: { manifest } }} store={store} />;
 
-  return <div className="min-h-screen" style={engineStyle(document)}>
+  return <div className="min-h-screen" style={engineStyle(document, { classic: manifest.slug === CLASSIC_LOOK_PACKAGE })}>
     <div role="note" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-amber-50 px-4 py-1.5 text-center text-xs font-semibold text-amber-800">
       <span>{fromPublished && latest?.publication ? `Versão ${latest.publication.version} publicada do tema “${manifest.displayName}”` : `Prévia do rascunho do tema “${manifest.displayName}” (revisão ${result.draft.revision})`} com seus produtos reais. Só você vê esta página.</span>
       <nav aria-label="Páginas da prévia" className="flex flex-wrap justify-center gap-2">{(Object.keys(PAGES) as PageKey[]).map(key => <Link key={key} href={(key === 'inicio' ? base : `${base}?pagina=${key}`) + (fromPublished ? (key === 'inicio' ? '?' : '&') + 'fonte=publicado' : '')} aria-current={key === page ? 'page' : undefined} className={'rounded px-2 py-0.5 ' + (key === page ? 'bg-amber-200' : 'underline')}>{PAGES[key]}</Link>)}</nav>

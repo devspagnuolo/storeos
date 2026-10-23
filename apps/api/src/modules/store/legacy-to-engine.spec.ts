@@ -54,4 +54,17 @@ describe('loja do editor clássico no editor de temas', () => {
   it('todos os temas prontos viram documentos válidos', () => {
     for (const theme of READY_THEMES) expect([theme.key, settingsIssues(legacyToEngineDocument(theme.config, mine, { storeName: 'Loja' }), mine)]).toEqual([theme.key, []]);
   });
+
+  it('mantém categoria, produto, busca, carrinho, blog e 404 como o editor clássico desenhava', () => {
+    const document = legacyToEngineDocument({ accentColor: '#BE185D' }, mine, { storeName: 'Vivi' });
+    expect(settingsIssues(document, mine)).toEqual([]);
+    const settingsOf = (pageType: keyof typeof document.templates, type: string) => document.templates[pageType]!.sections.find(section => section.type === type)!.settings;
+    expect(settingsOf('category', 'storeos.product-collection.v1')).toMatchObject({ heading: '', subheading: '', limit: 24, columns: 4, mobileColumns: 2 });
+    expect(settingsOf('product', 'storeos.product-detail.v1')).toMatchObject({ showSku: true, buttonLabel: 'Adicionar ao carrinho' });
+    expect(settingsOf('search', 'storeos.search-results.v1')).toMatchObject({ heading: 'Buscar produtos', limit: 24 });
+    expect(settingsOf('cart', 'storeos.cart-summary.v1')).toMatchObject({ heading: 'Seu carrinho', buttonLabel: 'Finalizar compra' });
+    expect(settingsOf('not-found', 'storeos.not-found.v1')).toMatchObject({ buttonLabel: 'Ver produtos' });
+    expect(settingsOf('blog-index', 'storeos.blog-list.v1')).toMatchObject({ heading: 'Blog', limit: 12 });
+  });
 });
+
