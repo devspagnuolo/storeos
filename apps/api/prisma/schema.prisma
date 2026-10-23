@@ -613,6 +613,8 @@ model ThemeInstallation {
   updatedAt    DateTime                 @updatedAt
   /// Quando a lojista escolheu guardar este rascunho. Sem isso, o rascunho de um tema fora do ar é descartado ao abrir outro tema.
   savedAt      DateTime?
+  /// Criada pela migração automática do editor clássico: a vitrine desenha as seções com os componentes do editor clássico.
+  classicLook  Boolean                  @default(false)
   release      ThemeRelease             @relation(fields: [releaseId], references: [id], onDelete: Restrict)
   drafts       ThemeDraft[]
   publications ThemeEnginePublication[]
