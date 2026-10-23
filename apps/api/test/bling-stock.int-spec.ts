@@ -88,7 +88,8 @@ describe('conferência e sincronização de estoque com o Bling', () => {
     await send({ eventId: `stk-1-${store.id}`, event: 'stock.updated', companyId: 'cia-tempo-real', data: { produto: { id: 10 }, saldoVirtualTotal: 0 } });
     expect((await inventoryOf(product.id)).quantity).toBe(0);
     expect(await listed()).not.toContain(product.id);
-    expect((await api(`/catalog/products/${product.slug}?store=${store.slug}`)).status).toBe(404);
+    // Pelo link direto a página continua abrindo, como esgotada.
+    expect((await api(`/catalog/products/${product.slug}?store=${store.slug}`)).body).toMatchObject({ id: product.id, available: 0 });
 
     // Pedido de venda criado no Bling (não é do site): os itens dele têm o saldo relido.
     bling.balances.set(10, 3);
