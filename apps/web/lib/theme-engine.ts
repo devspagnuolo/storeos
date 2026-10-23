@@ -2,7 +2,6 @@ import { cache } from 'react';
 import type { ThemeDocument } from '@storeos/contracts';
 import { getStore } from './api';
 import { contrastRatio, hexToChannels } from './theme';
-import { CLASSIC_LOOK_PACKAGE } from './classic-look';
 
 /**
  * Documento do Theme Engine que desenha esta requisição. Na vitrine é o publicado (só chega se a loja estiver
@@ -21,12 +20,12 @@ export async function activeEngineDocument(): Promise<ThemeDocument | null> {
 
 /**
  * As seções extras de categoria e produto do editor clássico (vantagens, "Combina com", newsletter) continuam na loja
- * quando ela está no tema "Minha loja", que é a conversão do editor clássico: assim a migração não muda o que o cliente vê.
+ * quando o tema no ar veio da migração automática do editor clássico: assim a migração não muda o que o cliente vê.
  */
 export async function showsClassicPageSections(): Promise<boolean> {
   if (override().document) return false;
   const published = (await getStore()).publishedTheme;
-  return !published || published.release.package.key === CLASSIC_LOOK_PACKAGE;
+  return !published || published.classicLook === true;
 }
 
 /** Configurações da primeira seção visível de um tipo dentro do modelo de página, ou null quando o tema não a usa. */

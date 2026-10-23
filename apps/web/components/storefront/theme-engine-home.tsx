@@ -9,10 +9,11 @@ import { productSource, videoEmbedUrl } from '../../lib/engine-media';
 import { EngineCarousel } from './engine-carousel';
 import { BannerCarousel } from '../banner-carousel';
 import { HomeSections } from './home-sections';
-import { CLASSIC_LOOK_PACKAGE, classicPiece } from '../../lib/classic-look';
+import { classicPiece } from '../../lib/classic-look';
 
 type PublishedTheme = {
   document: ThemeDocument;
+  classicLook?: boolean;
   release: { manifest: { displayName: string; slug: string; version: string } };
 };
 
@@ -39,8 +40,8 @@ export async function ThemeEngineHome({ theme, store }: { theme: PublishedTheme;
   const fontToken = theme.document.global.designTokens.typography?.fontFamily;
   const fontFamily = fontToken === 'serif' ? 'Georgia, serif' : fontToken === 'sans-serif' ? 'Arial, sans-serif' : 'system-ui, sans-serif';
 
-  // "Minha loja" mantém o desenho do editor clássico (cores e fontes vêm da página, como antes).
-  const classic = theme.release.manifest.slug === CLASSIC_LOOK_PACKAGE;
+  // A loja trazida sozinha do editor clássico mantém o desenho dele (cores e fontes vêm da página, como antes).
+  const classic = theme.classicLook === true;
 
   return <div style={classic ? undefined : { backgroundColor: background, color: foreground, fontFamily }}>
     {sections.map(section => {

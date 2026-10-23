@@ -286,6 +286,7 @@ describe('motor de temas', () => {
     expect(first.body.status.active).toMatchObject({ name: 'Minha loja', live: true });
     const live = (await api(`/store/public/${store.slug}`)).body.publishedTheme;
     expect(live.release.package.key).toBe('storeos-minha-loja');
+    expect(live.classicLook).toBe(true);
     expect(live.document.global.designTokens.colors.primary).toBe('#9D174D');
     expect(live.document.global.settings.announcementText).toBe('Troca fácil');
     expect(live.document.templates.home.sections.find((s: { type: string }) => s.type === 'storeos.hero.v1').settings.title).toBe('Bem-vinda');
@@ -310,6 +311,7 @@ describe('motor de temas', () => {
     const other = (await api('/themes/installations', { method: 'POST', token: editor, body: { releaseId: noir.id } })).body;
     expect((await api(`/themes/installations/${other.installation.id}/publish`, { method: 'POST', token: editor, body: { revision: other.draft.revision } })).status).toBe(201);
     const minhaLoja = first.body.status.active.installationId as string;
+    expect((await api(`/store/public/${store.slug}`)).body.publishedTheme.classicLook).toBe(false);
     expect((await prisma.themeInstallation.findUniqueOrThrow({ where: { id: minhaLoja } })).status).toBe('REMOVED');
     const publication = (await api('/themes/publications', { token: editor })).body.find((item: { installationId: string }) => item.installationId === minhaLoja);
     const restored = await api(`/themes/publications/${publication.id}/restore`, { method: 'POST', token: editor, body: { revision: 1 } });

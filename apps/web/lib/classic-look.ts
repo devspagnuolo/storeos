@@ -3,11 +3,10 @@ import type { BannerSlide, HomeSection } from './api';
 import { productSource, videoEmbedUrl } from './engine-media';
 
 /**
- * O tema "Minha loja" é a loja do editor clássico trazida para o editor novo. Para a migração não mudar o que o
- * cliente vê, as seções dele são desenhadas com os mesmos componentes do editor clássico; o que só existe no editor
+ * Loja trazida sozinha do editor clássico para o editor novo (instalação com `classicLook`). Para a migração não mudar
+ * o que o cliente vê, as seções são desenhadas com os mesmos componentes do editor clássico; o que só existe no editor
  * novo (perguntas, mosaico de imagens, banner com vários slides) segue o desenho do tema.
  */
-export const CLASSIC_LOOK_PACKAGE = 'storeos-minha-loja';
 
 export type ClassicPiece = { kind: 'section'; section: HomeSection } | { kind: 'banners'; slides: BannerSlide[] };
 

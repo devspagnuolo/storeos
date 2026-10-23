@@ -262,6 +262,8 @@ export class ThemeEngineService {
     const active = await this.prisma.themeInstallation.findFirst({ where: { storeId, status: 'ACTIVE' }, select: { id: true } });
     if (active) return { migrated: false, status: await this.status(storeId) };
     const { installation, draft } = await this.fromStorefront(storeId, actorId);
+    // Marca a instalação para a vitrine manter o desenho do editor clássico: a loja não muda de aparência.
+    await this.prisma.themeInstallation.update({ where: { id_storeId: { id: installation.id, storeId } }, data: { classicLook: true } });
     await this.publish(storeId, installation.id, draft.revision, actorId);
     return { migrated: true, status: await this.status(storeId) };
   }

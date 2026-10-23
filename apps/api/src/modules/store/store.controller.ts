@@ -68,7 +68,7 @@ export class StoreController {
         orderBy: { version: 'desc' },
         select: {
           version: true, document: true, documentHash: true,
-          installation: { select: { release: { select: { manifest: true, version: true, package: { select: { key: true, name: true } } } } } },
+          installation: { select: { classicLook: true, release: { select: { manifest: true, version: true, package: { select: { key: true, name: true } } } } } },
         },
       }),
       this.prisma.shippingRule.findMany({ where: { storeId, active: true, freeAbove: { not: null } }, select: { states: true, freeAbove: true } }),
@@ -77,7 +77,7 @@ export class StoreController {
     return {
       ...rest,
       publishedTheme: activeTheme ? {
-        version: activeTheme.version, document: activeTheme.document, documentHash: activeTheme.documentHash,
+        version: activeTheme.version, document: activeTheme.document, documentHash: activeTheme.documentHash, classicLook: activeTheme.installation.classicLook,
         // Só o que a vitrine usa: o manifesto completo (schemas e layout inicial) não precisa trafegar em toda visita.
         release: { version: activeTheme.installation.release.version, package: activeTheme.installation.release.package, manifest: pickManifest(activeTheme.installation.release.manifest) },
       } : null,
