@@ -8,7 +8,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 
 /**
  * Produto com saldo: com variações, alguma variação ativa com estoque; sem elas, a linha do próprio produto.
- * Estoque zerado (inclusive pelo Bling) tira o produto da vitrine até voltar a ter saldo.
+ * Estoque zerado (inclusive pelo Bling) tira o produto das listagens, da busca e dos filtros até voltar a ter saldo.
  */
 export const IN_STOCK: Prisma.ProductWhereInput = {
   OR: [
@@ -162,10 +162,11 @@ export class CatalogService {
     });
   }
 
+  /** Página do produto: zerado continua abrindo pelo link direto (com "available: 0", a vitrine mostra "Esgotado"); só as listagens o escondem. */
   async bySlug(storeSlug: string, slug: string) {
     const storeId = await this.storeId(storeSlug);
     const product = storeId && await this.prisma.product.findFirst({
-      where: { storeId, slug, status: ProductStatus.ACTIVE, ...IN_STOCK },
+      where: { storeId, slug, status: ProductStatus.ACTIVE },
       include: { brand: { select: { name: true, slug: true } }, images: { orderBy: { position: 'asc' } }, variants: { where: { active: true }, orderBy: { position: 'asc' } }, inventory: true, categories: { include: { category: { select: { name: true, slug: true } } } } },
     });
     if (!product) throw new NotFoundException('Produto não encontrado');

@@ -32,6 +32,8 @@ export default async function ProductPage({ params }: Props) {
   // Tema avançado: só opções de apresentação. Preço, estoque, opções e compra nunca mudam por tema.
   const detail = engineSection(engine, 'product', 'storeos.product-detail.v1');
   if (!product) notFound();
+  // Zerado abre pelo link direto como esgotado; as listagens não mostram o produto.
+  const soldOut = product.available < 1;
   const payment = await getPaymentConfig(store.slug);
   const offer = freeInstallmentOffer(Number(product.price), payment.card);
   const methods = ['PIX', ...(payment.card ? ['cartão'] : []), ...(payment.boleto ? ['boleto'] : [])];
@@ -59,13 +61,13 @@ export default async function ProductPage({ params }: Props) {
             {product.brand && <Link href={`/marcas/${product.brand.slug}`} className="text-sm font-semibold text-brand">{product.brand.name}</Link>}
             <h1 className="text-3xl font-bold">{product.name}</h1>
             {reviews.summary.count > 0 && <a href="#avaliacoes" className="mt-1 flex items-center gap-2 text-sm"><Stars value={reviews.summary.average} /><span className="text-slate-500">{reviews.summary.average.toFixed(1).replace('.', ',')} ({reviews.summary.count})</span></a>}
-            <p className="mt-4 text-3xl font-black">{formatPrice(product.price)}</p>
-            {offer
+            <p className="mt-4 flex flex-wrap items-center gap-3 text-3xl font-black">{formatPrice(product.price)}{soldOut && <span className="rounded-full bg-slate-200 px-3 py-1 text-sm font-semibold text-slate-700">Esgotado</span>}</p>
+            {soldOut ? null : offer
               ? <p className="mt-1 text-sm text-slate-600">em até <b>{offer.installments}x de {formatPrice(offer.amount)} sem juros</b> no cartão</p>
               : <p className="mt-1 text-sm text-slate-500">Pague com {methods.length > 1 ? `${methods.slice(0, -1).join(', ')} ou ${methods.at(-1)}` : methods[0]}</p>}
             {product.description && engineFlag(detail?.showDescription, true) && <p className="mt-6 leading-relaxed text-slate-700">{product.description}</p>}
             <AddToCart product={{ id: product.id, slug: product.slug, name: product.name, price: product.price, image: image?.url }} available={product.available} variants={product.variants ?? []} buttonLabel={engineText(detail?.buttonLabel) || undefined} colorImages={colorImages} />
-            {product.available > 0 && <ProductShipping product={{ id: product.id, slug: product.slug, name: product.name, price: product.price }} />}
+            {!soldOut && <ProductShipping product={{ id: product.id, slug: product.slug, name: product.name, price: product.price }} />}
             {engineFlag(detail?.showSku, true) && <p className="mt-8 text-xs text-slate-400">SKU {product.sku}</p>}
           </div>
         </div>
