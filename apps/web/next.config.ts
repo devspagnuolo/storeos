@@ -7,6 +7,9 @@ const securityHeaders = [
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()' },
   { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+  // CSP mínima que não depende da lista de scripts de terceiros (Mercado Pago, GTM, GA4, Meta): bloqueia plugins,
+  // troca da base dos links e a página aberta dentro de outro site. Restringir scripts exige testar o checkout com cartão.
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'self'; object-src 'none'; base-uri 'self'" },
 ];
 
 const nextConfig: NextConfig = {

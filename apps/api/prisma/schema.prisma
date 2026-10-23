@@ -131,6 +131,8 @@ model User {
   mfaSecretEnc          String?
   mfaRecovery           String[]       @default([])
   mfaLastStep           Int?
+  failedLogins          Int            @default(0)
+  lockedUntil           DateTime?
   emailVerifiedAt       DateTime?
   verificationHash      String?
   verificationExpiresAt DateTime?
@@ -336,6 +338,8 @@ model Inventory {
   warehouseStocks WarehouseStock[]
 
   @@unique([storeId, productId, variantId])
+  // Também há um índice único parcial (storeId, productId) WHERE variantId IS NULL, criado em SQL
+  // (migração 20261023020000_inventory_single_row). Se o `migrate dev` propuser apagá-lo, remova essa linha da migração gerada.
   @@index([productId])
 }
 

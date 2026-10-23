@@ -18,11 +18,25 @@ export type CreatePayment = {
   amount: number;
   description: string;
   orderNumber: string;
+  /** Referência do pedido no Mercado Pago (loja + número): também é a chave de idempotência. */
+  reference: string;
   expiresAt: Date;
   payer: { email: string; firstName: string; lastName?: string; cpf?: string; address?: PayerAddress };
   card?: { token: string; installments: number; paymentMethodId: string; issuerId?: string };
   notificationUrl?: string;
 };
+
+/**
+ * Referência enviada ao Mercado Pago: loja e número, porque o número (00001…) se repete entre lojas da mesma conta.
+ * Cobranças antigas levam só o número; `referenceMatches` aceita os dois formatos.
+ */
+export const paymentReference = (storeId: string, orderNumber: string) => `${storeId}:${orderNumber}`;
+export const referenceMatches = (reference: string | null | undefined, storeId: string, orderNumber: string) => reference === orderNumber || reference === paymentReference(storeId, orderNumber);
+/** Loja e número de uma referência no formato novo; undefined para o formato antigo (só o número). */
+export function parseReference(reference: string | null | undefined) {
+  const match = /^([0-9a-f-]{36}):(.+)$/i.exec(reference ?? '');
+  return match ? { storeId: match[1], orderNumber: match[2] } : undefined;
+}
 
 /** Cliente HTTP mínimo da API de pagamentos do Mercado Pago. */
 @Injectable()
@@ -70,11 +84,11 @@ export class MercadoPagoClient {
     return this.request<MercadoPagoPayment>('/v1/payments', {
       method: 'POST',
       // A chave de idempotência evita cobrança duplicada se a requisição for repetida.
-      idempotencyKey: `storeos-${input.orderNumber}`,
+      idempotencyKey: `storeos-${input.reference}`,
       body: JSON.stringify({
         transaction_amount: input.amount,
         description: input.description,
-        external_reference: input.orderNumber,
+        external_reference: input.reference,
         ...method,
         payer: {
           email: payer.email,

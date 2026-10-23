@@ -3,7 +3,7 @@ import { OrderStatus, PaymentStatus, Prisma, RefundMode, RefundStatus } from '@p
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { money } from '../../shared/money/money';
 import { OrderLifecycleService } from '../orders/order-lifecycle.service';
-import { MercadoPagoClient } from './mercado-pago.client';
+import { MercadoPagoClient, MercadoPagoPayment, parseReference, referenceMatches } from './mercado-pago.client';
 import { MERCADO_PAGO, mapMercadoPagoStatus } from './mercado-pago.provider';
 
 @Injectable()
@@ -14,11 +14,14 @@ export class PaymentsWebhookService {
 
   /** Sincroniza o pagamento com o estado real no Mercado Pago. Idempotente: pode ser chamado várias vezes. */
   async syncMercadoPagoPayment(paymentId: string) {
-    const payment = await this.prisma.payment.findFirst({ where: { provider: MERCADO_PAGO, transactionId: paymentId }, include: { order: true } });
-    if (!payment) return 'ignorado (pagamento desconhecido)';
-    const remote = await this.client.getPayment(paymentId);
+    let payment = await this.prisma.payment.findFirst({ where: { provider: MERCADO_PAGO, transactionId: paymentId }, include: { order: true } });
+    // Desconhecido aqui: pode ser cobrança criada no Mercado Pago sem o id gravado (a API caiu no meio), então procura pelo pedido.
+    // Se nem o Mercado Pago souber dela, ignora em vez de falhar (senão a notificação seria repetida para sempre).
+    const remote = payment ? await this.client.getPayment(paymentId) : await this.client.getPayment(paymentId).catch(() => null);
+    if (!payment && remote) payment = await this.adoptOrphan(paymentId, remote);
+    if (!payment || !remote) return 'ignorado (pagamento desconhecido)';
     const status = mapMercadoPagoStatus(remote.status);
-    if (remote.external_reference !== payment.order.number) {
+    if (!referenceMatches(remote.external_reference, payment.order.storeId, payment.order.number)) {
       this.logger.warn(`Pagamento ${paymentId} aponta para ${remote.external_reference}, esperado ${payment.order.number}`);
       return 'ignorado (referência divergente)';
     }
@@ -45,6 +48,23 @@ export class PaymentsWebhookService {
     }
     await this.prisma.payment.update({ where: { id: payment.id }, data: { status } });
     return `status ${status}`;
+  }
+
+  /**
+   * Liga ao pedido uma cobrança do Mercado Pago cujo id não chegou a ser gravado. Só com a referência nova (loja + número),
+   * que é única, e só se o pedido tiver uma cobrança ainda sem id e com o mesmo valor. Condicional: não sobrescreve outra.
+   */
+  private async adoptOrphan(paymentId: string, remote: MercadoPagoPayment) {
+    const ref = parseReference(remote.external_reference);
+    if (!ref) return null;
+    const order = await this.prisma.order.findUnique({ where: { storeId_number: { storeId: ref.storeId, number: ref.orderNumber } }, select: { id: true } });
+    if (!order) return null;
+    const pending = await this.prisma.payment.findFirst({ where: { orderId: order.id, transactionId: null }, orderBy: { createdAt: 'desc' } });
+    if (!pending || !money(remote.transaction_amount).equals(pending.amount)) return null;
+    const adopted = await this.prisma.payment.updateMany({ where: { id: pending.id, transactionId: null }, data: { provider: MERCADO_PAGO, transactionId: paymentId } });
+    if (!adopted.count) return null;
+    this.logger.warn(`Cobrança ${paymentId} do pedido ${ref.orderNumber} não estava gravada e foi ligada ao pedido pelo webhook`);
+    return this.prisma.payment.findUnique({ where: { id: pending.id }, include: { order: true } });
   }
 
   /** Devolve pelo gateway um pagamento aprovado que chegou tarde demais para o pedido. Idempotente: não repete se já houver reembolso. */

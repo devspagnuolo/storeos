@@ -15,7 +15,9 @@ type UserRequest = { user: { sub: string } };
 type HttpRequest = { ip?: string; headers: Record<string, string | undefined> };
 @ApiTags('Auth') @Controller('auth') export class AuthController {
   constructor(private readonly auth: AuthService, private readonly audit: AuditService) {}
-  @Post('login') @HttpCode(200) @Throttle({ default: { limit: 5, ttl: 60_000 } }) async login(@Req() req: HttpRequest, @Body() dto: LoginDto) {
+  // O painel entra pelo servidor do site, então todos os administradores dividem o mesmo IP: o limite por IP é folgado
+  // e a proteção contra adivinhar senha é o bloqueio por conta (AuthService.MAX_FAILED_LOGINS).
+  @Post('login') @HttpCode(200) @Throttle({ default: { limit: 30, ttl: 60_000 } }) async login(@Req() req: HttpRequest, @Body() dto: LoginDto) {
     const context = { ip: req.ip, userAgent: req.headers['user-agent']?.slice(0, 300), requestId: req.headers['x-request-id'] };
     try {
       const session = await this.auth.login(dto, { ip: req.ip, userAgent: context.userAgent });

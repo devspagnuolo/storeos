@@ -76,4 +76,19 @@ describe('verificação em duas etapas e sessões', () => {
     expect((await api(`/auth/sessions/${list.body[1].id}`, { method: 'DELETE', token: other })).status).toBe(404);
     expect((await api('/auth/sessions', { method: 'DELETE', token })).body.revoked).toBe(1);
   });
+
+  it('bloqueia a conta depois de 10 senhas erradas, mesmo com a senha certa, e libera quando o prazo passa', async () => {
+    const { body } = await adminWithPassword();
+    for (let i = 0; i < 9; i++) expect((await api('/auth/login', { method: 'POST', body: { ...body, password: 'senha-errada-' + i } })).status).toBe(401);
+    // Acerto antes do limite zera a contagem.
+    expect((await api('/auth/login', { method: 'POST', body })).status).toBe(200);
+    for (let i = 0; i < 10; i++) await api('/auth/login', { method: 'POST', body: { ...body, password: 'senha-errada-' + i } });
+    const locked = await api('/auth/login', { method: 'POST', body });
+    expect(locked.status).toBe(429);
+    expect(locked.body.code).toBe('ACCOUNT_LOCKED');
+    const user = await prisma.user.findFirstOrThrow({ where: { email: body.email } });
+    await prisma.user.update({ where: { id: user.id }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    expect((await api('/auth/login', { method: 'POST', body })).status).toBe(200);
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ failedLogins: 0, lockedUntil: null });
+  });
 });

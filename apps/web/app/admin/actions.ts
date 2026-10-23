@@ -17,7 +17,10 @@ export async function loginAction(_: LoginState, form: FormData): Promise<LoginS
     body: JSON.stringify({ email: form.get('email'), password: form.get('password'), storeSlug: form.get('storeSlug'), code: String(form.get('code') ?? '').trim() || undefined }),
   }).catch(() => undefined);
   if (!response) return { ...kept, error: 'A API não respondeu. Tente de novo em alguns segundos.' };
-  if (response.status === 429) return { ...kept, error: 'Muitas tentativas. Aguarde um minuto.' };
+  if (response.status === 429) {
+    const body = await response.json().catch(() => undefined);
+    return { ...kept, error: body?.code === 'ACCOUNT_LOCKED' && typeof body.message === 'string' ? body.message : 'Muitas tentativas. Aguarde um minuto.' };
+  }
   if (response.status === 401) {
     const body = await response.json().catch(() => undefined);
     if (body?.code === 'MFA_REQUIRED') return { ...kept, error: 'Este usuário usa verificação em duas etapas. Digite a senha de novo e informe o código do aplicativo.' };

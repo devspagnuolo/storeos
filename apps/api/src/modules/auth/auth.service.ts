@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'node:crypto';
@@ -12,6 +12,9 @@ const REFRESH_TTL_DAYS = 30;
 const REUSE_GRACE_MS = 30_000;
 export type ClientContext = { ip?: string; userAgent?: string };
 const RECOVERY_CODES = 8;
+// Erros seguidos (senha ou código) que bloqueiam a conta por um tempo, venham de quantos IPs vierem.
+export const MAX_FAILED_LOGINS = 10;
+export const LOCK_MINUTES = 15;
 const newRecoveryCode = () => `${randomBytes(3).toString('hex')}-${randomBytes(3).toString('hex')}`;
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
@@ -35,10 +38,32 @@ export class AuthService {
   async login(input: { email: string; password: string; storeSlug: string; code?: string }, client: ClientContext = {}) {
     const store = await this.prisma.store.findUnique({ where: { slug: input.storeSlug } });
     const user = store && await this.loadUser({ storeId_email: { storeId: store.id, email: input.email } });
-    if (!user || user.status !== 'ACTIVE' || !(await argon2.verify(user.passwordHash, input.password))) throw new UnauthorizedException('Credenciais inválidas');
+    if (user?.lockedUntil && user.lockedUntil > new Date()) {
+      throw new HttpException({ message: `Muitas tentativas erradas. Por segurança, esta conta fica bloqueada até ${user.lockedUntil.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}.`, code: 'ACCOUNT_LOCKED' }, HttpStatus.TOO_MANY_REQUESTS);
+    }
+    if (!user || user.status !== 'ACTIVE' || !(await argon2.verify(user.passwordHash, input.password))) {
+      if (user) await this.recordFailure(user.id);
+      throw new UnauthorizedException('Credenciais inválidas');
+    }
     if (user.verificationHash) throw new UnauthorizedException({ message: 'Confirme seu e-mail antes de entrar. Procure a mensagem de confirmação na sua caixa de entrada.', code: 'EMAIL_NOT_VERIFIED' });
-    if (user.mfaEnabled) await this.checkSecondFactor(user, input.code);
+    if (user.mfaEnabled) {
+      try {
+        await this.checkSecondFactor(user, input.code);
+      } catch (error) {
+        if (input.code) await this.recordFailure(user.id);
+        throw error;
+      }
+    }
+    if (user.failedLogins || user.lockedUntil) await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
     return this.issue(user, client);
+  }
+
+  /** Conta o erro de forma atômica; ao chegar no limite, bloqueia a conta e zera a contagem. */
+  private async recordFailure(userId: string) {
+    const { failedLogins } = await this.prisma.user.update({ where: { id: userId }, data: { failedLogins: { increment: 1 } }, select: { failedLogins: true } });
+    if (failedLogins >= MAX_FAILED_LOGINS) {
+      await this.prisma.user.update({ where: { id: userId }, data: { failedLogins: 0, lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60_000) } });
+    }
   }
 
   /** Rotaciona o refresh token. Reuso de um token já trocado revoga todas as sessões do usuário. */

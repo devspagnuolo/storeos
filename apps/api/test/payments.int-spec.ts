@@ -15,20 +15,20 @@ class FakeMercadoPago {
   cardOutcome: { status: MercadoPagoPayment['status']; detail?: string } = { status: 'approved' };
   lastRequest: Record<string, unknown> | undefined;
 
-  async createPayment(input: { method: string; amount: number; orderNumber: string }) {
+  async createPayment(input: { method: string; amount: number; orderNumber: string; reference: string }) {
     if (this.failNext) { this.failNext = false; throw new Error('gateway fora do ar'); }
     this.lastRequest = input;
     if (input.method === 'card') {
-      const card: MercadoPagoPayment = { id: this.nextId++, status: this.cardOutcome.status, status_detail: this.cardOutcome.detail, external_reference: input.orderNumber, transaction_amount: input.amount };
+      const card: MercadoPagoPayment = { id: this.nextId++, status: this.cardOutcome.status, status_detail: this.cardOutcome.detail, external_reference: input.reference, transaction_amount: input.amount };
       this.payments.set(String(card.id), card);
       return card;
     }
     if (input.method === 'boleto') {
-      const boleto: MercadoPagoPayment = { id: this.nextId++, status: 'pending', external_reference: input.orderNumber, transaction_amount: input.amount, transaction_details: { external_resource_url: 'https://mp.test/boleto' }, barcode: { content: '23790000' } };
+      const boleto: MercadoPagoPayment = { id: this.nextId++, status: 'pending', external_reference: input.reference, transaction_amount: input.amount, transaction_details: { external_resource_url: 'https://mp.test/boleto' }, barcode: { content: '23790000' } };
       this.payments.set(String(boleto.id), boleto);
       return boleto;
     }
-    const payment: MercadoPagoPayment = { id: this.nextId++, status: 'pending', external_reference: input.orderNumber, transaction_amount: input.amount, point_of_interaction: { transaction_data: { qr_code: `pix-${input.orderNumber}`, qr_code_base64: 'iVBORw0KGgo=' } } };
+    const payment: MercadoPagoPayment = { id: this.nextId++, status: 'pending', external_reference: input.reference, transaction_amount: input.amount, point_of_interaction: { transaction_data: { qr_code: `pix-${input.orderNumber}`, qr_code_base64: 'iVBORw0KGgo=' } } };
     this.payments.set(String(payment.id), payment);
     return payment;
   }
@@ -92,6 +92,20 @@ describe('PIX pelo Mercado Pago', () => {
     expect(paid.payments[0].status).toBe('PAID');
     expect(paid.timeline.filter(t => t.status === 'PAID')).toHaveLength(1);
     expect(await inventoryOf(product.id)).toMatchObject({ quantity: 3, reserved: 0 });
+  });
+
+  it('cobrança sem id gravado (API caiu no meio) é ligada ao pedido pela referência e confirma o pagamento', async () => {
+    const { store, product } = await createStore(5);
+    const checkout = await api('/checkout', { method: 'POST', body: checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }]) });
+    const order = await prisma.order.findFirstOrThrow({ where: { storeId: store.id, number: checkout.body.number }, include: { payments: true } });
+    const remoteId = order.payments[0].transactionId!;
+    expect((await mercadoPago.getPayment(remoteId)).external_reference).toBe(`${store.id}:${order.number}`);
+    await prisma.payment.update({ where: { id: order.payments[0].id }, data: { provider: 'pending', transactionId: null } });
+    mercadoPago.setStatus(remoteId, 'approved');
+    expect((await webhook(remoteId)).status).toBe(200);
+    const paid = await prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: { payments: true } });
+    expect(paid.status).toBe('PAID');
+    expect(paid.payments[0]).toMatchObject({ provider: 'mercadopago', transactionId: remoteId, status: 'PAID' });
   });
 
   it('cancela e devolve o estoque quando o PIX é cancelado', async () => {

@@ -29,7 +29,7 @@ class CheckoutDto {
 class DraftTokenDto { @IsString() storeSlug!: string; @IsUUID() token!: string; }
 class SaveDraftDto extends DraftTokenDto { @IsOptional() @IsString() @MaxLength(14) cpf?: string; @IsObject() data!: Record<string, unknown>; }
 class IdentifyDto extends DraftTokenDto { @IsString() @Length(11, 14) cpf!: string; }
-class ConfirmDto extends IdentifyDto { @IsEmail() @MaxLength(180) email!: string; }
+class ConfirmDto extends IdentifyDto { @IsEmail() @MaxLength(180) email!: string; @IsOptional() @Matches(/^\s*\d{3}\s?\d{3}\s*$/) code?: string; }
 
 @ApiTags('Checkout') @Controller('checkout')
 export class CheckoutController {
