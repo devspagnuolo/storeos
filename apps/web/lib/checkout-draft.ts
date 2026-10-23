@@ -38,7 +38,8 @@ async function post<T>(path: string, method: 'POST' | 'PUT', body: unknown): Pro
 }
 
 export const identifyCustomer = (storeSlug: string, cpf: string) => post<IdentifyResult>('/checkout/identify', 'POST', { storeSlug, token: draftToken(), cpf: onlyDigits(cpf) });
-export const confirmCustomer = (storeSlug: string, cpf: string, email: string) => post<{ matched: boolean; data?: DraftData }>('/checkout/identify/confirm', 'POST', { storeSlug, token: draftToken(), cpf: onlyDigits(cpf), email: email.trim() });
+/** Sem código: confere o e-mail e manda o código para ele. Com o código: devolve os dados salvos. */
+export const confirmCustomer = (storeSlug: string, cpf: string, email: string, code?: string) => post<{ matched: boolean; codeSent?: boolean; data?: DraftData }>('/checkout/identify/confirm', 'POST', { storeSlug, token: draftToken(), cpf: onlyDigits(cpf), email: email.trim(), code: code ? onlyDigits(code) : undefined });
 /** Grava no servidor; falhas são silenciosas porque a cópia local já guardou tudo. */
 export async function saveDraft(storeSlug: string, cpf: string, data: DraftData) {
   try { await post('/checkout/draft', 'PUT', { storeSlug, token: draftToken(), cpf: onlyDigits(cpf), data }); } catch { /* a cópia local cobre */ }

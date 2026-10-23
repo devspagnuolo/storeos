@@ -54,6 +54,8 @@ export default function CheckoutPage() {
   const [identify, setIdentify] = useState<{ state: 'idle' | 'loading' } | { state: 'known'; maskedEmail: string } | { state: 'error'; message: string }>({ state: 'idle' });
   const [confirmEmail, setConfirmEmail] = useState('');
   const [confirmError, setConfirmError] = useState<string>();
+  // Depois de conferir o e-mail, os dados só vêm com o código que chega nele.
+  const [confirmCode, setConfirmCode] = useState<string>();
   const [data, setData] = useState<DraftData>({});
   // Cliente com sessão em "Minha conta" pula CPF e confirmação de e-mail: os dados vêm direto da conta.
   const [account, setAccount] = useState<SignedInCustomer | null>(null);
@@ -157,7 +159,7 @@ export default function CheckoutPage() {
     try {
       const result = await identifyCustomer(slug, cpf);
       if (result.status === 'draft') { setGreeting(result.data.name ? `Que bom te ver de novo, ${result.data.name.split(' ')[0]}! Seus dados foram recuperados.` : 'Recuperamos o que você já tinha preenchido.'); openForm(result.data); setIdentify({ state: 'idle' }); return; }
-      if (result.status === 'known') { setIdentify({ state: 'known', maskedEmail: result.maskedEmail }); return; }
+      if (result.status === 'known') { setIdentify({ state: 'known', maskedEmail: result.maskedEmail }); setConfirmCode(undefined); return; }
       setGreeting('Primeira compra por aqui? Preencha seu cadastro: tudo fica salvo enquanto você digita.');
       openForm(localFor(cpf));
       setIdentify({ state: 'idle' });
@@ -170,13 +172,15 @@ export default function CheckoutPage() {
     event.preventDefault();
     setConfirmError(undefined);
     try {
-      const result = await confirmCustomer(slug, cpf, confirmEmail);
+      const result = await confirmCustomer(slug, cpf, confirmEmail, confirmCode);
       if (!result.matched) { setConfirmError('Este e-mail não confere com o cadastro. Confira ou continue sem carregar os dados.'); return; }
+      if (result.codeSent) { setConfirmCode(''); return; }
       setGreeting(result.data?.name ? `Olá, ${result.data.name.split(' ')[0]}! Carregamos seus dados. Confira antes de pagar.` : 'Carregamos seus dados. Confira antes de pagar.');
       openForm({ ...result.data });
       setIdentify({ state: 'idle' });
     } catch (e) {
       setConfirmError(e instanceof Error ? e.message : 'Não foi possível confirmar agora.');
+      if (confirmCode !== undefined) setConfirmCode('');
     }
   }
 
@@ -340,10 +344,12 @@ export default function CheckoutPage() {
                   {identify.state === 'known' && (
                     <form onSubmit={onConfirm} className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <p className="font-semibold">Encontramos seu cadastro!</p>
-                      <p className="mt-1 text-sm text-slate-600">Para sua segurança, confirme o e-mail cadastrado (<b>{identify.maskedEmail}</b>) e carregamos seu endereço.</p>
+                      <p className="mt-1 text-sm text-slate-600">Para sua segurança, confirme o e-mail cadastrado (<b>{identify.maskedEmail}</b>). Enviamos um código para ele e carregamos seu endereço.</p>
                       <div className="mt-3 flex flex-wrap items-end gap-3">
-                        <label className="w-full text-sm font-medium sm:w-auto sm:min-w-0 sm:flex-1">E-mail<input type="email" required value={confirmEmail} onChange={e => setConfirmEmail(e.target.value)} autoComplete="email" inputMode="email" className={inputClass} /></label>
-                        <button className="button">Carregar meus dados</button>
+                        {confirmCode === undefined
+                          ? <label className="w-full text-sm font-medium sm:w-auto sm:min-w-0 sm:flex-1">E-mail<input type="email" required value={confirmEmail} onChange={e => setConfirmEmail(e.target.value)} autoComplete="email" inputMode="email" className={inputClass} /></label>
+                          : <label className="w-full text-sm font-medium sm:w-auto sm:min-w-0 sm:flex-1">Código enviado para {confirmEmail}<input required value={confirmCode} onChange={e => setConfirmCode(e.target.value.replace(/\D/g, '').slice(0, 6))} autoComplete="one-time-code" inputMode="numeric" pattern="\d{6}" placeholder="000000" autoFocus className={inputClass} /></label>}
+                        <button className="button">{confirmCode === undefined ? 'Enviar código' : 'Carregar meus dados'}</button>
                       </div>
                       {confirmError && <p role="alert" className="mt-2 text-sm text-red-700">{confirmError}</p>}
                       <button type="button" onClick={() => { setGreeting(undefined); openForm(localFor(cpf)); setIdentify({ state: 'idle' }); }} className="mt-3 text-sm font-medium text-brand underline">Continuar sem carregar os dados</button>

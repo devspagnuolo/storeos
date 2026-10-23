@@ -4,7 +4,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { MAIL_PROVIDER, MailProvider } from '../notifications/mail-provider';
 import { statusLabel, trackingLink } from '../orders/tracking-rules';
-import { CODE_MAX_ATTEMPTS, CODE_MINUTES, CODES_PER_WINDOW, hashLoginCode, hashSessionToken, loginCodeMail, maskDocument, newLoginCode, newSessionToken, normalizeEmail } from './account-rules';
+import { CodePurpose, CODE_MAX_ATTEMPTS, CODE_MINUTES, CODES_PER_WINDOW, hashLoginCode, hashSessionToken, loginCodeMail, maskDocument, newLoginCode, newSessionToken, normalizeEmail } from './account-rules';
 
 export type CustomerContext = { sessionId: string; storeId: string; customerId: string };
 
@@ -26,20 +26,41 @@ export class AccountService {
     const customer = await this.prisma.customer.findUnique({ where: { storeId_email: { storeId: store.id, email } }, select: { name: true, anonymizedAt: true } });
     const newName = signupName?.trim();
     if (customer?.anonymizedAt || (!customer && !newName)) return { sent: true };
+    await this.sendCode(store, email, customer?.name ?? newName!);
+    return { sent: true };
+  }
+
+  /**
+   * Envia um código de 6 dígitos ao e-mail (entrar na conta ou carregar dados no checkout).
+   * Respeita o limite por janela; só o código mais novo vale. Devolve false quando o limite já foi atingido.
+   */
+  async sendCode(store: { id: string; name: string }, rawEmail: string, name: string, purpose: CodePurpose = 'login') {
+    const email = normalizeEmail(rawEmail);
     const recent = await this.prisma.customerLoginCode.count({ where: { storeId: store.id, email, createdAt: { gt: new Date(Date.now() - CODE_MINUTES * 60_000) } } });
-    if (recent >= CODES_PER_WINDOW) return { sent: true };
+    if (recent >= CODES_PER_WINDOW) return false;
     const { code, hash, expiresAt } = newLoginCode(email);
-    // Só o código mais novo vale.
     await this.prisma.customerLoginCode.updateMany({ where: { storeId: store.id, email, usedAt: null }, data: { usedAt: new Date() } });
     await this.prisma.customerLoginCode.create({ data: { storeId: store.id, email, codeHash: hash, expiresAt } });
-    const message = loginCodeMail({ name: customer?.name ?? newName!, storeName: store.name, code });
+    const message = loginCodeMail({ name, storeName: store.name, code, purpose });
     try {
       const result = await this.mail.send({ to: email, subject: message.subject, text: message.text, html: message.html, from: process.env.MAIL_FROM ?? `${store.name} <pedidos@example.com>` });
-      await this.prisma.emailLog.create({ data: { storeId: store.id, template: 'account.login-code', toEmail: email, subject: message.subject.replace(code, '••••••'), body: message.text.replace(code, '••••••'), status: result.status, providerId: result.providerId } });
+      await this.prisma.emailLog.create({ data: { storeId: store.id, template: purpose === 'checkout' ? 'checkout.identify-code' : 'account.login-code', toEmail: email, subject: message.subject.replace(code, '••••••'), body: message.text.replace(code, '••••••'), status: result.status, providerId: result.providerId } });
     } catch (error) {
       this.logger.error(`Falha ao enviar código de acesso: ${(error as Error).message}`);
     }
-    return { sent: true };
+    return true;
+  }
+
+  /** Confere e consome o código mais novo do e-mail. Cada tentativa conta antes de comparar, então chamadas em paralelo não passam do limite. */
+  async consumeCode(storeId: string, rawEmail: string, code: string) {
+    const email = normalizeEmail(rawEmail);
+    const pending = await this.prisma.customerLoginCode.findFirst({ where: { storeId, email, usedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
+    if (!pending) return false;
+    const attempt = await this.prisma.customerLoginCode.updateMany({ where: { id: pending.id, usedAt: null, attempts: { lt: CODE_MAX_ATTEMPTS } }, data: { attempts: { increment: 1 } } });
+    if (!attempt.count || pending.codeHash !== hashLoginCode(email, code)) return false;
+    // Marca como usado só se ninguém usou antes (duas abas com o mesmo código).
+    const claimed = await this.prisma.customerLoginCode.updateMany({ where: { id: pending.id, usedAt: null }, data: { usedAt: new Date() } });
+    return claimed.count > 0;
   }
 
   async verifyCode(storeSlug: string, rawEmail: string, code: string, signupName?: string) {
@@ -47,14 +68,7 @@ export class AccountService {
     const email = normalizeEmail(rawEmail);
     const store = await this.prisma.store.findUnique({ where: { slug: storeSlug }, select: { id: true } });
     if (!store) throw invalid;
-    const pending = await this.prisma.customerLoginCode.findFirst({ where: { storeId: store.id, email, usedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
-    if (!pending) throw invalid;
-    // A tentativa é contada antes de comparar e só se ainda houver saldo: requisições em paralelo não passam do limite.
-    const attempt = await this.prisma.customerLoginCode.updateMany({ where: { id: pending.id, usedAt: null, attempts: { lt: CODE_MAX_ATTEMPTS } }, data: { attempts: { increment: 1 } } });
-    if (!attempt.count || pending.codeHash !== hashLoginCode(email, code)) throw invalid;
-    // Marca como usado só se ninguém usou antes (duas abas com o mesmo código).
-    const claimed = await this.prisma.customerLoginCode.updateMany({ where: { id: pending.id, usedAt: null }, data: { usedAt: new Date() } });
-    if (!claimed.count) throw invalid;
+    if (!(await this.consumeCode(store.id, email, code))) throw invalid;
     let customer = await this.prisma.customer.findUnique({ where: { storeId_email: { storeId: store.id, email } }, select: { id: true, anonymizedAt: true } });
     // Criar conta: o código provou que o e-mail é da pessoa; a conta nasce agora, sem pedido.
     const newName = signupName?.trim();

@@ -34,10 +34,15 @@ export function maskDocument(document: string | null | undefined) {
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-export function loginCodeMail(input: { name: string; storeName: string; code: string }) {
+/** login: entrar em "Minha conta"; checkout: carregar os dados salvos ao comprar em outro aparelho. */
+export type CodePurpose = 'login' | 'checkout';
+
+export function loginCodeMail(input: { name: string; storeName: string; code: string; purpose?: CodePurpose }) {
   const first = input.name.trim().split(/\s+/)[0] || 'tudo bem';
-  const subject = `${input.code} é seu código para entrar na ${input.storeName}`;
-  const text = `Oi, ${first}!\n\nSeu código para entrar em "Minha conta" na ${input.storeName} é:\n\n${input.code}\n\nEle vale por ${CODE_MINUTES} minutos. Se não foi você, ignore esta mensagem.\n`;
-  const html = `<p>Oi, ${escapeHtml(first)}!</p><p>Seu código para entrar em <b>Minha conta</b> na ${escapeHtml(input.storeName)} é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${input.code}</p><p style="color:#64748b;font-size:12px">Ele vale por ${CODE_MINUTES} minutos. Se não foi você, ignore esta mensagem.</p>`;
+  const checkout = input.purpose === 'checkout';
+  const subject = checkout ? `${input.code} é seu código para continuar a compra na ${input.storeName}` : `${input.code} é seu código para entrar na ${input.storeName}`;
+  const action = checkout ? 'carregar seus dados no checkout' : 'entrar em "Minha conta"';
+  const text = `Oi, ${first}!\n\nSeu código para ${action} na ${input.storeName} é:\n\n${input.code}\n\nEle vale por ${CODE_MINUTES} minutos. Se não foi você, ignore esta mensagem.\n`;
+  const html = `<p>Oi, ${escapeHtml(first)}!</p><p>Seu código para ${checkout ? 'carregar seus dados no <b>checkout</b>' : 'entrar em <b>Minha conta</b>'} na ${escapeHtml(input.storeName)} é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${input.code}</p><p style="color:#64748b;font-size:12px">Ele vale por ${CODE_MINUTES} minutos. Se não foi você, ignore esta mensagem.</p>`;
   return { subject, text, html };
 }

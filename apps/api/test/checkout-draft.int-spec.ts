@@ -1,17 +1,20 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { randomUUID } from 'node:crypto';
+import { MAIL_PROVIDER } from '../src/modules/notifications/mail-provider';
 import { checkoutBody, cleanup, createStore, prisma, startApp } from './helpers';
 
 let app: NestExpressApplication;
 let api: Awaited<ReturnType<typeof startApp>>['api'];
 
-beforeAll(async () => ({ app, api } = await startApp()));
+const sent: { to: string; text: string }[] = [];
+beforeAll(async () => ({ app, api } = await startApp(b => b.overrideProvider(MAIL_PROVIDER).useValue({ send: async (m: { to: string; text: string }) => { sent.push(m); return { status: 'SIMULATED' }; } }))));
+const codeFor = (email: string) => sent.filter(m => m.to === email).at(-1)?.text.match(/\b(\d{6})\b/)?.[1];
 afterAll(() => cleanup(app));
 
 const cpf = '529.982.247-25';
 const save = (storeSlug: string, token: string, data: Record<string, unknown>, cpfValue?: string) => api('/checkout/draft', { method: 'PUT', body: { storeSlug, token, cpf: cpfValue, data } });
 const identify = (storeSlug: string, token: string, cpfValue = cpf) => api('/checkout/identify', { method: 'POST', body: { storeSlug, token, cpf: cpfValue } });
-const confirm = (storeSlug: string, token: string, email: string) => api('/checkout/identify/confirm', { method: 'POST', body: { storeSlug, token, cpf, email } });
+const confirm = (storeSlug: string, token: string, email: string, code?: string) => api('/checkout/identify/confirm', { method: 'POST', body: { storeSlug, token, cpf, email, code } });
 
 describe('rascunho do checkout e identificação pelo CPF', () => {
   it('grava cada campo, recupera no mesmo aparelho e descarta o que não é do formulário', async () => {
@@ -25,7 +28,7 @@ describe('rascunho do checkout e identificação pelo CPF', () => {
     expect(JSON.stringify((await prisma.checkoutDraft.findUniqueOrThrow({ where: { token } })).data)).not.toContain('4111');
   });
 
-  it('em outro aparelho, o CPF só revela o e-mail mascarado; os dados vêm com o e-mail certo', async () => {
+  it('em outro aparelho, o CPF só revela o e-mail mascarado; os dados só vêm com o código enviado ao e-mail', async () => {
     const { store, product } = await createStore();
     await api('/checkout', { method: 'POST', body: { ...checkoutBody(store.slug, [{ productId: product.id, quantity: 1 }]), customer: { name: 'Maria Silva', email: 'maria@example.com', phone: '(11) 98888-7777' } } });
     const other = randomUUID();
@@ -33,7 +36,16 @@ describe('rascunho do checkout e identificação pelo CPF', () => {
     expect(known.body).toEqual({ status: 'known', maskedEmail: 'ma***@example.com' });
     expect(JSON.stringify(known.body)).not.toContain('Paulista');
     expect((await confirm(store.slug, other, 'outra@example.com')).body).toEqual({ matched: false });
-    const ok = await confirm(store.slug, other, 'MARIA@example.com');
+    sent.length = 0;
+    // CPF + e-mail certos não bastam: o código vai para o e-mail e nenhum dado volta ainda.
+    const pending = await confirm(store.slug, other, 'MARIA@example.com');
+    expect(pending.body).toEqual({ matched: true, codeSent: true });
+    expect(JSON.stringify(pending.body)).not.toContain('Paulista');
+    const code = codeFor('maria@example.com')!;
+    expect(code).toBeDefined();
+    const wrong = code === '000000' ? '111111' : '000000';
+    expect((await confirm(store.slug, other, 'maria@example.com', wrong)).status).toBe(400);
+    const ok = await confirm(store.slug, other, 'MARIA@example.com', code);
     expect(ok.body).toEqual({ matched: true, data: expect.objectContaining({ name: 'Maria Silva', email: 'maria@example.com', phone: '11988887777', zipCode: '01310-100', street: 'Av. Paulista', number: '1000', city: 'São Paulo', state: 'SP' }) });
     // Depois de confirmado, o próprio aparelho já recupera pelo token.
     expect((await identify(store.slug, other)).body.status).toBe('draft');

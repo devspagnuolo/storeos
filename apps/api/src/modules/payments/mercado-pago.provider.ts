@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentMethod, PaymentStatus } from '@prisma/client';
-import { MercadoPagoClient } from './mercado-pago.client';
+import { MercadoPagoClient, paymentReference } from './mercado-pago.client';
 import { ChargeRequest, ChargeResult, formatAmount, PaymentProvider } from './payment-provider';
 
 export const MERCADO_PAGO = 'mercadopago';
@@ -32,6 +32,7 @@ export class MercadoPagoProvider implements PaymentProvider {
       amount: Number(request.amount),
       description: `Pedido ${request.orderNumber}`,
       orderNumber: request.orderNumber,
+      reference: paymentReference(request.storeId, request.orderNumber),
       expiresAt: request.expiresAt,
       payer: { email: request.customer.email, firstName, lastName: rest.join(' ') || undefined, cpf: request.customer.cpf, address: request.customer.address },
       card: method === 'card' ? { token: request.card!.token!, paymentMethodId: request.card!.paymentMethodId!, installments: request.card!.installments, issuerId: request.card!.issuerId } : undefined,

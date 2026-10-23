@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccountModule } from '../account/account.module';
 import { FidelizeiModule } from '../fidelizei/fidelizei.module';
 import { OrdersModule } from '../orders/orders.module';
 import { PaymentsModule } from '../payments/payments.module';
@@ -8,4 +9,4 @@ import { CheckoutController } from './checkout.controller';
 import { CheckoutService } from './checkout.service';
 import { CheckoutDraftCleanupJob } from './checkout-draft.job';
 import { CheckoutDraftService } from './checkout-draft.service';
-@Module({ imports: [OrdersModule, PaymentsModule, ShippingModule, PromotionsModule, FidelizeiModule], controllers: [CheckoutController], providers: [CheckoutService, CheckoutDraftService, CheckoutDraftCleanupJob] }) export class CheckoutModule {}
+@Module({ imports: [AccountModule, OrdersModule, PaymentsModule, ShippingModule, PromotionsModule, FidelizeiModule], controllers: [CheckoutController], providers: [CheckoutService, CheckoutDraftService, CheckoutDraftCleanupJob] }) export class CheckoutModule {}
