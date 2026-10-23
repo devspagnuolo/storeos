@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCardNumber, formatCpf, formatExpiry, isEligibleFreeInstallment, isValidCpf, parseExpiry } from './payment';
+import { formatCardNumber, freeInstallmentOffer, formatCpf, formatExpiry, isEligibleFreeInstallment, isValidCpf, parseExpiry } from './payment';
 
 describe('payment', () => {
   it('formata e valida CPF', () => {
@@ -29,5 +29,19 @@ describe('payment', () => {
     expect(isEligibleFreeInstallment(4, 75, 6, 80)).toBe(false);
     expect(isEligibleFreeInstallment(4, 85, 6, 80)).toBe(true);
     expect(isEligibleFreeInstallment(7, 100, 6, 80)).toBe(false);
+  });
+});
+
+describe('freeInstallmentOffer', () => {
+  const card = { provider: 'mercadopago' as const, publicKey: 'x', maxInstallments: 12, maxFreeInstallments: 6, minFreeInstallment: 80 };
+  it('respeita o piso da parcela e o limite sem juros da loja', () => {
+    expect(freeInstallmentOffer(459, card)).toEqual({ installments: 5, amount: 91.8 });
+    expect(freeInstallmentOffer(999, card)).toEqual({ installments: 6, amount: 166.5 });
+    expect(freeInstallmentOffer(159.9, card)).toBeNull();
+    expect(freeInstallmentOffer(160, card)).toEqual({ installments: 2, amount: 80 });
+  });
+  it('sem cartão ou com 1x sem juros não oferece parcelas', () => {
+    expect(freeInstallmentOffer(459, null)).toBeNull();
+    expect(freeInstallmentOffer(459, { ...card, maxFreeInstallments: 1 })).toBeNull();
   });
 });

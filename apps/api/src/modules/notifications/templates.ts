@@ -2,7 +2,7 @@ import { renderMail, templateKeyForEvent, TemplateOverride } from './email-templ
 export type { Mail } from './email-templates';
 import type { Mail } from './email-templates';
 
-export type OrderMailData = { storeName: string; customerName: string; orderNumber: string; total?: string; carrier?: string; trackingCode?: string; trackingUrl?: string; siteUrl?: string };
+export type OrderMailData = { storeName: string; customerName: string; orderNumber: string; total?: string; carrier?: string; trackingCode?: string; trackingUrl?: string; siteUrl?: string; items?: { name: string; quantity: number }[] };
 
 const money = (value?: string) => (value ? `R$ ${Number(value).toFixed(2).replace('.', ',')}` : undefined);
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
@@ -11,7 +11,9 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': 
 export function buildOrderMail(eventName: string, data: OrderMailData, override?: TemplateOverride | null): Mail | null {
   const key = templateKeyForEvent(eventName);
   if (!key) return null;
-  return renderMail(key, { nome: data.customerName, loja: data.storeName, pedido: data.orderNumber, total: money(data.total), transportadora: data.carrier, rastreio: data.trackingCode, link_rastreio: data.trackingUrl }, { override });
+  return renderMail(key, { nome: data.customerName, loja: data.storeName, pedido: data.orderNumber, total: money(data.total), transportadora: data.carrier, rastreio: data.trackingCode, link_rastreio: data.trackingUrl,
+    itens: data.items?.map(i => `- ${i.quantity}x ${i.name}`).join('\n') || undefined,
+    link_pedido: data.siteUrl ? `${data.siteUrl}/acompanhar?pedido=${encodeURIComponent(data.orderNumber)}` : undefined }, { override });
 }
 
 export type CartReminderData = { storeName: string; customerName: string; items: { name: string; quantity: number; variantLabel?: string }[]; recoverUrl: string; optOutUrl: string };

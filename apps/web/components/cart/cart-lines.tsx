@@ -35,6 +35,9 @@ export function CartLines({ items, availability, compact = false }: { items: Car
                 <button type="button" aria-label={`Aumentar ${item.name}`} title={atMax ? `Máximo disponível: ${max}` : undefined} disabled={atMax} className="h-8 w-8 rounded-lg border disabled:cursor-not-allowed disabled:opacity-40" onClick={() => setQuantity(key, item.quantity + 1)}>+</button>
               </div>
               <p className={'text-right font-bold ' + (compact ? 'w-20' : 'w-24 sm:w-28')}>{formatPrice((Number(item.price) * 100 * item.quantity) / 100)}</p>
+              {!compact && <button type="button" aria-label={`Remover ${item.name}`} title="Remover" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-red-700" onClick={() => setQuantity(key, 0)}>
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14" /></svg>
+              </button>}
               </div>
             </div>
             {atMax && !issue && <p className="mt-2 text-xs text-slate-500">Você já tem no carrinho todas as {max} unidades disponíveis.</p>}

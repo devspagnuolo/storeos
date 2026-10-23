@@ -14,3 +14,11 @@ export function topBarMessages(announcement: string | null | undefined, freeShip
   if (text) messages.push({ kind: 'announcement', text });
   return messages;
 }
+
+/** Quanto falta para o frete grátis, para o carrinho incentivar completar o pedido. Null quando não há regra. */
+export function freeShippingProgress(subtotal: number, freeShipping: FreeShipping | null | undefined): { missing: number; percent: number; regional: boolean } | null {
+  const from = Number(freeShipping?.from);
+  if (!freeShipping || !(from > 0)) return null;
+  const missing = Math.max(Math.round((from - subtotal) * 100) / 100, 0);
+  return { missing, percent: Math.min(Math.round((subtotal / from) * 100), 100), regional: !freeShipping.nationwide };
+}

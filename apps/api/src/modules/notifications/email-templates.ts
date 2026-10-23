@@ -6,18 +6,19 @@ export type TemplateVars = Record<string, string | undefined>;
 export const VARIABLES = {
   nome: 'Primeiro nome do cliente', loja: 'Nome da loja', pedido: 'Número do pedido', total: 'Valor do pedido (ex.: R$ 99,80)',
   transportadora: 'Transportadora do envio', rastreio: 'Código de rastreio', link_rastreio: 'Link para acompanhar a entrega',
-  itens: 'Lista dos itens do carrinho', link_carrinho: 'Link que devolve os itens ao carrinho',
+  itens: 'Lista dos itens (do pedido ou do carrinho)', link_carrinho: 'Link que devolve os itens ao carrinho',
+  link_pedido: 'Link para o cliente acompanhar o pedido na loja',
 } as const;
 type VariableName = keyof typeof VARIABLES;
 
 type Def = { label: string; description: string; event?: string; title: string; variables: VariableName[]; subject: string; body: string; required?: VariableName[] };
 
-const ORDER_VARS: VariableName[] = ['nome', 'loja', 'pedido', 'total'];
+const ORDER_VARS: VariableName[] = ['nome', 'loja', 'pedido', 'total', 'itens', 'link_pedido'];
 
 export const TEMPLATE_DEFS = {
-  'order-created': { label: 'Pedido recebido', description: 'Assim que o cliente fecha o pedido.', event: 'orders.order-created.v1', title: 'Pedido recebido', variables: ORDER_VARS, subject: 'Recebemos seu pedido {{pedido}}', body: 'Recebemos o pedido {{pedido}}.\nValor: {{total}}\n\nAssim que o pagamento for confirmado, avisaremos você.' },
-  'order-paid': { label: 'Pagamento confirmado', description: 'Quando o pagamento é aprovado.', event: 'orders.order-paid.v1', title: 'Pagamento confirmado', variables: ORDER_VARS, subject: 'Pagamento confirmado – pedido {{pedido}}', body: 'O pagamento do pedido {{pedido}} foi confirmado.\n\nJá estamos separando seus itens.' },
-  'order-shipped': { label: 'Pedido enviado', description: 'Quando o pedido sai para entrega, com o rastreio.', event: 'orders.order-shipped.v1', title: 'Pedido enviado', variables: [...ORDER_VARS, 'transportadora', 'rastreio', 'link_rastreio'], subject: 'Seu pedido {{pedido}} foi enviado', body: 'O pedido {{pedido}} saiu para entrega.\n\nTransportadora: {{transportadora}}\nCódigo de rastreio: {{rastreio}}\nAcompanhe em: {{link_rastreio}}' },
+  'order-created': { label: 'Pedido recebido', description: 'Assim que o cliente fecha o pedido.', event: 'orders.order-created.v1', title: 'Pedido recebido', variables: ORDER_VARS, subject: 'Recebemos seu pedido {{pedido}}', body: 'Recebemos o pedido {{pedido}}.\n\n{{itens}}\nTotal: {{total}}\n\nAssim que o pagamento for confirmado, avisaremos você.\n\nAcompanhe seu pedido: {{link_pedido}}' },
+  'order-paid': { label: 'Pagamento confirmado', description: 'Quando o pagamento é aprovado.', event: 'orders.order-paid.v1', title: 'Pagamento confirmado', variables: ORDER_VARS, subject: 'Pagamento confirmado – pedido {{pedido}}', body: 'O pagamento do pedido {{pedido}} foi confirmado.\n\nJá estamos separando seus itens.\n\nAcompanhe seu pedido: {{link_pedido}}' },
+  'order-shipped': { label: 'Pedido enviado', description: 'Quando o pedido sai para entrega, com o rastreio.', event: 'orders.order-shipped.v1', title: 'Pedido enviado', variables: [...ORDER_VARS, 'transportadora', 'rastreio', 'link_rastreio'], subject: 'Seu pedido {{pedido}} foi enviado', body: 'O pedido {{pedido}} saiu para entrega.\n\nTransportadora: {{transportadora}}\nCódigo de rastreio: {{rastreio}}\nAcompanhe em: {{link_rastreio}}\n\nDetalhes do pedido: {{link_pedido}}' },
   'order-delivered': { label: 'Pedido entregue', description: 'Quando a entrega é confirmada.', event: 'orders.order-delivered.v1', title: 'Pedido entregue', variables: ORDER_VARS, subject: 'Pedido {{pedido}} entregue', body: 'O pedido {{pedido}} foi entregue. Esperamos que goste!' },
   'order-cancelled': { label: 'Pedido cancelado', description: 'Quando o pedido é cancelado.', event: 'orders.order-cancelled.v1', title: 'Pedido cancelado', variables: ORDER_VARS, subject: 'Pedido {{pedido}} cancelado', body: 'O pedido {{pedido}} foi cancelado.\n\nSe isso foi um engano, é só fazer um novo pedido na loja.' },
   'order-refunded': { label: 'Pedido reembolsado', description: 'Quando um reembolso é registrado.', event: 'orders.order-refunded.v1', title: 'Pedido reembolsado', variables: ORDER_VARS, subject: 'Reembolso do pedido {{pedido}}', body: 'O pedido {{pedido}} foi reembolsado.\nValor reembolsado: {{total}}\n\nO prazo para o valor aparecer na sua conta ou fatura depende do banco ou da operadora do cartão.' },
@@ -81,4 +82,5 @@ export function renderMail(key: TemplateKey, vars: TemplateVars, options: Render
 export const SAMPLE_VARS: TemplateVars = {
   nome: 'Maria Silva', loja: 'Sua loja', pedido: '00001', total: 'R$ 189,90', transportadora: 'Correios', rastreio: 'BR123456789BR', link_rastreio: 'https://loja.exemplo.com.br/acompanhar',
   itens: '- 2x Vestido midi (G)\n- 1x Blusa de linho', link_carrinho: 'https://loja.exemplo.com.br/recuperar/abc123',
+  link_pedido: 'https://loja.exemplo.com.br/acompanhar?pedido=00001',
 };

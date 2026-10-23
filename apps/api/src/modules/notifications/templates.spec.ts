@@ -18,4 +18,12 @@ describe('buildOrderMail', () => {
   it('avisa o cliente do reembolso', () => {
     expect(buildOrderMail('orders.order-refunded.v1', { ...data, total: '99.80' })).toMatchObject({ template: 'order-refunded', subject: 'Reembolso do pedido SO-1' });
   });
+  it('lista os itens e leva ao acompanhamento do pedido; sem endereço da loja, a linha do link some', () => {
+    const items = [{ name: 'Vestido midi', quantity: 2 }, { name: 'Blusa', quantity: 1 }];
+    const mail = buildOrderMail('orders.order-created.v1', { ...data, items, siteUrl: 'https://loja.com.br' })!;
+    expect(mail.text).toContain('- 2x Vestido midi\n- 1x Blusa');
+    expect(mail.text).toContain('Acompanhe seu pedido: https://loja.com.br/acompanhar?pedido=SO-1');
+    expect(mail.html).toContain('href="https://loja.com.br/acompanhar?pedido=SO-1"');
+    expect(buildOrderMail('orders.order-created.v1', data)!.text).not.toContain('Acompanhe seu pedido');
+  });
 });

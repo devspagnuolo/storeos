@@ -9,7 +9,11 @@ import { activeEngineDocument, engineNumber, engineSection, engineText } from '.
 import { gridColumns } from '../../lib/responsive-grid';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Buscar' };
+// Resultados de busca não entram no Google (conteúdo repetido das categorias), mas os links seguem rastreáveis.
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ q?: string }> }): Promise<Metadata> {
+  const q = (await searchParams).q?.trim().slice(0, 60);
+  return { title: q ? `Busca: ${q}` : 'Buscar', robots: { index: false, follow: true } };
+}
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string; categoria?: string } & FilterParams> }) {
   const params = await searchParams;
@@ -33,7 +37,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           <button className="button">Buscar</button>
         </form>
         {facets && <div className="mt-6"><ProductFilters facets={facets} filters={filters} basePath="/busca" keep={{ q, categoria }} /></div>}
-        {results && <div className="mt-8"><p className="mb-6 text-sm text-slate-500">{results.total} resultado(s){q && <> para “{q}”</>}{categoria && <> em {options.find(c => c.slug === categoria)?.name ?? categoria}</>}</p><ProductGrid page={results} basePath="/busca" params={{ q, ...(categoria && { categoria }), ...urlFilters(filters) }} empty="Nenhum produto encontrado. Tente outro termo." columns={gridColumns(engineNumber(search?.mobileColumns, 1, 2), undefined, { mobile: 2, desktop: 4 })} /></div>}
+        {results && <div className="mt-8"><p className="mb-6 text-sm text-slate-500">{results.total} {results.total === 1 ? 'resultado' : 'resultados'}{q && <> para “{q}”</>}{categoria && <> em {options.find(c => c.slug === categoria)?.name ?? categoria}</>}</p><ProductGrid page={results} basePath="/busca" params={{ q, ...(categoria && { categoria }), ...urlFilters(filters) }} empty="Nenhum produto encontrado. Tente outro termo." columns={gridColumns(engineNumber(search?.mobileColumns, 1, 2), undefined, { mobile: 2, desktop: 4 })} /></div>}
       </main>
     </>
   );
