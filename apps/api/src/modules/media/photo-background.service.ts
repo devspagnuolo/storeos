@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+// sharp 0.35 publica tipos ESM; o projeto compila em CommonJS sem esModuleInterop, então o módulo é lido por require.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sharp: typeof import('sharp').default = require('sharp');
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { ACCEPTED_IMAGES, matchesSignature } from './image-info';
-import { PRODUCT_IMAGE, standardizeImage } from './image-standard';
+import { standardizeImage } from './image-standard';
 import { MediaService, UploadedFile } from './media.service';
-import { inBatches, parsePhotoBackground, PhotoBackground } from './photo-background';
+import { inBatches, parsePhotoBackground, PhotoBackground, SAMPLE_CUTOUT_SVG } from './photo-background';
+import { composePhoto } from './photo-compose';
 import { PhotoroomClient } from './photoroom.client';
 import { RemoteImageService } from './remote-image.service';
 
@@ -20,6 +24,8 @@ export type ProductPhoto = { url: string; originalUrl: string | null; width: num
 @Injectable()
 export class PhotoBackgroundService {
   private readonly logger = new Logger(PhotoBackgroundService.name);
+  /** Imagens de fundo já baixadas (uma por loja), para a importação não baixar a mesma a cada foto. */
+  private readonly backdrops = new Map<string, { url: string; image: Buffer }>();
 
   constructor(private readonly prisma: PrismaService, private readonly media: MediaService, private readonly photoroom: PhotoroomClient, private readonly remote: RemoteImageService) {}
 
@@ -33,9 +39,11 @@ export class PhotoBackgroundService {
     return { ...(await this.current(storeId)), available: this.photoroom.configured, sandbox: this.photoroom.sandbox };
   }
 
-  async save(storeId: string, input: PhotoBackground) {
+  async save(storeId: string, input: Partial<PhotoBackground>) {
+    if (input.style === 'image' && !input.imageUrl) throw new BadRequestException('Envie a imagem de fundo ou escolha outro estilo.');
     const value = parsePhotoBackground(input);
     if (value.enabled && !this.photoroom.configured) throw new BadRequestException('Falta configurar a chave do Photoroom no servidor para ligar o fundo automático.');
+    if (value.imageUrl) await this.backdropImage(storeId, value.imageUrl, true);
     await this.prisma.store.update({ where: { id: storeId }, data: { photoBackground: value as Prisma.InputJsonObject } });
     return this.settings(storeId);
   }
@@ -65,7 +73,7 @@ export class PhotoBackgroundService {
     const plain = { url: originalUrl, originalUrl: null, width: standard.width, height: standard.height, warning: null };
     if (!choice.enabled || !this.photoroom.configured) return plain;
     try {
-      return { ...plain, url: await this.replace(storeId, input, choice.color, originalUrl, name), originalUrl };
+      return { ...plain, url: await this.replace(storeId, input, choice, originalUrl, name), originalUrl };
     } catch (error) {
       this.logger.warn(`Fundo não trocado em "${name}": ${(error as Error).message}`);
       return { ...plain, warning: FAILED_WARNING };
@@ -79,7 +87,7 @@ export class PhotoBackgroundService {
     const originalUrl = known?.originalUrl ?? url;
     const input = await this.download(storeId, originalUrl);
     try {
-      return { url: await this.replace(storeId, input, (await this.current(storeId)).color, originalUrl, 'foto'), originalUrl };
+      return { url: await this.replace(storeId, input, await this.current(storeId), originalUrl, 'foto'), originalUrl };
     } catch (error) {
       this.logger.warn(`Fundo não trocado em ${originalUrl}: ${(error as Error).message}`);
       throw new ServiceUnavailableException('Não foi possível trocar o fundo desta foto agora. Tente de novo em instantes.');
@@ -93,9 +101,31 @@ export class PhotoBackgroundService {
     return Object.fromEntries(rows.map(row => [row.url, row.originalUrl]));
   }
 
-  private async replace(storeId: string, input: Buffer, color: string, originalUrl: string, name: string) {
+  /** Prévia do fundo no painel com uma silhueta de exemplo: não chama o Photoroom nem salva nada. */
+  async preview(storeId: string, input: Partial<PhotoBackground>) {
+    const choice = parsePhotoBackground(input);
+    const image = await composePhoto(await sharp(Buffer.from(SAMPLE_CUTOUT_SVG)).png().toBuffer(), await this.backdrop(storeId, choice));
+    return sharp(image.buffer).resize(400, 500).jpeg({ quality: 80 }).toBuffer();
+  }
+
+  private async backdrop(storeId: string, choice: PhotoBackground) {
+    const image = choice.style === 'image' && choice.imageUrl ? await this.backdropImage(storeId, choice.imageUrl) : null;
+    return { style: choice.style, color: choice.color, image, shadow: choice.shadow, floor: choice.floor };
+  }
+
+  private async backdropImage(storeId: string, url: string, fresh = false) {
+    const cached = this.backdrops.get(storeId);
+    if (!fresh && cached?.url === url) return cached.image;
+    const image = await this.download(storeId, url);
+    const meta = await sharp(image, { failOn: 'none' }).metadata().catch(() => undefined);
+    if (!meta?.width || !meta.height) throw new BadRequestException('A imagem de fundo não pôde ser lida. Envie um JPG, PNG ou WebP.');
+    this.backdrops.set(storeId, { url, image });
+    return image;
+  }
+
+  private async replace(storeId: string, input: Buffer, choice: PhotoBackground, originalUrl: string, name: string) {
     const cutout = await this.photoroom.removeBackground(input);
-    const image = await standardizeImage(cutout, PRODUCT_IMAGE, color);
+    const image = await composePhoto(cutout, await this.backdrop(storeId, choice));
     const url = await this.media.saveProcessed(storeId, 'product', { buffer: image.buffer, mimetype: image.mime, width: image.width, height: image.height, originalname: this.fileName(name) });
     await this.prisma.photoOriginal.create({ data: { storeId, url, originalUrl } });
     return url;

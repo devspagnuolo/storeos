@@ -43,7 +43,7 @@ describe('fundo padrão das fotos de produto', () => {
   it('desligado por padrão: o envio continua como antes e nada é recortado', async () => {
     const { store } = await createStore();
     const token = await login(api, store, ['settings.write', 'catalog.write']);
-    expect((await api('/media/background', { token })).body).toEqual({ enabled: false, color: '#F2F2F2', available: true, sandbox: false });
+    expect((await api('/media/background', { token })).body).toEqual({ enabled: false, color: '#F2F2F2', style: 'studio', imageUrl: null, shadow: true, floor: 0.88, available: true, sandbox: false });
     const before = photoroom.calls;
     const sent = await upload(token, await jpeg());
     expect(sent.status).toBe(201);
@@ -54,7 +54,7 @@ describe('fundo padrão das fotos de produto', () => {
   it('ligado: troca o fundo das fotos novas, guarda a original e permite voltar', async () => {
     const { store } = await createStore();
     const token = await login(api, store, ['settings.write', 'catalog.write']);
-    expect((await api('/media/background', { method: 'PUT', token, body: { enabled: true, color: '#E8E0D0' } })).body).toMatchObject({ enabled: true, color: '#E8E0D0' });
+    expect((await api('/media/background', { method: 'PUT', token, body: { enabled: true, color: '#E8E0D0', style: 'flat', shadow: false } })).body).toMatchObject({ enabled: true, color: '#E8E0D0', style: 'flat' });
     const sent = await upload(token, await jpeg());
     expect(sent.status).toBe(201);
     const [photo] = sent.body.files;
@@ -69,6 +69,27 @@ describe('fundo padrão das fotos de produto', () => {
     const again = await api('/media/background/apply', { method: 'POST', token, body: { url: photo.url } });
     expect(again.status).toBe(200);
     expect(again.body.originalUrl).toBe(photo.originalUrl);
+  });
+
+  it('prévia sem gastar crédito e imagem de fundo enviada pela loja', async () => {
+    const { store } = await createStore();
+    const token = await login(api, store, ['settings.write', 'catalog.write']);
+    const before = photoroom.calls;
+    const preview = await fetch(`${baseUrl}/api/v1/media/background/preview`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ style: 'studio', color: '#F6E9EC', shadow: true }) });
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get('content-type')).toContain('image/jpeg');
+    expect((await sharp(Buffer.from(await preview.arrayBuffer())).metadata()).width).toBe(400);
+    expect(photoroom.calls).toBe(before);
+
+    const form = new FormData();
+    form.append('files', new Blob([new Uint8Array(await sharp({ create: { width: 600, height: 400, channels: 3, background: '#20a060' } }).jpeg().toBuffer())], { type: 'image/jpeg' }), 'parede.jpg');
+    const wall = (await (await fetch(`${baseUrl}/api/v1/media/upload?kind=other`, { method: 'POST', body: form, headers: { authorization: `Bearer ${token}` } })).json()).files[0].url;
+    expect((await api('/media/background', { method: 'PUT', token, body: { enabled: true, color: '#FFFFFF', style: 'image' } })).status).toBe(400);
+    expect((await api('/media/background', { method: 'PUT', token, body: { enabled: true, color: '#FFFFFF', style: 'image', imageUrl: wall, shadow: false } })).body).toMatchObject({ style: 'image', imageUrl: wall });
+    const [photo] = (await upload(token, await jpeg())).body.files;
+    const [r, g] = await corner(photo.url);
+    expect(g).toBeGreaterThan(r + 60); // a parede verde aparece atrás da peça
+    expect((await api('/media/background', { method: 'PUT', token, body: { enabled: true, color: '#FFFFFF', style: 'image', imageUrl: 'https://outra.test/x.jpg' } })).status).toBe(400);
   });
 
   it('só trata fotos da própria loja e valida a cor', async () => {
