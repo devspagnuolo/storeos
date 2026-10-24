@@ -2,8 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { BlingImportStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { ProductImportService } from '../catalog/product-import.service';
-import { standardizeImage } from '../media/image-standard';
-import { MediaService } from '../media/media.service';
+import { PhotoBackgroundService } from '../media/photo-background.service';
 import { RemoteImageService } from '../media/remote-image.service';
 import { BlingStockService } from './bling-stock.service';
 import { BlingAuthService } from './bling-auth.service';
@@ -26,7 +25,7 @@ export const parseImportMode = (value: unknown): ImportMode => value === 'update
 export class BlingImportService {
   private readonly logger = new Logger(BlingImportService.name);
 
-  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly importer: ProductImportService, private readonly media: MediaService, private readonly remote: RemoteImageService, private readonly stock: BlingStockService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auth: BlingAuthService, private readonly client: BlingClient, private readonly importer: ProductImportService, private readonly photos: PhotoBackgroundService, private readonly remote: RemoteImageService, private readonly stock: BlingStockService) {}
 
   /** Última importação da loja; uma que parou de avançar é encerrada como falha para não travar o painel. */
   async latest(storeId: string) {
@@ -48,13 +47,15 @@ export class BlingImportService {
     return job;
   }
 
-  /** Baixa cada foto do cadastro, ajusta para o tamanho padrão da loja e guarda a cópia. Foto com problema é avisada e ignorada. */
+  /** Baixa cada foto do cadastro, ajusta para o tamanho padrão da loja (e o fundo padrão, se ligado) e guarda a cópia. Foto com problema é avisada e ignorada. */
   private async standardImages(storeId: string, urls: string[], name: string, errors: { sku?: string; message: string }[]) {
     const saved: string[] = [];
+    const background = await this.photos.current(storeId);
     for (const url of urls.slice(0, MAX_IMAGES)) {
       try {
-        const image = await standardizeImage(await this.remote.download(url));
-        saved.push(await this.media.saveProcessed(storeId, 'product', { buffer: image.buffer, mimetype: image.mime, width: image.width, height: image.height, originalname: `${name}.jpg` }));
+        const photo = await this.photos.processNew(storeId, await this.remote.download(url), name, background);
+        if (photo.warning) errors.push({ message: `${name}: ${photo.warning}`.slice(0, 300) });
+        saved.push(photo.url);
       } catch (error) {
         errors.push({ message: `${name}: foto ignorada (${(error as Error).message})`.slice(0, 300) });
       }

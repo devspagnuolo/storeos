@@ -1,3 +1,4 @@
+import { PhotoBackgroundForm, type PhotoBackgroundSettings } from '../../../../components/admin/photo-background-form';
 import { PasswordForm, StoreForm } from '../../../../components/admin/settings-forms';
 import { adminFetch, ApiError } from '../../../../lib/admin/session';
 
@@ -9,6 +10,7 @@ export default async function SettingsPage() {
     if (error instanceof ApiError && error.status === 403) return null;
     throw error;
   });
+  const background = store ? await adminFetch<PhotoBackgroundSettings>('/media/background').catch(() => null) : null;
   return (
     <>
       <h1 className="text-3xl font-bold">Configurações</h1>
@@ -16,6 +18,7 @@ export default async function SettingsPage() {
         {store && <section className="card p-6"><h2 className="mb-4 text-lg font-bold">Loja</h2><StoreForm store={store} /></section>}
         <section className="card p-6"><h2 className="mb-4 text-lg font-bold">Sua senha</h2><PasswordForm /></section>
       </div>
+      {background && <PhotoBackgroundForm settings={background} />}
     </>
   );
 }

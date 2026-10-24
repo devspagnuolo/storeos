@@ -68,6 +68,8 @@ model Store {
   orderAutomation        Boolean                 @default(false)
   /// Parcelamento no cartão definido no painel: máximo de parcelas, sem juros até N e parcela mínima sem juros.
   paymentRules           Json?
+  /// Fundo padrão das fotos de produto ({ enabled, color }). Desligado até o lojista escolher o fundo no painel.
+  photoBackground        Json?
   marketingConfig        Json?
   /// Rodapé da vitrine: título e conteúdo de cada seção (departamentos, links, contato, redes sociais).
   footerConfig           Json?
@@ -91,6 +93,7 @@ model Store {
   menus                  Menu[]
   banners                Banner[]
   mediaAssets            MediaAsset[]
+  photoOriginals         PhotoOriginal[]
   blingConnection        BlingConnection?
   fidelizeiConnection    FidelizeiConnection?
   fidelizeiMembers       FidelizeiMember[]
@@ -972,6 +975,18 @@ model Promotion {
 }
 
 /// Imagem enviada pelo painel quando não há bucket R2 configurado; servida por GET /media/:id.
+/// Foto com o fundo trocado (url) e a foto original no tamanho padrão (originalUrl), para voltar atrás.
+model PhotoOriginal {
+  id          String   @id @default(uuid())
+  storeId     String
+  url         String   @unique
+  originalUrl String
+  createdAt   DateTime @default(now())
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+}
+
 model MediaAsset {
   id        String   @id @default(uuid())
   storeId   String

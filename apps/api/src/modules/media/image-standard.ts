@@ -17,15 +17,15 @@ export function pickFit(width: number, height: number, target = PRODUCT_IMAGE): 
 
 export type StandardImage = { buffer: Buffer; mime: 'image/jpeg'; width: number; height: number; fit: 'cover' | 'contain' };
 
-/** Converte qualquer foto (JPG, PNG, WebP, GIF…) para o padrão da loja: tamanho fixo, fundo branco, JPEG otimizado e orientação corrigida. */
-export async function standardizeImage(input: Buffer, target = PRODUCT_IMAGE): Promise<StandardImage> {
+/** Converte qualquer foto (JPG, PNG, WebP, GIF…) para o padrão da loja: tamanho fixo, fundo (branco ou a cor dada), JPEG otimizado e orientação corrigida. */
+export async function standardizeImage(input: Buffer, target = PRODUCT_IMAGE, background = '#ffffff'): Promise<StandardImage> {
   const base = sharp(input, { failOn: 'none', limitInputPixels: MAX_PIXELS }).rotate();
   const meta = await sharp(await base.clone().toBuffer(), { failOn: 'none' }).metadata();
   if (!meta.width || !meta.height) throw new Error('Imagem inválida');
   const fit = pickFit(meta.width, meta.height, target);
   const buffer = await base
-    .flatten({ background: '#ffffff' })
-    .resize(target.width, target.height, { fit, background: '#ffffff', position: 'centre' })
+    .flatten({ background })
+    .resize(target.width, target.height, { fit, background, position: 'centre' })
     .jpeg({ quality: 86, mozjpeg: true })
     .toBuffer();
   return { buffer, mime: 'image/jpeg', width: target.width, height: target.height, fit };
