@@ -1421,3 +1421,16 @@ export async function bulkProductsAction(_: FormState, form: FormData): Promise<
     throw error;
   }
 }
+
+export async function savePhotoBackgroundAction(_: FormState, form: FormData): Promise<FormState> {
+  const body = { enabled: form.get('enabled') === 'on', color: String(form.get('color') ?? '').toUpperCase() };
+  if (!/^#[0-9A-F]{6}$/.test(body.color)) return { error: 'Escolha uma cor para o fundo.' };
+  try {
+    await adminFetch('/media/background', { method: 'PUT', body });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/admin/configuracoes');
+  return { ok: body.enabled ? 'Fundo salvo. As próximas fotos de produto já entram com ele.' : 'Fundo salvo. O automático está desligado: as fotos entram como vierem.' };
+}

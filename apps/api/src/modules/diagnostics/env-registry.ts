@@ -45,6 +45,7 @@ export const ENV_VARS: EnvVar[] = [
   { name: 'STOREOS_R2_SECRET_ACCESS_KEY', group: 'Imagens', importance: 'optional', description: 'Chave secreta do R2.' },
   { name: 'STOREOS_R2_BUCKET', group: 'Imagens', importance: 'optional', description: 'Nome do bucket do R2.' },
   { name: 'STOREOS_R2_PUBLIC_URL', group: 'Imagens', importance: 'optional', description: 'Endereço público das imagens no R2.' },
+  { name: 'PHOTOROOM_API_KEY', group: 'Imagens', importance: 'optional', description: 'Chave do Photoroom para trocar o fundo das fotos de produto ("sandbox_…" é de teste, com marca d’água).' },
 ];
 
 /** Presentes em qualquer servidor (Render, Node, sistema); não são "cadastradas" por ninguém e não entram no aviso. */
