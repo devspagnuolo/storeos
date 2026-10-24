@@ -1423,8 +1423,11 @@ export async function bulkProductsAction(_: FormState, form: FormData): Promise<
 }
 
 export async function savePhotoBackgroundAction(_: FormState, form: FormData): Promise<FormState> {
-  const body = { enabled: form.get('enabled') === 'on', color: String(form.get('color') ?? '').toUpperCase() };
+  const style = String(form.get('style') ?? 'studio');
+  const imageUrl = String(form.get('imageUrl') ?? '').trim();
+  const body = { enabled: form.get('enabled') === 'on', color: String(form.get('color') ?? '').toUpperCase(), style, shadow: form.get('shadow') !== 'false', floor: Number(form.get('floor')) || 0.88, ...(imageUrl && { imageUrl }) };
   if (!/^#[0-9A-F]{6}$/.test(body.color)) return { error: 'Escolha uma cor para o fundo.' };
+  if (style === 'image' && !imageUrl) return { error: 'Envie a imagem de fundo ou escolha outro estilo.' };
   try {
     await adminFetch('/media/background', { method: 'PUT', body });
   } catch (error) {

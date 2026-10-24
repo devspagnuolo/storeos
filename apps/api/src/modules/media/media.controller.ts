@@ -2,20 +2,28 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Header,
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { ArrayMaxSize, IsArray, IsBoolean, IsString, Matches, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 import { Response } from 'express';
 import { CurrentStore } from '../../shared/auth/current-store.decorator';
 import { JwtAuthGuard } from '../../shared/auth/jwt-auth.guard';
 import { Permissions, RequirePermissions } from '../../shared/auth/permissions';
 import { isMediaKind, MEDIA_GUIDELINES } from './media-kinds';
 import { MediaService, UploadedFile } from './media.service';
-import { HEX_COLOR } from './photo-background';
+import { BACKDROP_STYLES, HEX_COLOR } from './photo-background';
+import type { BackdropStyle } from './photo-compose';
 import { PhotoBackgroundService } from './photo-background.service';
 
 const MAX_FILES = 12;
 
 type PanelRequest = { user?: { permissions?: string[] }; protocol: string; get(name: string): string | undefined };
-class BackgroundDto { @IsBoolean() enabled!: boolean; @IsString() @Matches(HEX_COLOR, { message: 'Use uma cor no formato #RRGGBB.' }) color!: string; }
+class BackdropDto {
+  @IsString() @Matches(HEX_COLOR, { message: 'Use uma cor no formato #RRGGBB.' }) color!: string;
+  @IsOptional() @IsIn(BACKDROP_STYLES) style?: BackdropStyle;
+  @IsOptional() @IsString() @MaxLength(2000) @Matches(/^https:\/\//, { message: 'Imagem de fundo inválida.' }) imageUrl?: string;
+  @IsOptional() @IsBoolean() shadow?: boolean;
+  @IsOptional() @IsNumber() @Min(0.5) @Max(1) floor?: number;
+}
+class BackgroundDto extends BackdropDto { @IsBoolean() enabled!: boolean; }
 class PhotoUrlDto { @IsString() @MaxLength(2000) url!: string; }
 class PhotoUrlsDto { @IsArray() @ArrayMaxSize(60) @IsString({ each: true }) @MaxLength(2000, { each: true }) urls!: string[]; }
 
@@ -61,6 +69,18 @@ export class MediaController {
   @RequirePermissions(Permissions.SETTINGS_WRITE)
   saveBackground(@CurrentStore() storeId: string, @Body() dto: BackgroundDto) {
     return this.background.save(storeId, dto);
+  }
+
+  /** Prévia do fundo com uma silhueta de exemplo, sem gastar crédito do Photoroom. */
+  @Post('background/preview')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async previewBackground(@CurrentStore() storeId: string, @Body() dto: BackdropDto, @Req() req: PanelRequest, @Res() res: Response) {
+    assertMediaPermission(req);
+    res.type('image/jpeg').setHeader('Cache-Control', 'no-store');
+    res.send(await this.background.preview(storeId, dto));
   }
 
   /** Troca o fundo de uma foto já cadastrada (cada uso consome um crédito do Photoroom). */
