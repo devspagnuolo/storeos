@@ -5,7 +5,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma.service';
 import { recordMovement } from '../inventory/stock-ledger';
 import { BlingAuthService } from './bling-auth.service';
 import { BlingItem, planStockSync, reconcile, SiteItem } from './bling-reconcile';
-import { BlingClient } from './bling.client';
+import { BlingApiError, BlingClient } from './bling.client';
 import { BlingProductDetail } from './bling-mapper';
 
 const PAGE = 100;
@@ -174,7 +174,11 @@ export class BlingStockService {
   async refreshFromSalesOrder(storeId: string, blingOrderId: string) {
     const connection = await this.prisma.blingConnection.findUnique({ where: { storeId }, select: { stockSyncEnabled: true } });
     if (!connection?.stockSyncEnabled) return 0;
-    const order = (await this.client.request<{ data?: { itens?: { produto?: { id?: number } }[] } }>(await this.auth.accessToken(storeId), `/pedidos/vendas/${encodeURIComponent(blingOrderId)}`)).data;
+    const order = (await this.client.request<{ data?: { itens?: { produto?: { id?: number } }[] } }>(await this.auth.accessToken(storeId), `/pedidos/vendas/${encodeURIComponent(blingOrderId)}`).catch(error => {
+      // Pedido apagado no Bling antes de o aviso ser processado: não há o que baixar, e repetir não adianta.
+      if (error instanceof BlingApiError && error.status === 404) return { data: undefined };
+      throw error;
+    })).data;
     return this.refreshProducts(storeId, (order?.itens ?? []).map(item => Number(item.produto?.id)));
   }
 

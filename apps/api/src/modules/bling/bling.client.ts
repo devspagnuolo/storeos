@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 const API = 'https://api.bling.com.br/Api/v3';
 // O Bling aceita 3 requisições por segundo por conta; ficamos abaixo disso.
 const MIN_GAP_MS = 400;
+// 429 por segundo é passageiro: espera e tenta de novo antes de desistir (a sincronização inteira não cai por uma rajada).
+const RETRY_429_MS = [1_500, 4_000];
 
 export class BlingApiError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -39,7 +41,7 @@ export class BlingClient {
 
   /** Chamadas são serializadas e espaçadas; o limite vale por conta, não por rota. */
   request<T>(accessToken: string, path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-    const run = async () => {
+    const run = async (attempt = 0): Promise<T> => {
       const wait = this.last + MIN_GAP_MS - Date.now();
       if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
       this.last = Date.now();
@@ -51,10 +53,14 @@ export class BlingClient {
       });
       const text = await response.text();
       const data = text ? JSON.parse(text) : undefined;
+      if (response.status === 429 && attempt < RETRY_429_MS.length) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_429_MS[attempt]));
+        return run(attempt + 1);
+      }
       if (!response.ok) throw new BlingApiError(response.status, describeError(response.status, data, `${init.method ?? 'GET'} ${path}`));
       return data as T;
     };
-    const result = this.queue.then(run, run);
+    const result = this.queue.then(() => run(), () => run());
     this.queue = result.catch(() => undefined);
     return result;
   }
